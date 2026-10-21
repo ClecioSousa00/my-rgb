@@ -1,0 +1,15 @@
+# Allow the MyRGB application to talk to the ASUS AURA USB controller.
+#
+# The controller appears as a raw HID device (0b05:19af). Without this rule
+# only root can open it, and the application cannot light up anything.
+#
+# Install with:
+#   sudo cp packaging/linux/udev/60-my-rgb.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# Then unplug and replug the controller (or reboot).
+
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="19af", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+
+# Same controller seen through the USB "AURA Mainboard" composite interface.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="19af", ENV{ID_PATH}=="*", TAG+="uaccess"

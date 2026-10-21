@@ -1,0 +1,60 @@
+appId: com.myrgb.app
+productName: MyRGB
+copyright: my-rgb
+
+directories:
+  output: release
+  buildResources: build
+
+# node-hid is a native module: it must be rebuilt against the packaged
+# Electron ABI, which electron-builder does automatically.
+npmRebuild: true
+buildDependenciesFromSource: false
+
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+
+extraResources:
+  - from: build
+    to: build
+    filter:
+      - '*.png'
+
+asar: true
+compression: maximum
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Utility
+  synopsis: Controle de iluminação RGB para placas ASUS AURA
+  description: >-
+    Controle direto de controladores ASUS AURA USB via HID, com 33 efeitos
+    prontos, autoria visual de efeitos e o mesmo comportamento no Linux e no
+    Windows.
+  desktop:
+    entry:
+      Name: MyRGB
+      Comment: Controle de iluminação RGB para placas ASUS AURA
+      Categories: Utility;Settings;
+      StartupWMClass: MyRGB
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: MyRGB
+  deleteAppDataOnUninstall: false

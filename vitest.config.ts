@@ -1,0 +1,17 @@
+import { resolve } from 'path'
+import { defineConfig } from 'vitest/config'
+
+const root = process.cwd()
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@shared': resolve(root, 'src/shared'),
+      '@main': resolve(root, 'src/main')
+    }
+  },
+  test: {
+    environment: 'node',
+    include: ['tests/**/*.test.ts']
+  }
+})
