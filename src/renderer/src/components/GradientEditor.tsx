@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp, useSelectedZoneConfig } from '../store'
 import { paletteToCssGradient, samplePalette, rgbToHex } from '@shared/color'
+import { HelpTip } from './HelpTip'
 import type { Palette } from '@shared/types'
 
 export function GradientEditor(): React.JSX.Element {
@@ -132,7 +133,10 @@ export function GradientEditor(): React.JSX.Element {
   return (
     <div className="panel flex flex-col">
       <div className="panel-header">
-        <span>Gradiente</span>
+        <span className="flex items-center gap-1.5">
+          Gradiente
+          <HelpTip text="A paleta define as cores. Cada LED do efeito pega uma cor do gradiente - o padrão escolhe qual ponto. Clique na barra para adicionar uma parada e arraste as bolinhas para mover." />
+        </span>
         <div className="flex items-center gap-1.5">
           <select
             className="field h-7 w-32 py-0 text-[11px] normal-case tracking-normal"

@@ -1,4 +1,5 @@
 import { useApp, useSelectedZoneConfig } from '../store'
+import { HelpTip } from './HelpTip'
 import type { ParamSpec, ParamValue } from '@shared/types'
 
 export function ParamSliders(): React.JSX.Element | null {
@@ -30,7 +31,10 @@ export function ParamSliders(): React.JSX.Element | null {
   return (
     <div className="panel flex flex-col">
       <div className="panel-header">
-        <span>Parâmetros</span>
+        <span className="flex items-center gap-1.5">
+          Parâmetros
+          <HelpTip text="Ajuste fino do efeito escolhido. Cada padrão tem os seus próprios parâmetros - passe o mouse sobre o '?' ao lado de cada um para saber o que ele faz." />
+        </span>
         <span className="font-mono normal-case tracking-normal text-ink-400">{pattern.name}</span>
       </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp, zoneDisplayName } from '../store'
+import { HelpTip } from './HelpTip'
 import { showToast } from './Toast'
 import type { ZoneConfig, ZoneState } from '@shared/types'
 
@@ -24,14 +25,19 @@ export function ZoneRail(): React.JSX.Element {
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-ink-700 bg-ink-900/40">
-      <div className="panel-header">Zonas</div>
+      <div className="panel-header">
+        <span className="flex items-center gap-1.5">
+          Zonas
+          <HelpTip text="Cada zona é uma parte física da placa. O número é quantos LEDs aquele header tem - o controlador não conta isso, então você informa. Desmarque a caixa para apagar a zona. Em 'Seguir zona' você faz esta zona espelhar o efeito de outra." />
+        </span>
+      </div>
 
       <div className="flex-1 overflow-y-auto p-2">
         <button
           className="btn mb-2 w-full"
           disabled={!canApplyToAll}
           onClick={() => void handleApplyToAll()}
-          title="Copia o efeito da zona selecionada para todas as zonas. O numero de LEDs e o ligado/desligado de cada uma sao mantidos."
+          title="Copia o efeito da zona selecionada para todas as zonas. O número de LEDs e o ligado/desligado de cada uma são mantidos."
         >
           ⇉ Aplicar a todas as zonas
         </button>

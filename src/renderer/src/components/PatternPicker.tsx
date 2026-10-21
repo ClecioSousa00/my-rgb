@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useApp, useSelectedZoneConfig } from '../store'
+import { HelpTip } from './HelpTip'
 import type { PatternMeta } from '@shared/types'
 
 /** Build the parameter map a pattern starts with. */
@@ -48,7 +49,10 @@ export function PatternPicker(): React.JSX.Element {
   return (
     <div className="panel flex min-h-0 flex-1 flex-col">
       <div className="panel-header">
-        <span>Efeitos</span>
+        <span className="flex items-center gap-1.5">
+          Efeitos
+          <HelpTip text="Cada padrão é um movimento diferente da luz ao longo da fita. Escolher um aqui aplica na zona selecionada, já na pré-visualização e na placa." />
+        </span>
         <span className="font-mono normal-case tracking-normal text-ink-400">
           {patterns.length} padrões
         </span>
