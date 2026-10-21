@@ -52,6 +52,8 @@ interface AppState {
   setGlobal(patch: Partial<GlobalSettings>): Promise<void>
   loadProfile(id: string): Promise<void>
   saveProfile(profile: Profile): Promise<void>
+  duplicateProfile(name: string): Promise<void>
+  renameProfile(name: string): Promise<void>
   toggleEngine(): Promise<void>
   reconnect(): Promise<void>
 }
@@ -137,6 +139,16 @@ export const useApp = create<AppState>((set, get) => ({
   async saveProfile(profile) {
     const saved = await window.myrgb.saveProfile(profile)
     set({ profile: saved })
+  },
+
+  async duplicateProfile(name) {
+    const profile = await window.myrgb.duplicateProfile(name)
+    set({ profile })
+  },
+
+  async renameProfile(name) {
+    const profile = await window.myrgb.renameProfile(name)
+    set({ profile })
   },
 
   async toggleEngine() {

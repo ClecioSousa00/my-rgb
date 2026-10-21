@@ -236,6 +236,18 @@ class MyRgbApp {
     ipcMain.handle(IPC.patternsList, () => patternMetadata())
     ipcMain.handle(IPC.profileGet, () => store.profile)
     ipcMain.handle(IPC.profileSave, (_e, profile: Profile) => store.save(profile))
+    ipcMain.handle(IPC.profileDuplicate, (_e, name: string) => {
+      const profile = store.duplicateProfile(name)
+      this.engine.setProfile(profile)
+      this.emitProfile(profile)
+      return profile
+    })
+    ipcMain.handle(IPC.profileRename, (_e, name: string) => {
+      const profile = store.renameProfile(name)
+      this.engine.setProfile(profile)
+      this.emitProfile(profile)
+      return profile
+    })
     ipcMain.handle(IPC.profileList, () => store.list())
     ipcMain.handle(IPC.profileLoad, (_e, id: string) => {
       const profile = store.load(id)

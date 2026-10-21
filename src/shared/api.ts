@@ -41,6 +41,8 @@ export interface MyRgbApi {
   // profiles
   getProfile(): Promise<Profile>
   saveProfile(profile: Profile): Promise<Profile>
+  duplicateProfile(name: string): Promise<Profile>
+  renameProfile(name: string): Promise<Profile>
   listProfiles(): Promise<string[]>
   loadProfile(id: string): Promise<Profile>
   deleteProfile(id: string): Promise<Profile>

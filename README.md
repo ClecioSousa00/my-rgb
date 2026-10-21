@@ -94,6 +94,7 @@ O instalador NSIS registra a entrada de autostart do Windows quando a opção
 | Ajustar | Os sliders aparecem sozinhos a partir dos parâmetros do padrão |
 | Criar gradiente | Clique na barra do gradiente para adicionar uma parada; arraste para mover |
 | Ligar/desligar | Botão **Luzes ligadas** na barra superior (o preview continua rodando) |
+| Perfis | **Salvar** grava; **⧉** duplica o perfil atual; **✎** renomeia |
 
 Cada zona tem o seu próprio efeito. O botão de olho/estilo no painel
 **Gradiente** duplica uma paleta para você poder experimentar sem perder a

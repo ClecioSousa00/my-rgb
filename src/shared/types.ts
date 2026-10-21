@@ -188,6 +188,8 @@ export const IPC = {
   patternsList: 'patterns:list',
   profileGet: 'profile:get',
   profileSave: 'profile:save',
+  profileDuplicate: 'profile:duplicate',
+  profileRename: 'profile:rename',
   profileList: 'profile:list',
   profileLoad: 'profile:load',
   profileDelete: 'profile:delete',

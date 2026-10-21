@@ -12,6 +12,8 @@ export function TopBar(): React.JSX.Element {
   const setGlobal = useApp((s) => s.setGlobal)
   const loadProfile = useApp((s) => s.loadProfile)
   const saveProfile = useApp((s) => s.saveProfile)
+  const duplicateProfile = useApp((s) => s.duplicateProfile)
+  const renameProfile = useApp((s) => s.renameProfile)
 
   const [profileNames, setProfileNames] = useState<string[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
@@ -37,6 +39,22 @@ export function TopBar(): React.JSX.Element {
   const handleSave = async (): Promise<void> => {
     if (!profile) return
     await saveProfile(profile)
+    setProfileNames(await window.myrgb.listProfiles())
+  }
+
+  const handleDuplicate = async (): Promise<void> => {
+    if (!profile) return
+    const name = window.prompt('Nome do novo perfil', `${profile.name} cópia`)
+    if (name === null) return
+    await duplicateProfile(name)
+    setProfileNames(await window.myrgb.listProfiles())
+  }
+
+  const handleRename = async (): Promise<void> => {
+    if (!profile) return
+    const name = window.prompt('Renomear perfil', profile.name)
+    if (name === null || name === profile.name) return
+    await renameProfile(name)
     setProfileNames(await window.myrgb.listProfiles())
   }
 
@@ -93,6 +111,20 @@ export function TopBar(): React.JSX.Element {
         </select>
         <button className="btn" onClick={() => void handleSave()}>
           Salvar
+        </button>
+        <button
+          className="btn btn-ghost"
+          onClick={() => void handleDuplicate()}
+          title="Criar uma cópia deste perfil"
+        >
+          ⧉
+        </button>
+        <button
+          className="btn btn-ghost"
+          onClick={() => void handleRename()}
+          title="Renomear este perfil"
+        >
+          ✎
         </button>
       </div>
 

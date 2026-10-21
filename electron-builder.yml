@@ -42,7 +42,10 @@ linux:
       Name: MyRGB
       Comment: Controle de iluminação RGB para placas ASUS AURA
       Categories: Utility;Settings;
-      StartupWMClass: MyRGB
+  # Derives the .desktop filename from package.json "desktopName" so that it
+  # matches StartupWMClass and Electron's app_id, letting the desktop
+  # environment link the running window to the launcher entry.
+  syncDesktopName: true
 
 win:
   target:

@@ -33,22 +33,19 @@ export const DEFAULT_HEADER_LEDS = 72
 const WRITE_DEBOUNCE_MS = 250
 
 export function defaultProfile(zones: ZoneState[] = []): Profile {
+  // Every zone starts with the same effect, matching what reconcileProfile
+  // does for zones that have none yet.
   const zoneConfigs: ZoneConfig[] = zones.map((zone) => ({
     zoneId: zone.id,
     enabled: true,
     ledCount: zone.kind === 'addressable' ? DEFAULT_HEADER_LEDS : zone.maxLedCount,
-    effect: null,
-    followZoneId: null
-  }))
-
-  const firstAddressable = zoneConfigs.find((z) => z.enabled)
-  if (firstAddressable) {
-    firstAddressable.effect = {
+    effect: {
       patternId: 'rainbow',
       paletteId: BUILTIN_PALETTES[0].id,
       params: defaultParams('rainbow')
-    }
-  }
+    },
+    followZoneId: null
+  }))
 
   return {
     version: 1,
@@ -115,6 +112,8 @@ export class ProfileStore {
   private readonly dir: string
   private current: Profile
   private writeTimer: NodeJS.Timeout | null = null
+  /** Path of the file this store last wrote to. */
+  private writtenPath: string | null = null
 
   constructor(userDataPath: string, initial: Profile) {
     this.dir = join(userDataPath, 'profiles')
@@ -159,6 +158,7 @@ export class ProfileStore {
   delete(id: string): void {
     const path = this.pathFor(id)
     if (existsSync(path)) unlinkSync(path)
+    if (this.writtenPath === path) this.writtenPath = null
     if (this.current.name === id) {
       this.current = defaultProfile()
       this.writeCurrent()
@@ -207,6 +207,51 @@ export class ProfileStore {
     return this.save(this.current)
   }
 
+  /**
+   * Copy the current profile under a new name.
+   *
+   * The copy becomes the current profile, so the user can go on editing it
+   * without touching the original.
+   */
+  duplicateProfile(newName: string): Profile {
+    const name = newName.trim() || `${this.current.name} cópia`
+    const copy: Profile = {
+      ...this.current,
+      name,
+      zones: this.current.zones.map((z) => ({
+        ...z,
+        effect: z.effect
+          ? { ...z.effect, params: { ...z.effect.params } }
+          : null
+      })),
+      palettes: this.current.palettes.map((p) => ({
+        ...p,
+        stops: p.stops.map((s) => ({ ...s }))
+      })),
+      global: { ...this.current.global }
+    }
+    return this.save(copy)
+  }
+
+  /**
+   * Rename the current profile.
+   *
+   * The file moves with it, so the profile list does not end up holding a
+   * stale copy under the old name.
+   */
+  renameProfile(newName: string): Profile {
+    const oldName = this.current.name
+    const name = newName.trim()
+    if (!name || name === oldName) return this.current
+
+    const oldPath = this.pathFor(oldName)
+    if (existsSync(oldPath)) unlinkSync(oldPath)
+    if (this.writtenPath === oldPath) this.writtenPath = null
+
+    this.current = { ...this.current, name }
+    return this.save(this.current)
+  }
+
   private writeCurrent(): void {
     // Dragging a slider fires dozens of changes per second. Debounce the disk
     // write so the profile is persisted once the user settles.
@@ -230,6 +275,7 @@ export class ProfileStore {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     const file = join(this.dir, `${sanitize(this.current.name)}.json`)
     writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
+    this.writtenPath = file
   }
 
   private pathFor(id: string): string {

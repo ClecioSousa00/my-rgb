@@ -36,7 +36,7 @@ export class EffectEngine {
   private origin = 0
   private lastTick = 0
   /** Whether the LEDs currently hold a colour we wrote. */
-  private lightsOn = true
+  private lightsState: 'unknown' | 'on' | 'off' = 'unknown'
 
   constructor(profile: Profile, zones: ZoneState[], options: EngineOptions) {
     this.profile = profile
@@ -47,6 +47,11 @@ export class EffectEngine {
 
   setDevice(device: AuraUsbDevice | null): void {
     this.device = device
+    // A freshly connected device may be showing anything - another program,
+    // or the last state before the cable was unplugged. The output state has
+    // to be applied again from scratch.
+    this.lightsState = 'unknown'
+    this.syncOutput()
   }
 
   setProfile(profile: Profile): void {
@@ -66,12 +71,12 @@ export class EffectEngine {
     if (!this.device || !this.device.connected) return
 
     if (this.profile.global.outputEnabled) {
-      this.lightsOn = true
+      this.lightsState = 'on'
       return
     }
 
-    if (!this.lightsOn) return
-    this.lightsOn = false
+    if (this.lightsState === 'off') return
+    this.lightsState = 'off'
 
     for (const zone of this.zones) {
       const config = this.profile.zones.find((z) => z.zoneId === zone.id)
@@ -84,6 +89,8 @@ export class EffectEngine {
         )
       } catch (err) {
         this.onError?.(`Failed to clear zone ${zone.id}: ${errorMessage(err)}`)
+        // The zone is still lit, so try again on the next sync.
+        this.lightsState = 'unknown'
         return
       }
     }
