@@ -75,6 +75,10 @@ Na sua placa: **Advanced → Onboard Devices → Aura** (o nome exato varia).
 Abra o MyRGB. A barra superior deve mostrar o firmware do controlador e o
 status **sem** a etiqueta de conflito.
 
+A checagem de conflito roda o tempo todo (a cada 5 segundos), então se você
+abrir o Armoury Crate depois de o MyRGB estar rodando, a etiqueta
+**conflito** aparece na barra superior sem precisar reiniciar nada.
+
 ---
 
 ## Diagnóstico

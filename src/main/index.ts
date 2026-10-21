@@ -24,6 +24,9 @@ import type { EngineState } from '@shared/api'
 
 const isDev = !app.isPackaged
 
+/** How often to look for other programs fighting us for the controller. */
+const CONFLICT_POLL_MS = 5000
+
 class MyRgbApp {
   private device = new AuraUsbDevice()
   private zones: ZoneState[] = []
@@ -33,6 +36,7 @@ class MyRgbApp {
   private window: BrowserWindow | null = null
   private trayHandle: TrayHandle | null = null
   private conflicts: ConflictReport = { conflicting: false, processes: [], hint: '' }
+  private conflictTimer: NodeJS.Timeout | null = null
   private quitting = false
 
   async start(): Promise<void> {
@@ -53,6 +57,7 @@ class MyRgbApp {
 
     await this.openDevice()
     this.refreshConflicts()
+    this.startConflictWatch()
 
     this.createWindow()
     this.createTray()
@@ -92,11 +97,33 @@ class MyRgbApp {
   }
 
   private async refreshConflicts(): Promise<void> {
+    const before = this.conflicts.conflicting
     try {
       this.conflicts = await detectConflicts()
     } catch {
       this.conflicts = { conflicting: false, processes: [], hint: '' }
     }
+
+    // Another program may start driving the controller at any time - the
+    // Armoury Crate service in particular comes up after the user logs in.
+    // Tell the UI as soon as the situation changes.
+    if (before !== this.conflicts.conflicting) {
+      this.pushDeviceInfo()
+    }
+  }
+
+  /**
+   * Keep an eye on other programs that may fight us for the controller.
+   *
+   * The check is cheap (one process listing) but it has to run periodically:
+   * a conflict that appears after startup is exactly the one that causes
+   * flickering the user cannot explain.
+   */
+  private startConflictWatch(): void {
+    if (this.conflictTimer) clearInterval(this.conflictTimer)
+    this.conflictTimer = setInterval(() => {
+      void this.refreshConflicts()
+    }, CONFLICT_POLL_MS)
   }
 
   // --- window & tray ------------------------------------------------------
@@ -202,6 +229,12 @@ class MyRgbApp {
         lastFrameSeq: -1,
         error: message
       } as EngineState & { error: string })
+    }
+  }
+
+  private pushDeviceInfo(): void {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send(IPC.deviceInfo, this.deviceInfo)
     }
   }
 
@@ -339,6 +372,10 @@ class MyRgbApp {
   /** Release everything before the app quits. */
   shutdown(): void {
     this.engine?.stop()
+    if (this.conflictTimer) {
+      clearInterval(this.conflictTimer)
+      this.conflictTimer = null
+    }
     this.profileStore?.flush()
     this.trayHandle?.tray.destroy()
     this.trayHandle = null

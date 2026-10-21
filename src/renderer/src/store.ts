@@ -97,6 +97,9 @@ export const useApp = create<AppState>((set, get) => ({
       })
       window.myrgb.onProfileChange((next) => set({ profile: next }))
       window.myrgb.onEngineState((state) => set({ engineRunning: state.running }))
+      // The conflict with another program can start at any time, so the
+      // device status has to be pushed rather than only read once.
+      window.myrgb.onDeviceChange((info) => set({ device: info }))
     } catch (err) {
       set({ error: errorMessage(err), ready: true })
     }

@@ -6,15 +6,23 @@ directories:
   output: release
   buildResources: build
 
-# node-hid is a native module: it must be rebuilt against the packaged
-# Electron ABI, which electron-builder does automatically.
-npmRebuild: true
+# node-hid 3.x ships N-API v4 prebuilds for every supported platform
+# (linux-x64, win32-x64, darwin-*). N-API is ABI stable, so the same binary
+# works in Node and in Electron and no source compilation is needed - which
+# also means the Windows installer can be produced from Linux.
+npmRebuild: false
 buildDependenciesFromSource: false
 
 files:
   - out/**/*
   - package.json
   - '!**/*.map'
+  # Never ship a locally compiled binding: at runtime pkg-prebuilds prefers
+  # build/Release over the prebuilds, which would load the Linux binary on
+  # Windows. The prebuilds carry the right binary for every platform.
+  - '!node_modules/node-hid/build/**'
+  - '!node_modules/node-hid/hidapi/**'
+  - '!node_modules/node-hid/src/**'
 
 extraResources:
   - from: build

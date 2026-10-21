@@ -26,8 +26,9 @@ operacionais.
 - **Zonas independentes** (LED onboard + 3 headers ARGB), com opção de uma zona
   "seguir" outra.
 - **Bandeja do sistema** com controle rápido das luzes.
-- **Detecção de conflito**: avisa quando outro programa (Armoury Crate,
-  OpenRGB) também está controlando o mesmo controlador.
+- **Detecção de conflito contínua**: avisa quando outro programa (Armoury Crate,
+  OpenRGB) também está controlando o mesmo controlador — inclusive se ele
+  começou a rodar depois do app.
 
 ## Requisitos
 
@@ -152,7 +153,7 @@ garantir que as duas execuções usaram a mesma configuração.
 ## Desenvolvimento
 
 ```bash
-npm install          # instala e reconstrói o node-hid para o Electron
+npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
 npm test             # vitest
@@ -166,8 +167,43 @@ npm run build        # build de produção em out/
 | `node tools/probe-aura.mjs` | Lê a config table do hardware real e mostra o layout |
 | `node tools/gen-icons.mjs` | Regenera os ícones do app e da bandeja |
 | `node tools/compare-frames.mjs <a> <b>` | Compara dois dumps de frames |
+| `node tools/check-hid-binary.mjs` | Confere se o binário nativo do node-hid existe para esta plataforma |
 | `npx electron . --write-test` | Escreve um arco-íris em todas as zonas (teste de hardware) |
 | `npx electron . --selftest` | Sobe a UI e verifica que ela montou e está recebendo frames |
+
+### O binário nativo
+
+O `node-hid` 3.x traz binários prontos (N-API v4) para todas as plataformas
+que o MyRGB usa. N-API tem ABI estável, então o mesmo binário funciona no
+Node e no Electron — **não há compilação envolvida**:
+
+```bash
+npm run build:win:dir    # gera release/win-unpacked/ a partir do Linux
+```
+
+O binário nativo compilado localmente (`node_modules/node-hid/build`) é
+**excluído** do pacote de propósito: em tempo de execução o `pkg-prebuilds`
+prefere esse diretório ao prebuild, e ele conteria o binário do Linux dentro
+do instalador do Windows. O que vai no pacote são só os prebuilds, cada um
+com o binário da plataforma certa.
+
+### O instalador do Windows
+
+O instalador NSIS (`MyRGB-<versão>-setup.exe`) precisa ser gerado **no
+Windows** ou numa máquina com o `wine` instalado: o alvo NSIS do
+electron-builder executa o instalador recém-gerado para extrair o
+desinstalador, e isso exige o `wine` no Linux.
+
+```bash
+# no Windows
+npm run build:win        # release/MyRGB-0.1.0-setup.exe
+```
+
+O `build:win:dir` funciona em qualquer sistema e serve para conferir o
+empacotamento (estrutura do asar, binário nativo, ícones) antes de ir para
+o Windows.
+
+
 
 ### Estrutura
 
