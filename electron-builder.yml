@@ -1,6 +1,6 @@
 appId: com.myrgb.app
 productName: MyRGB
-copyright: my-rgb
+copyright: Copyright © 2026 ClecioSousa00
 
 directories:
   output: release

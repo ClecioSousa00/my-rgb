@@ -5,10 +5,17 @@
   "main": "./out/main/index.js",
   "desktopName": "my-rgb",
   "author": {
-    "name": "my-rgb",
-    "email": "my-rgb@users.noreply.github.com"
+    "name": "ClecioSousa00",
+    "email": "cleciosouza015@gmail.com"
   },
-  "homepage": "https://github.com/my-rgb/my-rgb",
+  "homepage": "https://github.com/ClecioSousa00/my-rgb",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ClecioSousa00/my-rgb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ClecioSousa00/my-rgb/issues"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
