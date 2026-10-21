@@ -119,6 +119,14 @@ export interface ZoneConfig {
   zoneId: string
   enabled: boolean
   /**
+   * Name the user gave to this zone.
+   *
+   * The hardware only reports what a zone is ("Header ARGB 1", "LEDs
+   * onboard"); this is what the user calls it ("Frente da caixa", "Ventoinha
+   * da esquerda"). Empty means "use the hardware name".
+   */
+  name?: string
+  /**
    * Number of LEDs addressed on this zone.
    *
    * The AURA controller does not report the length of the addressable headers

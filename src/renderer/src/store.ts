@@ -238,4 +238,15 @@ export function useSelectedPattern(): PatternMeta | undefined {
   return useApp((s) => s.patterns.find((p) => p.id === patternId))
 }
 
+/**
+ * The name shown for a zone.
+ *
+ * The user can rename a zone per profile; when they did not, the name the
+ * hardware reports is used.
+ */
+export function zoneDisplayName(zone: ZoneState, config?: ZoneConfig): string {
+  const custom = config?.name?.trim()
+  return custom ? custom : zone.label
+}
+
 export type { ParamValue }

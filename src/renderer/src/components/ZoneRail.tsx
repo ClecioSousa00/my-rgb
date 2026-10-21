@@ -1,4 +1,6 @@
-import { useApp } from '../store'
+import { useEffect, useRef, useState } from 'react'
+import { useApp, zoneDisplayName } from '../store'
+import type { ZoneConfig, ZoneState } from '@shared/types'
 
 export function ZoneRail(): React.JSX.Element {
   const zones = useApp((s) => s.zones)
@@ -7,76 +9,36 @@ export function ZoneRail(): React.JSX.Element {
   const selectZone = useApp((s) => s.selectZone)
   const setZoneConfig = useApp((s) => s.setZoneConfig)
 
+  const configFor = (zoneId: string): ZoneConfig | undefined =>
+    profile?.zones.find((z) => z.zoneId === zoneId)
+
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-ink-700 bg-ink-900/40">
       <div className="panel-header">Zonas</div>
 
       <div className="flex-1 overflow-y-auto p-2">
         {zones.map((zone) => {
-          const config = profile?.zones.find((z) => z.zoneId === zone.id)
+          const config = configFor(zone.id)
           const active = zone.id === selectedZoneId
           const followed = config?.followZoneId
             ? profile?.zones.find((z) => z.zoneId === config.followZoneId)
             : undefined
+          const followedZone = followed
+            ? zones.find((z) => z.id === followed.zoneId)
+            : undefined
 
           return (
-            <div
+            <ZoneCard
               key={zone.id}
-              onClick={() => selectZone(zone.id)}
-              className={`mb-1.5 cursor-pointer rounded-lg border p-2.5 transition-colors ${
-                active
-                  ? 'border-brand-500/60 bg-brand-500/10'
-                  : 'border-ink-700 bg-ink-850 hover:border-ink-600'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-[12.5px] font-medium ${active ? 'text-ink-100' : 'text-ink-200'}`}>
-                  {zone.label}
-                </span>
-                <input
-                  type="checkbox"
-                  className="accent-brand-500"
-                  checked={config?.enabled ?? false}
-                  title="Ativar esta zona"
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) =>
-                    void setZoneConfig(zone.id, { enabled: e.target.checked })
-                  }
-                />
-              </div>
-
-              <div className="mt-1.5 flex items-center gap-1.5">
-                {zone.kind === 'addressable' ? (
-                  <>
-                    <input
-                      type="number"
-                      className="field h-6 w-14 px-1.5 py-0 text-[11px]"
-                      min={0}
-                      max={zone.maxLedCount}
-                      value={config?.ledCount ?? 0}
-                      title="Quantidade de LEDs neste header"
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) =>
-                        void setZoneConfig(zone.id, {
-                          ledCount: Math.max(0, Math.min(zone.maxLedCount, Number(e.target.value)))
-                        })
-                      }
-                    />
-                    <span className="text-[10.5px] text-ink-400">/ {zone.maxLedCount} LEDs</span>
-                  </>
-                ) : (
-                  <span className="text-[10.5px] text-ink-400">
-                    {zone.maxLedCount} LED fixo onboard
-                  </span>
-                )}
-              </div>
-
-              {followed && (
-                <div className="mt-1.5 text-[10.5px] text-accent-400">
-                  seguindo {followed.zoneId === 'mainboard' ? 'onboard' : followed.zoneId}
-                </div>
-              )}
-            </div>
+              zone={zone}
+              config={config}
+              active={active}
+              followedName={
+                followedZone ? zoneDisplayName(followedZone, followed) : undefined
+              }
+              onSelect={() => selectZone(zone.id)}
+              onConfig={(patch) => void setZoneConfig(zone.id, patch)}
+            />
           )
         })}
 
@@ -90,6 +52,153 @@ export function ZoneRail(): React.JSX.Element {
 
       <ZoneFollowPicker />
     </aside>
+  )
+}
+
+function ZoneCard({
+  zone,
+  config,
+  active,
+  followedName,
+  onSelect,
+  onConfig
+}: {
+  zone: ZoneState
+  config: ZoneConfig | undefined
+  active: boolean
+  followedName: string | undefined
+  onSelect: () => void
+  onConfig: (patch: Partial<ZoneConfig>) => void
+}): React.JSX.Element {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  /** Enter commits and then blurs the input, so the commit must happen once. */
+  const committing = useRef(false)
+
+  const displayName = zoneDisplayName(zone, config)
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  const startEditing = (): void => {
+    committing.current = false
+    setDraft(config?.name ?? '')
+    setEditing(true)
+  }
+
+  const commit = (): void => {
+    if (committing.current) return
+    committing.current = true
+    const trimmed = draft.trim()
+    setEditing(false)
+    // An empty name means "go back to the name the hardware reports".
+    if (trimmed === (config?.name ?? '')) return
+    onConfig({ name: trimmed })
+  }
+
+  const cancel = (): void => {
+    setEditing(false)
+  }
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`mb-1.5 cursor-pointer rounded-lg border p-2.5 transition-colors ${
+        active
+          ? 'border-brand-500/60 bg-brand-500/10'
+          : 'border-ink-700 bg-ink-850 hover:border-ink-600'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        {editing ? (
+          <input
+            ref={inputRef}
+            className="field h-6 min-w-0 flex-1 px-1.5 py-0 text-[12px]"
+            value={draft}
+            placeholder={zone.label}
+            maxLength={40}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commit()
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                cancel()
+              }
+            }}
+          />
+        ) : (
+          <span
+            className={`min-w-0 flex-1 truncate text-[12.5px] font-medium ${
+              active ? 'text-ink-100' : 'text-ink-200'
+            }`}
+            title={config?.name ? `${displayName} (padrão: ${zone.label})` : displayName}
+          >
+            {displayName}
+          </span>
+        )}
+
+        {!editing && (
+          <button
+            className="shrink-0 rounded px-1 text-[11px] text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+            title="Renomear esta zona"
+            onClick={(e) => {
+              e.stopPropagation()
+              startEditing()
+            }}
+          >
+            ✎
+          </button>
+        )}
+
+        <input
+          type="checkbox"
+          className="accent-brand-500"
+          checked={config?.enabled ?? false}
+          title="Ativar esta zona"
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => void onConfig({ enabled: e.target.checked })}
+        />
+      </div>
+
+      <div className="mt-1.5 flex items-center gap-1.5">
+        {zone.kind === 'addressable' ? (
+          <>
+            <input
+              type="number"
+              className="field h-6 w-14 px-1.5 py-0 text-[11px]"
+              min={0}
+              max={zone.maxLedCount}
+              value={config?.ledCount ?? 0}
+              title="Quantidade de LEDs neste header"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) =>
+                void onConfig({
+                  ledCount: Math.max(0, Math.min(zone.maxLedCount, Number(e.target.value)))
+                })
+              }
+            />
+            <span className="text-[10.5px] text-ink-400">/ {zone.maxLedCount} LEDs</span>
+          </>
+        ) : (
+          <span className="text-[10.5px] text-ink-400">
+            {zone.maxLedCount} LED fixo onboard
+          </span>
+        )}
+      </div>
+
+      {followedName && (
+        <div className="mt-1.5 text-[10.5px] text-accent-400">seguindo {followedName}</div>
+      )}
+    </div>
   )
 }
 
@@ -123,7 +232,7 @@ function ZoneFollowPicker(): React.JSX.Element {
           .filter((z) => z.id !== selectedZoneId)
           .map((z) => (
             <option key={z.id} value={z.id}>
-              {z.label}
+              {zoneDisplayName(z, profile?.zones.find((c) => c.zoneId === z.id))}
             </option>
           ))}
       </select>

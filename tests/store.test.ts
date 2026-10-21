@@ -247,4 +247,22 @@ describe('ProfileStore', () => {
     const store = new ProfileStore(dir, defaultProfile(ZONES))
     expect(() => store.setZoneEffect('inexistente', null)).toThrow()
   })
+
+  it('keeps the name the user gave to a zone', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneConfig('argb0', { name: 'Frente da caixa' })
+    store.flush()
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    const loaded = reopened.load('Padrão')
+    expect(loaded.zones.find((z) => z.zoneId === 'argb0')?.name).toBe('Frente da caixa')
+  })
+
+  it('keeps the zone name when the profile is reconciled with the hardware', () => {
+    const profile = defaultProfile(ZONES)
+    profile.zones[1].name = 'Ventoinha'
+    const reconciled = reconcileProfile(profile, ZONES)
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb0')?.name).toBe('Ventoinha')
+  })
 })
