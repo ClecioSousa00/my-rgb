@@ -72,7 +72,10 @@ function ParamControl({
   if (spec.type === 'boolean') {
     return (
       <label className="flex items-center justify-between gap-3">
-        <span className="text-[12px] text-ink-300">{spec.label}</span>
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-300">
+          {spec.label}
+          {spec.description && <HelpTip text={spec.description} />}
+        </span>
         <input
           type="checkbox"
           className="accent-brand-500"
@@ -86,7 +89,10 @@ function ParamControl({
   if (spec.type === 'select') {
     return (
       <label className="flex items-center justify-between gap-3">
-        <span className="text-[12px] text-ink-300">{spec.label}</span>
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-300">
+          {spec.label}
+          {spec.description && <HelpTip text={spec.description} />}
+        </span>
         <select
           className="field w-32"
           value={String(value)}
@@ -108,7 +114,11 @@ function ParamControl({
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className="text-[12px] text-ink-300">{spec.label}</span>
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-300">
+          {spec.label}
+          {spec.description && <HelpTip text={spec.description} />}
+          {spec.unit && <span className="text-[10px] text-ink-500">({spec.unit})</span>}
+        </span>
         <span className="font-mono text-[11px] text-ink-400">
           {formatNumber(numeric)}
           {spec.unit ? ` ${spec.unit}` : ''}

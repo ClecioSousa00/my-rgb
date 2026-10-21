@@ -4,16 +4,7 @@
 
 import type { Pattern } from '../types'
 import { clamp, wrap01 } from './helpers'
-
-const RATE = {
-  key: 'rate',
-  label: 'Velocidade',
-  type: 'number' as const,
-  min: 0.05,
-  max: 4,
-  step: 0.05,
-  default: 1
-}
+import { RATE } from './params'
 
 export const spectrumPatterns: Pattern[] = [
   {
@@ -30,7 +21,9 @@ export const spectrumPatterns: Pattern[] = [
         min: 0.25,
         max: 8,
         step: 0.25,
-        default: 1
+        default: 1,
+        description:
+          'Quantas vezes o gradiente se repete na fita. Com 1 cada cor aparece uma vez; com 4 o arco-íris fica bem fechado.'
       }
     ],
     render: (ctx) => ({
@@ -51,7 +44,8 @@ export const spectrumPatterns: Pattern[] = [
         min: 0.25,
         max: 8,
         step: 0.25,
-        default: 1
+        default: 1,
+        description: 'Quantas vezes o gradiente se repete na fita.'
       },
       {
         key: 'depth',
@@ -60,7 +54,9 @@ export const spectrumPatterns: Pattern[] = [
         min: 0,
         max: 1,
         step: 0.01,
-        default: 0.6
+        default: 0.6,
+        description:
+          'O quanto o brilho cai no fundo de cada ciclo. 0 mantém o arco-íris sempre igual; 1 faz a fita escurecer entre um ciclo e outro.'
       }
     ],
     render: (ctx) => {
@@ -86,7 +82,9 @@ export const spectrumPatterns: Pattern[] = [
         min: 0.25,
         max: 8,
         step: 0.25,
-        default: 1
+        default: 1,
+        description:
+          'Quantas vezes a varredura de cor se repete na fita. Acima de 1 mais de uma cor viaja junto.'
       }
     ],
     render: (ctx) => {

@@ -4,16 +4,7 @@
 
 import type { Pattern } from '../types'
 import { clamp, hash, pulse, wrap01 } from './helpers'
-
-const RATE = {
-  key: 'rate',
-  label: 'Velocidade',
-  type: 'number' as const,
-  min: 0.05,
-  max: 4,
-  step: 0.05,
-  default: 1
-}
+import { RATE } from './params'
 
 export const dotPatterns: Pattern[] = [
   {
@@ -30,7 +21,8 @@ export const dotPatterns: Pattern[] = [
         min: 1,
         max: 16,
         step: 1,
-        default: 4
+        default: 4,
+        description: 'Quantos pontos correm pela fita, sempre com o mesmo espaço entre eles.'
       },
       {
         key: 'width',
@@ -39,7 +31,8 @@ export const dotPatterns: Pattern[] = [
         min: 0.5,
         max: 12,
         step: 0.5,
-        default: 1.5
+        default: 1.5,
+        description: 'Quantos LEDs tem cada ponto de luz.'
       }
     ],
     render: (ctx) => {
@@ -69,7 +62,8 @@ export const dotPatterns: Pattern[] = [
         min: 1,
         max: 10,
         step: 1,
-        default: 3
+        default: 3,
+        description: 'Quantos pontos correm pela fita. Cada um escolhe um caminho diferente.'
       },
       {
         key: 'width',
@@ -78,7 +72,8 @@ export const dotPatterns: Pattern[] = [
         min: 0.5,
         max: 8,
         step: 0.5,
-        default: 2
+        default: 2,
+        description: 'Quantos LEDs tem cada ponto de luz.'
       }
     ],
     render: (ctx) => {
@@ -114,7 +109,8 @@ export const dotPatterns: Pattern[] = [
         max: 72,
         step: 1,
         default: 20,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs o rastro ocupa antes de sumir.'
       }
     ],
     render: (ctx) => {

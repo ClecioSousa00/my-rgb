@@ -74,6 +74,7 @@ export type ParamSpec =
       label: string
       type: 'boolean'
       default: boolean
+      description?: string
     }
   | {
       key: string
@@ -81,6 +82,7 @@ export type ParamSpec =
       type: 'select'
       default: string
       options: { value: string; label: string }[]
+      description?: string
     }
 
 export interface PatternMeta {

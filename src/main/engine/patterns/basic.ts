@@ -4,16 +4,7 @@
 
 import type { Pattern } from '../types'
 import { lerp, wrap01 } from './helpers'
-
-const RATE = {
-  key: 'rate',
-  label: 'Velocidade',
-  type: 'number' as const,
-  min: 0.05,
-  max: 4,
-  step: 0.05,
-  default: 1
-}
+import { RATE } from './params'
 
 export const basicPatterns: Pattern[] = [
   {
@@ -29,7 +20,9 @@ export const basicPatterns: Pattern[] = [
         min: 0,
         max: 1,
         step: 0.01,
-        default: 0
+        default: 0,
+        description:
+          'Qual cor do gradiente é usada. 0 é a primeira parada e 1 é a última; no meio fica a cor do meio.'
       }
     ],
     render: (ctx) => ({ u: Number(ctx.params.point ?? 0) })
@@ -47,7 +40,9 @@ export const basicPatterns: Pattern[] = [
         min: 0.25,
         max: 6,
         step: 0.25,
-        default: 1
+        default: 1,
+        description:
+          'Quantas vezes o gradiente cabe na fita. 1 mostra o gradiente inteiro uma vez; 2 mostra duas cópias.'
       }
     ],
     render: (ctx) => ({ u: wrap01(ctx.position * Number(ctx.params.spread ?? 1)) })
@@ -66,7 +61,9 @@ export const basicPatterns: Pattern[] = [
         min: 0,
         max: 1,
         step: 0.01,
-        default: 0.7
+        default: 0.7,
+        description:
+          'O quanto a luz apaga e acende a cada ciclo. 0 mantém o brilho fixo; 1 faz a fita sumir e voltar.'
       }
     ],
     render: (ctx) => {
@@ -92,7 +89,9 @@ export const basicPatterns: Pattern[] = [
         min: 0,
         max: 1,
         step: 0.01,
-        default: 0.08
+        default: 0.08,
+        description:
+          'O ponto mais apagado do ciclo. 0 apaga de vez; acima de 0 a fita nunca chega a ficar preta.'
       }
     ],
     render: (ctx) => {
@@ -118,7 +117,9 @@ export const basicPatterns: Pattern[] = [
         min: 0,
         max: 1,
         step: 0.01,
-        default: 0
+        default: 0,
+        description:
+          'De qual cor do gradiente a varredura parte. A cor muda ao longo do tempo, mas o ponto na fita é sempre o mesmo.'
       }
     ],
     render: (ctx) => {
