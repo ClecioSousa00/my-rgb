@@ -42,7 +42,7 @@ linux:
   category: Utility
   synopsis: Controle de iluminação RGB para placas ASUS AURA
   description: >-
-    Controle direto de controladores ASUS AURA USB via HID, com 33 efeitos
+    Controle direto de controladores ASUS AURA USB via HID, com 34 efeitos
     prontos, autoria visual de efeitos e o mesmo comportamento no Linux e no
     Windows.
   desktop:

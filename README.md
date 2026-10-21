@@ -14,7 +14,7 @@ operacionais.
 
 ## O que ele faz
 
-- **33 efeitos prontos**, organizados em 6 categorias (mais que o OpenRGB oferece).
+- **34 efeitos prontos**, organizados em 6 categorias (mais que o OpenRGB oferece).
 - **Autoria visual de efeitos**: escolha um padrão, um gradiente e ajuste
   parâmetros por sliders — sem scripting, sem timeline.
 - **Gradientes multi-parada** com interpolação em RGB ou HSV, editáveis
@@ -101,7 +101,7 @@ Cada zona tem o seu próprio efeito. O botão de olho/estilo no painel
 **Gradiente** duplica uma paleta para você poder experimentar sem perder a
 original.
 
-### Os 33 efeitos
+### Os 34 efeitos
 
 | Categoria | Efeitos |
 |---|---|
@@ -212,7 +212,7 @@ src/
   shared/          tipos + matemática de cor (usados pelos dois lados)
   main/            processo principal
     aura/          protocolo (puro) + transporte HID
-    engine/        motor de efeitos + os 33 padrões
+    engine/        motor de efeitos + os 34 padrões
     store/         perfis e configurações em JSON
     platform/      detecção de conflito com Armoury Crate / OpenRGB
   preload/         ponte contextBridge (única ponte renderer ↔ main)

@@ -499,20 +499,61 @@ async function runSelfTest(): Promise<void> {
     setTimeout(resolve, 8000)
   })
 
-  await new Promise((resolve) => setTimeout(resolve, 2500))
+  // Wait for the renderer to finish loading its data and for the engine to
+  // actually produce frames. A fixed delay is flaky: an AppImage has to
+  // mount its filesystem first and can take a while to get there.
+  const deadline = Date.now() + 20000
+  for (;;) {
+    const settled = await window.webContents.executeJavaScript(
+      `window.__myRgbReady === true`
+    )
+    if (settled) break
+    if (Date.now() > deadline) break
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+
+  // Give the engine a moment to emit frames.
+  const frameDeadline = Date.now() + 8000
+  for (;;) {
+    const frames = await window.webContents.executeJavaScript(
+      `window.__myRgbFrameCount ?? 0`
+    )
+    if (frames > 0 || Date.now() > frameDeadline) break
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
 
   const report = await window.webContents.executeJavaScript(`
-    (() => ({
-      mounted: (document.getElementById('root')?.children.length ?? 0) > 0,
-      bridge: typeof window.myrgb === 'object',
-      buttons: document.querySelectorAll('button').length,
-      canvases: document.querySelectorAll('canvas').length,
-      sliders: document.querySelectorAll('input[type=range]').length,
-      frames: window.__myRgbFrameCount ?? 0,
-      zoneRail: /zonas/i.test(document.body.innerText),
-      effects: /efeitos/i.test(document.body.innerText),
-      gradient: /gradiente/i.test(document.body.innerText)
-    }))()
+    (async () => {
+      // Probe every call the renderer makes on startup. One of them hanging
+      // is what leaves the UI empty, and this says which one.
+      const probe = {}
+      for (const key of ['getDeviceInfo', 'listZones', 'listPatterns', 'getProfile', 'getEngineState']) {
+        try {
+          const value = await window.myrgb[key]()
+          probe[key] = Array.isArray(value)
+            ? 'array(' + value.length + ')'
+            : typeof value === 'object' && value !== null
+              ? JSON.stringify(value).slice(0, 120)
+              : String(value)
+        } catch (err) {
+          probe[key] = 'ERROR: ' + String(err)
+        }
+      }
+
+      return {
+        mounted: (document.getElementById('root')?.children.length ?? 0) > 0,
+        bridge: typeof window.myrgb === 'object',
+        buttons: document.querySelectorAll('button').length,
+        canvases: document.querySelectorAll('canvas').length,
+        sliders: document.querySelectorAll('input[type=range]').length,
+        frames: window.__myRgbFrameCount ?? 0,
+        zoneRail: /zonas/i.test(document.body.innerText),
+        effects: /efeitos/i.test(document.body.innerText),
+        gradient: /gradiente/i.test(document.body.innerText),
+        text: document.body.innerText.slice(0, 400),
+        probe
+      }
+    })()
   `)
 
   console.log('SELFTEST ' + JSON.stringify(report, null, 2))

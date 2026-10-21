@@ -89,6 +89,11 @@ export const useApp = create<AppState>((set, get) => ({
         error: device.connected ? null : (device.error ?? 'Dispositivo não encontrado')
       })
 
+      // The self test waits for this instead of a fixed delay, so a slow
+      // start (an AppImage mounting, for instance) is not mistaken for a
+      // broken UI.
+      ;(window as unknown as { __myRgbReady?: boolean }).__myRgbReady = true
+
       window.myrgb.onFrame((frame) => {
         // Counted so the self test can prove frames are really flowing.
         const w = window as unknown as { __myRgbFrameCount?: number }
@@ -102,6 +107,7 @@ export const useApp = create<AppState>((set, get) => ({
       window.myrgb.onDeviceChange((info) => set({ device: info }))
     } catch (err) {
       set({ error: errorMessage(err), ready: true })
+      ;(window as unknown as { __myRgbReady?: boolean }).__myRgbReady = true
     }
   },
 
