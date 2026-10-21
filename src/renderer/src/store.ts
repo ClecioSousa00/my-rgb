@@ -49,6 +49,7 @@ interface AppState {
   selectZone(zoneId: string): void
   setZoneEffect(zoneId: string, effect: EffectDefinition | null): Promise<void>
   setZoneConfig(zoneId: string, patch: Partial<ZoneConfig>): Promise<void>
+  applyToAll(): Promise<void>
   setPalette(palette: Palette): Promise<void>
   removePalette(paletteId: string): Promise<void>
   setGlobal(patch: Partial<GlobalSettings>): Promise<void>
@@ -138,6 +139,14 @@ export const useApp = create<AppState>((set, get) => ({
 
   async setZoneConfig(zoneId, patch) {
     const profile = await mutate(set, () => window.myrgb.setZoneConfig(zoneId, patch))
+    set({ profile })
+  },
+
+  /** Copy the effect of the zone being edited to every other zone. */
+  async applyToAll() {
+    const zoneId = get().selectedZoneId
+    if (!zoneId) return
+    const profile = await mutate(set, () => window.myrgb.applyEffectToAll(zoneId))
     set({ profile })
   },
 

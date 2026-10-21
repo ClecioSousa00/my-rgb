@@ -205,6 +205,7 @@ export const IPC = {
   profileDelete: 'profile:delete',
   profileSetZone: 'profile:setZone',
   profileSetZoneConfig: 'profile:setZoneConfig',
+  profileApplyToAll: 'profile:applyToAll',
   profileSetPalette: 'profile:setPalette',
   profileRemovePalette: 'profile:removePalette',
   profileSetGlobal: 'profile:setGlobal',

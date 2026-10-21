@@ -56,6 +56,7 @@ export interface MyRgbApi {
   deleteProfile(id: string): Promise<Profile>
   setZoneEffect(zoneId: string, effect: EffectDefinition | null): Promise<Profile>
   setZoneConfig(zoneId: string, patch: Partial<ZoneConfig>): Promise<Profile>
+  applyEffectToAll(zoneId: string): Promise<Profile>
   setPalette(palette: Palette): Promise<Profile>
   removePalette(paletteId: string): Promise<Profile>
   setGlobal(patch: Partial<GlobalSettings>): Promise<Profile>

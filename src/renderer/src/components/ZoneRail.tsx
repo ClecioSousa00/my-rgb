@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp, zoneDisplayName } from '../store'
+import { showToast } from './Toast'
 import type { ZoneConfig, ZoneState } from '@shared/types'
 
 export function ZoneRail(): React.JSX.Element {
@@ -8,15 +9,33 @@ export function ZoneRail(): React.JSX.Element {
   const selectedZoneId = useApp((s) => s.selectedZoneId)
   const selectZone = useApp((s) => s.selectZone)
   const setZoneConfig = useApp((s) => s.setZoneConfig)
+  const applyToAll = useApp((s) => s.applyToAll)
 
   const configFor = (zoneId: string): ZoneConfig | undefined =>
     profile?.zones.find((z) => z.zoneId === zoneId)
+
+  const selectedConfig = selectedZoneId ? configFor(selectedZoneId) : undefined
+  const canApplyToAll = zones.length > 1 && Boolean(selectedConfig?.effect)
+
+  const handleApplyToAll = async (): Promise<void> => {
+    await applyToAll()
+    showToast(`Efeito aplicado a ${zones.length} zonas`)
+  }
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-ink-700 bg-ink-900/40">
       <div className="panel-header">Zonas</div>
 
       <div className="flex-1 overflow-y-auto p-2">
+        <button
+          className="btn mb-2 w-full"
+          disabled={!canApplyToAll}
+          onClick={() => void handleApplyToAll()}
+          title="Copia o efeito da zona selecionada para todas as zonas. O numero de LEDs e o ligado/desligado de cada uma sao mantidos."
+        >
+          ⇉ Aplicar a todas as zonas
+        </button>
+
         {zones.map((zone) => {
           const config = configFor(zone.id)
           const active = zone.id === selectedZoneId

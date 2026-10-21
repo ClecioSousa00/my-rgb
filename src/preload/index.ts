@@ -49,6 +49,8 @@ const api: MyRgbApi = {
     ipcRenderer.invoke(IPC.profileSetZone, zoneId, effect),
   setZoneConfig: (zoneId: string, patch: Partial<ZoneConfig>): Promise<Profile> =>
     ipcRenderer.invoke(IPC.profileSetZoneConfig, zoneId, patch),
+  applyEffectToAll: (zoneId: string): Promise<Profile> =>
+    ipcRenderer.invoke(IPC.profileApplyToAll, zoneId),
   setPalette: (palette: Palette): Promise<Profile> =>
     ipcRenderer.invoke(IPC.profileSetPalette, palette),
   removePalette: (paletteId: string): Promise<Profile> =>

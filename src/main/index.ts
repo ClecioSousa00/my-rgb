@@ -304,6 +304,12 @@ class MyRgbApp {
       this.emitProfile(profile)
       return profile
     })
+    ipcMain.handle(IPC.profileApplyToAll, (_e, zoneId: string) => {
+      const profile = store.applyEffectToAll(zoneId)
+      this.engine.setProfile(profile)
+      this.emitProfile(profile)
+      return profile
+    })
     ipcMain.handle(IPC.profileSetPalette, (_e, palette) => {
       const profile = store.setPalette(palette)
       this.engine.setProfile(profile)

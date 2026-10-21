@@ -183,6 +183,31 @@ export class ProfileStore {
     return this.save(this.current)
   }
 
+  /**
+   * Copy one zone's effect to every other zone.
+   *
+   * The LED count and the on/off switch of each zone are left alone - they
+   * describe the hardware, not the effect. The "follow another zone" link is
+   * cleared, because a zone that mirrors someone else would ignore the copy.
+   */
+  applyEffectToAll(sourceZoneId: string): Profile {
+    const source = this.current.zones.find((z) => z.zoneId === sourceZoneId)
+    if (!source) throw new Error(`Unknown zone: ${sourceZoneId}`)
+    if (!source.effect) throw new Error(`Zone ${sourceZoneId} has no effect to copy`)
+
+    const effect: EffectDefinition = {
+      ...source.effect,
+      params: { ...source.effect.params }
+    }
+
+    for (const zone of this.current.zones) {
+      zone.effect = { ...effect, params: { ...effect.params } }
+      zone.followZoneId = null
+    }
+
+    return this.save(this.current)
+  }
+
   setPalette(palette: Palette): Profile {
     const index = this.current.palettes.findIndex((p) => p.id === palette.id)
     if (index >= 0) this.current.palettes[index] = palette
