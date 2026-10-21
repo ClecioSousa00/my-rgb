@@ -50,12 +50,22 @@ X470/Z390. É ele que controla os headers 5V endereçáveis e os LEDs onboard.
 O controlador aparece como um dispositivo HID cru. Sem uma regra de udev, só o
 root consegue abri-lo.
 
+O `.deb` instala a regra sozinho durante o `dpkg -i`:
+
+```bash
+sudo dpkg -i release/my-rgb_0.1.0_amd64.deb
+```
+
+Depois, **desligue e religue o cabo do controlador** (ou reinicie) para que a
+regra passe a valer.
+
+Se você preferir instalar o AppImage, ou estiver instalando na mão, a regra
+está em `packaging/linux/udev/60-my-rgb.rules`:
+
 ```bash
 sudo cp packaging/linux/udev/60-my-rgb.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
-
-Depois, **desligue e religue o cabo do controlador** (ou reinicie).
 
 > Se você já usa o OpenRGB, a regra `/etc/udev/rules.d/60-openrgb-asus.rules`
 > faz o mesmo trabalho — mas a do MyRGB é a que o projeto mantém.
