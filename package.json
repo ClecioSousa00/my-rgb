@@ -36,7 +36,8 @@
     "probe": "node tools/probe-aura.mjs",
     "dump:frames": "npm run build && electron . --dump-frames",
     "write-test": "npm run build && electron . --write-test",
-    "selftest": "npm run build && electron . --selftest"
+    "selftest": "npm run build && electron . --selftest",
+    "docs": "npm run build && electron . --gen-docs documentation/efeitos.md"
   },
   "dependencies": {
     "node-hid": "^3.4.0"

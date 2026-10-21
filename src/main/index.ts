@@ -6,7 +6,8 @@
  */
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'path'
+import { mkdirSync, writeFileSync } from 'fs'
+import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
 import { patternMetadata } from './engine/patterns'
@@ -17,6 +18,7 @@ import { createTray, type TrayHandle } from './tray'
 import { resolveResource } from './resources'
 import { detectConflicts, type ConflictReport } from './platform/conflict'
 import { runFrameDump } from './dumpFrames'
+import { buildEffectsDoc } from './docs/effectsDoc'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
@@ -583,6 +585,21 @@ async function runSelfTest(): Promise<void> {
   app.exit(ok ? 0 : 1)
 }
 
+/**
+ * Rewrites the effect catalogue from the pattern registry.
+ *
+ * The documentation is generated instead of written by hand, so it can never
+ * describe an effect that does not exist (or hide one that does).
+ */
+async function runDocGeneration(): Promise<void> {
+  const target = argValue('--gen-docs') ?? join(process.cwd(), 'documentation', 'efeitos.md')
+  const content = buildEffectsDoc()
+  mkdirSync(dirname(target), { recursive: true })
+  writeFileSync(target, content, 'utf8')
+  console.log(`wrote ${target} (${content.split('\n').length} lines)`)
+  app.exit(0)
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -606,6 +623,10 @@ if (!app.requestSingleInstanceLock()) {
     }
     if (process.argv.includes('--dump-frames')) {
       await runHeadlessDump()
+      return
+    }
+    if (process.argv.includes('--gen-docs')) {
+      await runDocGeneration()
       return
     }
 

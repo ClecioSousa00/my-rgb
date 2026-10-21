@@ -10,6 +10,10 @@ operacionais.
 
 ![MyRGB](build/icon-256.png)
 
+> **Documentação:** a pasta [`documentation/`](documentation/) explica o
+> programa por dentro, o que cada parte da interface faz, o catálogo dos 34
+> efeitos, as zonas e os perfis, e como desenvolver.
+
 ---
 
 ## O que ele faz
@@ -24,7 +28,10 @@ operacionais.
 - **Perfis** salvos em JSON, com esquema idêntico nos dois sistemas — dá para
   copiar o arquivo de um para o outro.
 - **Zonas independentes** (LED onboard + 3 headers ARGB), com opção de uma zona
-  "seguir" outra.
+  "seguir" outra, de **renomear** cada zona e de **aplicar o mesmo efeito em
+  todas** de uma vez.
+- **Ajuda embutida**: um **?** em cada painel e em cada parâmetro explica o
+  que aquele controle faz.
 - **Bandeja do sistema** com controle rápido das luzes.
 - **Detecção de conflito contínua**: avisa quando outro programa (Armoury Crate,
   OpenRGB) também está controlando o mesmo controlador — inclusive se ele
@@ -87,8 +94,8 @@ npm run build:linux  # AppImage + .deb em release/
 
 1. Instale o MyRGB (`MyRGB-<versão>-setup.exe`).
 2. **Desative a iluminação do Armoury Crate / Aura Sync** — veja
-   [docs/WINDOWS.md](docs/WINDOWS.md) para o passo a passo e para
-   diagnosticar cintilação.
+   [documentation/windows.md](documentation/windows.md) para o passo a passo e
+   para diagnosticar cintilação.
 
 O instalador NSIS registra a entrada de autostart do Windows quando a opção
 "Iniciar com o sistema" está ligada nas configurações do MyRGB.
@@ -105,11 +112,18 @@ O instalador NSIS registra a entrada de autostart do Windows quando a opção
 | Ajustar | Os sliders aparecem sozinhos a partir dos parâmetros do padrão |
 | Criar gradiente | Clique na barra do gradiente para adicionar uma parada; arraste para mover |
 | Ligar/desligar | Botão **Luzes ligadas** na barra superior (o preview continua rodando) |
-| Perfis | **Salvar** grava; **⧉** duplica o perfil atual; **✎** renomeia |
+| Aplicar em todas as zonas | Botão **⇉ Aplicar a todas as zonas**, no topo da barra de zonas |
+| Renomear uma zona | Botão **✎** no cartão da zona |
+| Perfis | O perfil é salvo sozinho a cada alteração; **Salvar como…** cria uma cópia com outro nome, **✎** renomeia |
 
 Cada zona tem o seu próprio efeito. O botão de olho/estilo no painel
 **Gradiente** duplica uma paleta para você poder experimentar sem perder a
 original.
+
+Todos os painéis têm um **?** que explica o que eles fazem, e cada parâmetro
+tem um **?** ao lado do rótulo que explica aquela controle. O catálogo
+completo dos efeitos está em
+[documentation/efeitos.md](documentation/efeitos.md).
 
 ### Os 34 efeitos
 
