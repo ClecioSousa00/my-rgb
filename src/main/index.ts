@@ -43,7 +43,9 @@ class MyRgbApp {
     this.settings = new SettingsStore(app.getPath('userData'))
 
     const initial = defaultProfile()
-    this.profileStore = new ProfileStore(app.getPath('userData'), initial)
+    this.profileStore = new ProfileStore(app.getPath('userData'), initial, (name) =>
+      this.emitProfileSaved(name)
+    )
     try {
       this.profileStore.load(this.settings.settings.lastProfile)
     } catch {
@@ -362,6 +364,18 @@ class MyRgbApp {
   private emitProfile(profile: Profile): void {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.profileGet, profile)
+    }
+  }
+
+  /**
+   * Tell the UI that the profile really reached the disk.
+   *
+   * The renderer writes nothing itself, so this is the only way it can tell
+   * "still in memory" from "saved".
+   */
+  private emitProfileSaved(name: string): void {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send(IPC.profileSaved, { name, at: Date.now() })
     }
   }
 

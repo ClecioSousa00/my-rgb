@@ -11,13 +11,13 @@ export function TopBar(): React.JSX.Element {
   const toggleEngine = useApp((s) => s.toggleEngine)
   const setGlobal = useApp((s) => s.setGlobal)
   const loadProfile = useApp((s) => s.loadProfile)
-  const saveProfile = useApp((s) => s.saveProfile)
   const duplicateProfile = useApp((s) => s.duplicateProfile)
   const renameProfile = useApp((s) => s.renameProfile)
 
   const [profileNames, setProfileNames] = useState<string[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const dirty = useApp((s) => s.dirty)
 
   useEffect(() => {
     void window.myrgb.listProfiles().then(setProfileNames)
@@ -36,17 +36,22 @@ export function TopBar(): React.JSX.Element {
     setProfileNames(await window.myrgb.listProfiles())
   }
 
-  const handleSave = async (): Promise<void> => {
+  /**
+   * "Save as" - the current configuration is stored under a new name and
+   * becomes the profile being edited, so the old one stays untouched and both
+   * show up in the dropdown.
+   */
+  const handleSaveAs = async (): Promise<void> => {
     if (!profile) return
-    await saveProfile(profile)
-    setProfileNames(await window.myrgb.listProfiles())
-  }
-
-  const handleDuplicate = async (): Promise<void> => {
-    if (!profile) return
-    const name = window.prompt('Nome do novo perfil', `${profile.name} cópia`)
+    const name = window.prompt('Salvar perfil como', suggestProfileName(profile.name))
     if (name === null) return
-    await duplicateProfile(name)
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (profileNames.includes(trimmed)) {
+      window.alert('Já existe um perfil com esse nome.')
+      return
+    }
+    await duplicateProfile(trimmed)
     setProfileNames(await window.myrgb.listProfiles())
   }
 
@@ -109,15 +114,12 @@ export function TopBar(): React.JSX.Element {
             </option>
           ))}
         </select>
-        <button className="btn" onClick={() => void handleSave()}>
-          Salvar
-        </button>
         <button
-          className="btn btn-ghost"
-          onClick={() => void handleDuplicate()}
-          title="Criar uma cópia deste perfil"
+          className="btn"
+          onClick={() => void handleSaveAs()}
+          title="Guardar a configuração atual em um novo perfil"
         >
-          ⧉
+          Salvar como…
         </button>
         <button
           className="btn btn-ghost"
@@ -126,6 +128,18 @@ export function TopBar(): React.JSX.Element {
         >
           ✎
         </button>
+        <span
+          className={`chip border-transparent ${
+            dirty ? 'bg-warn-500/10 text-warn-500' : 'bg-good-500/10 text-good-500'
+          }`}
+          title={
+            dirty
+              ? 'As mudanças ainda não foram gravadas no disco'
+              : 'Tudo que você mudou está gravado no disco'
+          }
+        >
+          {dirty ? '● não salvo' : '✓ salvo'}
+        </span>
       </div>
 
       <div className="h-6 w-px bg-ink-700" />
@@ -256,4 +270,10 @@ function SettingToggle({
       />
     </label>
   )
+}
+
+/** Suggests a free name for a copy of a profile. */
+function suggestProfileName(current: string): string {
+  const base = current.replace(/\s+cópia(\s+\d+)?$/i, '').trim() || current
+  return `${base} cópia`
 }

@@ -188,6 +188,8 @@ export const IPC = {
   patternsList: 'patterns:list',
   profileGet: 'profile:get',
   profileSave: 'profile:save',
+  /** Pushed by the main process once the profile really reached the disk. */
+  profileSaved: 'profile:saved',
   profileDuplicate: 'profile:duplicate',
   profileRename: 'profile:rename',
   profileList: 'profile:list',

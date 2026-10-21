@@ -28,6 +28,14 @@ export interface EngineState {
   lastFrameSeq: number
 }
 
+/** Emitted after the profile was written to disk. */
+export interface ProfileSavedEvent {
+  /** Name of the profile that was written. */
+  name: string
+  /** Epoch milliseconds of the write. */
+  at: number
+}
+
 export interface MyRgbApi {
   // device
   getDeviceInfo(): Promise<DeviceInfo>
@@ -66,6 +74,7 @@ export interface MyRgbApi {
   onDeviceChange(callback: (info: DeviceInfo) => void): Unsubscribe
   onEngineState(callback: (state: EngineState) => void): Unsubscribe
   onProfileChange(callback: (profile: Profile) => void): Unsubscribe
+  onProfileSaved(callback: (event: ProfileSavedEvent) => void): Unsubscribe
   onTrayCommand(callback: (command: string) => void): Unsubscribe
 }
 

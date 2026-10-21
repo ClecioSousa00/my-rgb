@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { EngineState, MyRgbApi, Unsubscribe } from '@shared/api'
+import type { EngineState, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
 import type {
   AppSettings,
   DeviceInfo,
@@ -71,6 +71,8 @@ const api: MyRgbApi = {
   onDeviceChange: (callback: (info: DeviceInfo) => void) => subscribe(IPC.deviceInfo, callback),
   onEngineState: (callback: (state: EngineState) => void) => subscribe(IPC.engineState, callback),
   onProfileChange: (callback: (profile: Profile) => void) => subscribe(IPC.profileGet, callback),
+  onProfileSaved: (callback: (event: ProfileSavedEvent) => void) =>
+    subscribe(IPC.profileSaved, callback),
   onTrayCommand: (callback: (command: string) => void) => subscribe(IPC.engineState, callback)
 }
 

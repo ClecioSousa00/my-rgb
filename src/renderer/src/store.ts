@@ -42,6 +42,8 @@ interface AppState {
   engineRunning: boolean
   ready: boolean
   error: string | null
+  /** True while there are changes that are not on disk yet. */
+  dirty: boolean
 
   init(): Promise<void>
   selectZone(zoneId: string): void
@@ -58,6 +60,15 @@ interface AppState {
   reconnect(): Promise<void>
 }
 
+/**
+ * Mutations that are still on their way to the main process.
+ *
+ * The main process writes the profile to disk a moment after the change, so a
+ * "saved" event that arrives while a mutation is still in flight must not
+ * clear the dirty flag.
+ */
+let pendingMutations = 0
+
 export const useApp = create<AppState>((set, get) => ({
   device: null,
   zones: [],
@@ -67,6 +78,7 @@ export const useApp = create<AppState>((set, get) => ({
   engineRunning: false,
   ready: false,
   error: null,
+  dirty: false,
 
   async init() {
     try {
@@ -101,6 +113,10 @@ export const useApp = create<AppState>((set, get) => ({
         for (const listener of frameListeners) listener(frame)
       })
       window.myrgb.onProfileChange((next) => set({ profile: next }))
+      window.myrgb.onProfileSaved(() => {
+        // Only trust the event when nothing else is being changed right now.
+        if (pendingMutations === 0) set({ dirty: false })
+      })
       window.myrgb.onEngineState((state) => set({ engineRunning: state.running }))
       // The conflict with another program can start at any time, so the
       // device status has to be pushed rather than only read once.
@@ -116,27 +132,27 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async setZoneEffect(zoneId, effect) {
-    const profile = await window.myrgb.setZoneEffect(zoneId, effect)
+    const profile = await mutate(set, () => window.myrgb.setZoneEffect(zoneId, effect))
     set({ profile })
   },
 
   async setZoneConfig(zoneId, patch) {
-    const profile = await window.myrgb.setZoneConfig(zoneId, patch)
+    const profile = await mutate(set, () => window.myrgb.setZoneConfig(zoneId, patch))
     set({ profile })
   },
 
   async setPalette(palette) {
-    const profile = await window.myrgb.setPalette(palette)
+    const profile = await mutate(set, () => window.myrgb.setPalette(palette))
     set({ profile })
   },
 
   async removePalette(paletteId) {
-    const profile = await window.myrgb.removePalette(paletteId)
+    const profile = await mutate(set, () => window.myrgb.removePalette(paletteId))
     set({ profile })
   },
 
   async setGlobal(patch) {
-    const profile = await window.myrgb.setGlobal(patch)
+    const profile = await mutate(set, () => window.myrgb.setGlobal(patch))
     set({ profile })
   },
 
@@ -146,17 +162,17 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async saveProfile(profile) {
-    const saved = await window.myrgb.saveProfile(profile)
+    const saved = await mutate(set, () => window.myrgb.saveProfile(profile))
     set({ profile: saved })
   },
 
   async duplicateProfile(name) {
-    const profile = await window.myrgb.duplicateProfile(name)
+    const profile = await mutate(set, () => window.myrgb.duplicateProfile(name))
     set({ profile })
   },
 
   async renameProfile(name) {
-    const profile = await window.myrgb.renameProfile(name)
+    const profile = await mutate(set, () => window.myrgb.renameProfile(name))
     set({ profile })
   },
 
@@ -185,6 +201,25 @@ export const useApp = create<AppState>((set, get) => ({
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * Run a change that reaches the main process and marks the profile as dirty.
+ *
+ * The flag is only cleared when the main process confirms the write, so the
+ * indicator never promises something that is not on disk yet.
+ */
+async function mutate<T>(
+  set: (partial: Partial<AppState>) => void,
+  run: () => Promise<T>
+): Promise<T> {
+  pendingMutations++
+  set({ dirty: true })
+  try {
+    return await run()
+  } finally {
+    pendingMutations--
+  }
 }
 
 /** Convenience selector: the zone currently being edited. */
