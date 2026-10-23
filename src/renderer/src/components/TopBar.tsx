@@ -40,6 +40,10 @@ export function TopBar(): React.JSX.Element {
   }, [profile?.name])
 
   useEffect(() => {
+    void window.myrgb.listProfiles().then(setProfileNames)
+  }, [])
+
+  useEffect(() => {
     if (savePromptOpen) {
       setSavePromptValue(profile ? profile.name : '')
       setSavePromptError(null)
@@ -132,8 +136,10 @@ export function TopBar(): React.JSX.Element {
     try {
       const imported = await importProfile()
       if (imported) {
-        setProfileNames(await window.myrgb.listProfiles())
+        const names = await window.myrgb.listProfiles()
+        setProfileNames(names)
         await handleProfileChange(imported.name)
+        setProfileNames(await window.myrgb.listProfiles())
         showToast('Perfil importado')
       }
     } catch (err) {
