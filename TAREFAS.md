@@ -90,7 +90,7 @@
 
 ## 8. Infraestrutura
 
-- [ ] **CI/CD** - GitHub Actions para build/test
+- [x] **CI/CD** - GitHub Actions para build/test
 - [ ] **Versionamento semântico** - Adotar semver corretamente
 - [ ] **Auto-update** - Implementar electron-updater
 - [ ] **Logs estruturados** - Melhorar sistema de logs para debug
