@@ -33,14 +33,14 @@
 
 ## 3. Novos Efeitos
 
-- [ ] **Aurora Boreal** - Efeito tipo northern lights com camadas de cores
-- [ ] **Chuva de meteoros** - Cometas caindo aleatoriamente
-- [ ] **Matriz digital** - Estilo Matrix com caracteres caindo
-- [ ] **Fogos de artifício** - Explosões em posições aleatórias
-- [ ] **Ondas sonoras (simulado)** - Efeito reativo baseado em tempo
-- [ ] **Ciclo de estações** - Transição entre paletas ao longo do tempo
-- [ ] **Vórtice espiral** - Movimento em espiral ao redor
-- [ ] **Heartbeat/Pulsação cardíaca** - Pulso irregular mais orgânico
+- [x] **Aurora Boreal** - Efeito tipo northern lights com camadas de cores
+- [x] **Chuva de meteoros** - Cometas caindo aleatoriamente
+- [x] **Matriz digital** - Estilo Matrix com caracteres caindo
+- [x] **Fogos de artifício** - Explosões em posições aleatórias
+- [x] **Ondas sonoras (simulado)** - Efeito reativo baseado em tempo
+- [x] **Ciclo de estações** - Transição entre paletas ao longo do tempo
+- [x] **Vórtice espiral** - Movimento em espiral ao redor
+- [x] **Heartbeat/Pulsação cardíaca** - Pulso irregular mais orgânico
 
 ---
 
