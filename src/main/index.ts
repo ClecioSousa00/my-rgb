@@ -19,6 +19,7 @@ import { resolveResource } from './resources'
 import { detectConflicts, type ConflictReport } from './platform/conflict'
 import { runFrameDump } from './dumpFrames'
 import { buildEffectsDoc } from './docs/effectsDoc'
+import { initAutoUpdater } from './updater'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
@@ -685,6 +686,7 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     app.setAppUserModelId('com.myrgb.app')
+    initAutoUpdater()
 
     const instance = new MyRgbApp()
     ;(globalThis as { __myRgbApp?: MyRgbApp }).__myRgbApp = instance

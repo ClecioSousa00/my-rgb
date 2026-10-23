@@ -92,7 +92,7 @@
 
 - [x] **CI/CD** - GitHub Actions para build/test
 - [x] **Versionamento semântico** - Adotar semver corretamente
-- [ ] **Auto-update** - Implementar electron-updater
+- [x] **Auto-update** - Implementar electron-updater
 - [ ] **Logs estruturados** - Melhorar sistema de logs para debug
 - [ ] **Crash reporting** - Adicionar report de crashes (opcional)
 
