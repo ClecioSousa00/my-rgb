@@ -285,7 +285,7 @@ export function TopBar(): React.JSX.Element {
 
       <div className="relative">
         <button
-          className="btn btn-ghost"
+          className="btn btn-ghost px-2 text-[18px] leading-none"
           onClick={() => setShowSettings((v) => !v)}
           title="Configurações"
         >

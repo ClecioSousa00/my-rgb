@@ -171,7 +171,7 @@ function ZoneCard({
 
         {!editing && (
           <button
-            className="shrink-0 rounded px-1 text-[11px] text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+            className="shrink-0 rounded px-1 text-[13px] text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
             title="Renomear esta zona"
             onClick={(e) => {
               e.stopPropagation()
