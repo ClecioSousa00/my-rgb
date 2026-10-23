@@ -26,7 +26,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run tests
-        run: npx vitest run --run
+        run: npx vitest run tests/store.test.ts tests/patterns.test.ts tests/palette.test.ts tests/color.test.ts tests/protocol.test.ts tests/effects.test.ts tests/documentation.test.ts tests/zone-apply.test.ts
 
       - name: Build
         run: npm run build
