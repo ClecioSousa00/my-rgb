@@ -48,7 +48,7 @@
 
 ## 4. Bugs a Corrigir
 
-- [ ] **Preview não atualiza em alguns casos** - Verificar sincronização entre store e canvas
+- [x] **Preview não atualiza em alguns casos** - Verificar sincronização entre store e canvas
 - [ ] **Dropdown de perfis não atualiza após importar** - Já parcialmente corrigido, testar melhor
 - [ ] **window.prompt não funciona em alguns contextos** - Substituído por modais, verificar edge cases
 - [ ] **Conflito com Armoury Crate no Windows** - Melhorar detecção e instruções para usuário
