@@ -325,6 +325,21 @@ export function TopBar(): React.JSX.Element {
               checked={settings.startWithLightingOff}
               onChange={(v) => void updateSetting({ startWithLightingOff: v })}
             />
+            <div className="mt-2">
+              <div className="mb-1 text-[10.5px] uppercase tracking-wider text-ink-400">Perfil ao iniciar</div>
+              <select
+                className="field"
+                value={settings.startupProfile || ''}
+                onChange={(e) => void updateSetting({ startupProfile: e.target.value || null })}
+              >
+                <option value="">Usar último perfil</option>
+                {profileNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
       </div>

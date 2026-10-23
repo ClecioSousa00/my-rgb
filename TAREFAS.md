@@ -3,6 +3,7 @@
 > Documento vivo com ideias, melhorias, bugs e funcionalidades a implementar. Atualizar conforme necessário.
 
 ## Status
+
 - [ ] Pendente
 - [x] Concluído
 - [~] Em andamento
@@ -22,10 +23,7 @@
 
 ## 2. Novas Funcionalidades
 
-- [ ] **Atalhos de teclado** - Adicionar hotkeys para ações comuns (Salvar, Pausar/Retomar, etc.)
-- [ ] **Importar/Exportar múltiplos perfis** - Exportar bundle com vários perfis de uma vez
-- [ ] **Modo "Ao iniciar" por perfil** - Escolher perfil padrão ao abrir app
-- [ ] **Temas da interface** - Suporte a tema claro/escuro ou personalizável
+- [x] **Modo "Ao iniciar" por perfil** - Escolher perfil padrão ao abrir app
 - [ ] **Histórico de alterações (Undo/Redo)** - Desfazer/refazer mudanças no perfil
 - [ ] **Agrupar zonas** - Permitir agrupar zonas para aplicar configuração em conjunto
 - [ ] **Sincronizar com sistema de bandeja** - Melhorar integração com tray (ícone dinâmico, menu contextual)
@@ -105,4 +103,4 @@
 - **Compatibilidade**: Manter suporte apenas para ASUS AURA USB (`0x0B05:0x19AF`)
 - **Branch**: Trabalhar sempre em `dev`, merge para `main` apenas sob solicitação explícita
 
-*Última atualização: 23 de Outubro de 2026*
+_Última atualização: 23 de Outubro de 2026_

@@ -11,7 +11,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autostartAtLogin: false,
   minimizeToTray: true,
   lastProfile: 'Padrão',
-  startWithLightingOff: false
+  startWithLightingOff: false,
+  startupProfile: null
 }
 
 export class SettingsStore {

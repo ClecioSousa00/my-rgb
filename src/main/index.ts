@@ -50,7 +50,8 @@ class MyRgbApp {
       this.emitProfileSaved(name)
     )
     try {
-      this.profileStore.load(this.settings.settings.lastProfile)
+      const startup = this.settings.settings.startupProfile || this.settings.settings.lastProfile
+      this.profileStore.load(startup)
     } catch {
       /* keep the default profile */
     }

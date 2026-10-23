@@ -169,6 +169,8 @@ export interface AppSettings {
   lastProfile: string
   /** Start with the lighting off. */
   startWithLightingOff: boolean
+  /** Profile to load on startup (overrides lastProfile if set). */
+  startupProfile?: string | null
 }
 
 // ---------------------------------------------------------------------------
