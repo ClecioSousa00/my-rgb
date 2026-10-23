@@ -5,8 +5,9 @@
  * the renderer over a narrow IPC surface. The renderer never touches HID.
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
 import { patternMetadata } from './engine/patterns'
@@ -17,6 +18,8 @@ import { createTray, type TrayHandle } from './tray'
 import { resolveResource } from './resources'
 import { detectConflicts, type ConflictReport } from './platform/conflict'
 import { runFrameDump } from './dumpFrames'
+import { buildEffectsDoc } from './docs/effectsDoc'
+import { initAutoUpdater } from './updater'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
@@ -43,7 +46,9 @@ class MyRgbApp {
     this.settings = new SettingsStore(app.getPath('userData'))
 
     const initial = defaultProfile()
-    this.profileStore = new ProfileStore(app.getPath('userData'), initial)
+    this.profileStore = new ProfileStore(app.getPath('userData'), initial, (name) =>
+      this.emitProfileSaved(name)
+    )
     try {
       this.profileStore.load(this.settings.settings.lastProfile)
     } catch {
@@ -271,12 +276,14 @@ class MyRgbApp {
     ipcMain.handle(IPC.profileSave, (_e, profile: Profile) => store.save(profile))
     ipcMain.handle(IPC.profileDuplicate, (_e, name: string) => {
       const profile = store.duplicateProfile(name)
+      store.flush?.()
       this.engine.setProfile(profile)
       this.emitProfile(profile)
       return profile
     })
     ipcMain.handle(IPC.profileRename, (_e, name: string) => {
       const profile = store.renameProfile(name)
+      store.flush?.()
       this.engine.setProfile(profile)
       this.emitProfile(profile)
       return profile
@@ -302,6 +309,12 @@ class MyRgbApp {
       this.emitProfile(profile)
       return profile
     })
+    ipcMain.handle(IPC.profileApplyToAll, (_e, zoneId: string) => {
+      const profile = store.applyEffectToAll(zoneId)
+      this.engine.setProfile(profile)
+      this.emitProfile(profile)
+      return profile
+    })
     ipcMain.handle(IPC.profileSetPalette, (_e, palette) => {
       const profile = store.setPalette(palette)
       this.engine.setProfile(profile)
@@ -319,6 +332,58 @@ class MyRgbApp {
       this.engine.setProfile(profile)
       this.emitProfile(profile)
       return profile
+    })
+    ipcMain.handle(IPC.profileFlush, () => {
+      store.flush?.()
+    })
+    ipcMain.handle(IPC.profileExport, async () => {
+      if (!this.window) return null
+      const profile = store.profile
+      const result = await dialog.showSaveDialog(this.window, {
+        title: 'Exportar perfil',
+        defaultPath: `${profile.name.replace(/[\\/:*?"<>|]/g, '_')}.myrgb.json`,
+        filters: [
+          { name: 'MyRGB Profile', extensions: ['myrgb.json', 'json'] },
+          { name: 'JSON', extensions: ['json'] }
+        ]
+      })
+      if (result.canceled || !result.filePath) return null
+      writeFileSync(result.filePath, JSON.stringify(profile, null, 2), 'utf8')
+      return result.filePath
+    })
+    ipcMain.handle(IPC.profileImport, async () => {
+      if (!this.window) return null
+      const result = await dialog.showOpenDialog(this.window, {
+        title: 'Importar perfil',
+        properties: ['openFile'],
+        filters: [
+          { name: 'MyRGB Profile', extensions: ['myrgb.json', 'json'] },
+          { name: 'JSON', extensions: ['json'] }
+        ]
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      try {
+        const content = readFileSync(result.filePaths[0], 'utf8')
+        const parsed = JSON.parse(content) as Profile
+        if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.zones)) {
+          throw new Error('Arquivo de perfil inválido')
+        }
+        // Save as a new profile copy in profiles dir and load it
+        const imported = store.duplicateProfile(parsed.name || 'Importado')
+        // Overwrite with imported data
+        const full = {
+          ...parsed,
+          name: parsed.name || imported.name
+        }
+        const saved = store.save(full)
+        store.flush?.()
+        this.engine.setProfile(saved)
+        this.settings.set({ lastProfile: saved.name })
+        this.emitProfile(saved)
+        return saved
+      } catch (err) {
+        throw err
+      }
     })
     ipcMain.handle(IPC.engineStart, () => {
       this.engine.start()
@@ -362,6 +427,18 @@ class MyRgbApp {
   private emitProfile(profile: Profile): void {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.profileGet, profile)
+    }
+  }
+
+  /**
+   * Tell the UI that the profile really reached the disk.
+   *
+   * The renderer writes nothing itself, so this is the only way it can tell
+   * "still in memory" from "saved".
+   */
+  private emitProfileSaved(name: string): void {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send(IPC.profileSaved, { name, at: Date.now() })
     }
   }
 
@@ -563,6 +640,21 @@ async function runSelfTest(): Promise<void> {
   app.exit(ok ? 0 : 1)
 }
 
+/**
+ * Rewrites the effect catalogue from the pattern registry.
+ *
+ * The documentation is generated instead of written by hand, so it can never
+ * describe an effect that does not exist (or hide one that does).
+ */
+async function runDocGeneration(): Promise<void> {
+  const target = argValue('--gen-docs') ?? join(process.cwd(), 'documentation', 'efeitos.md')
+  const content = buildEffectsDoc()
+  mkdirSync(dirname(target), { recursive: true })
+  writeFileSync(target, content, 'utf8')
+  console.log(`wrote ${target} (${content.split('\n').length} lines)`)
+  app.exit(0)
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -588,8 +680,13 @@ if (!app.requestSingleInstanceLock()) {
       await runHeadlessDump()
       return
     }
+    if (process.argv.includes('--gen-docs')) {
+      await runDocGeneration()
+      return
+    }
 
     app.setAppUserModelId('com.myrgb.app')
+    initAutoUpdater()
 
     const instance = new MyRgbApp()
     ;(globalThis as { __myRgbApp?: MyRgbApp }).__myRgbApp = instance

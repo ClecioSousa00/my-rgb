@@ -1,0 +1,272 @@
+# Desenvolvimento
+
+Como o MyRGB é construído, testado e publicado.
+
+---
+
+## A regra das branches
+
+O projeto tem duas branches:
+
+| Branch | Para quê |
+|---|---|
+| `dev` | **todo o trabalho acontece aqui** |
+| `main` | só recebe o que já está pronto e testado |
+
+O fluxo é:
+
+```bash
+git checkout dev
+# ... trabalha, commita, testa ...
+git push origin dev
+```
+
+E, **só quando o trabalho estiver pronto e testado**:
+
+```bash
+git checkout main
+git merge dev          # ou: git merge --no-ff dev
+git push origin main
+```
+
+`main` nunca recebe um commit de trabalho pela metade. Se algo ainda está em
+experimento, ele fica na `dev`.
+
+---
+
+## A stack
+
+| | |
+|---|---|
+| Runtime | Electron 45 |
+| Bundler | electron-vite 6 + Vite 8 |
+| Interface | React 19 + TypeScript 5.9 |
+| Estilo | Tailwind CSS v4 |
+| Estado | zustand |
+| Testes | vitest 5 |
+| Empacotamento | electron-builder 26 |
+| Hardware | node-hid 3.4 |
+
+Uma coisa que economiza muito trabalho: **não existe código específico de
+sistema operacional**. O node-hid fala HID puro, que se comporta igual no
+Linux (`hidraw`) e no Windows (`hid.dll`). Não há caminho de código para
+"apenas no Windows" — o mesmo binário funciona nos dois.
+
+---
+
+## Comandos
+
+```bash
+npm install          # instala e confere o binário nativo do node-hid
+npm run dev          # electron-vite dev, com hot reload
+npm run typecheck    # tsc nos dois projetos (node + web)
+npm test             # vitest
+npm run build        # build de produção em out/
+```
+
+### Empacotamento
+
+```bash
+npm run build:linux      # AppImage + .deb em release/
+npm run build:win        # instalador NSIS (precisa do Windows ou do wine)
+npm run build:win:dir    # release/win-unpacked/ — funciona em qualquer sistema
+```
+
+### Modos de linha de comando
+
+O programa aceita algumas flags, que são exatamente as ferramentas de
+diagnóstico:
+
+| Flag | O que faz |
+|---|---|
+| `--selftest` | sobe a interface e confere que ela montou e está recebendo quadros |
+| `--write-test` | escreve um arco-íris em todas as zonas (teste de hardware) |
+| `--dump-frames <dir>` | grava os quadros em disco, para comparar entre sistemas |
+| `--dump-offline` | junto com o de cima, não abre o dispositivo |
+| `--gen-docs <arquivo>` | regera o catálogo de efeitos |
+| `--hidden` | sobe sem janela (usado pelo autostart) |
+
+```bash
+npx electron . --selftest
+npx electron . --write-test
+npx electron . --dump-frames frames-linux --dump-count 60
+node tools/compare-frames.mjs frames-linux frames-windows
+npx electron . --gen-docs documentation/efeitos.md
+```
+
+### Scripts à parte
+
+```bash
+npm run probe      # lê a config table do hardware real e mostra o layout
+npm run icons      # regenera os ícones do app e da bandeja
+npm run docs       # regera documentation/efeitos.md
+```
+
+---
+
+## Ferramentas
+
+| Arquivo | Para quê |
+|---|---|
+| `tools/probe-aura.mjs` | Lê a config table do hardware real e mostra o layout |
+| `tools/gen-icons.mjs` | Regenera os ícones do app e da bandeja |
+| `tools/compare-frames.mjs <a> <b>` | Compara dois dumps de frames byte a byte |
+| `tools/check-hid-binary.mjs` | Confere se o binário nativo do node-hid existe para esta plataforma |
+
+---
+
+## Os testes
+
+79 testes em 7 arquivos, todos rodando em menos de um segundo.
+
+| Arquivo | O que garante |
+|---|---|
+| `tests/protocol.test.ts` | Os frames do AURA USB são montados byte a byte como esperado |
+| `tests/output.test.ts` | A divisão em pacotes do stream direto bate com a do OpenRGB |
+| `tests/palette.test.ts` | A matemática de cor (RGB, HSV, amostragem de gradiente) |
+| `tests/engine.test.ts` | O motor é determinístico, e todo padrão renderiza sem estourar |
+| `tests/conflict.test.ts` | A detecção de conflito encontra os processos certos |
+| `tests/store.test.ts` | Os perfis: salvar, recarregar, renomear, reconciliar, aplicar a todas |
+| `tests/patterns.test.ts` | Todo padrão tem nome, categoria, descrição e todos os parâmetros descritos |
+| `tests/documentation.test.ts` | A documentação está em dia e não tem link quebrado |
+
+```bash
+npm test                  # tudo
+npm run test:watch        # durante o desenvolvimento
+npx vitest run tests/store.test.ts
+```
+
+### O teste que protege a documentação
+
+`tests/documentation.test.ts` compara o `documentation/efeitos.md` com o que o
+gerador produziria. Se você adicionar um efeito e não rodar `npm run docs`, o
+teste falha. É o que garante que a documentação "sempre esteja atualizada".
+
+---
+
+## Como adicionar um efeito novo
+
+1. Crie (ou edite) o arquivo do padrão em `src/main/engine/patterns/`:
+
+   ```ts
+   {
+     id: 'meu-efeito',
+     name: 'Meu efeito',
+     category: 'Básicos',
+     description: 'Uma frase explicando o que ele faz.',
+     params: [
+       RATE,
+       {
+         key: 'intensity',
+         label: 'Intensidade',
+         type: 'number',
+         min: 0,
+         max: 1,
+         step: 0.01,
+         default: 0.8,
+         description: 'O que este parâmetro faz. Este texto aparece no "?" da interface.'
+       }
+     ],
+     render: (ctx) => ({ u: ctx.position })
+   }
+   ```
+
+2. **A descrição do parâmetro é obrigatória.** O teste `tests/patterns.test.ts`
+   falha sem ela — é o texto que aparece no "?".
+3. Registre o padrão no arquivo do grupo (`basicPatterns`, `wavePatterns`, …).
+   A lista em `src/main/engine/patterns/index.ts` já reúne todos os grupos, então
+   não precisa mexer lá.
+4. Rode `npm run docs` para atualizar o catálogo.
+5. Rode `npm run typecheck && npm test`.
+
+A interface não precisa de nenhuma alteração: o slider aparece sozinho, com o
+rótulo, o intervalo e a explicação que você declarou.
+
+### Regras do motor
+
+Um padrão **precisa** respeitar estas regras, senão a paridade entre Linux e
+Windows quebra:
+
+- **Nunca** chamar `Math.random`. Use `hash(n)` — é determinístico.
+- **Nunca** ler o relógio. O tempo vem de `ctx.time`.
+- **Nunca** depender do tamanho da tela ou do estado da interface.
+- Devolver `u` entre 0 e 1 (a posição no gradiente) ou uma cor direta.
+
+---
+
+## Como adicionar uma paleta
+
+As paletas embutidas estão em `src/main/engine/palette.ts`:
+
+```ts
+palette('meu-id', 'Meu gradiente', 'rgb', [
+  [0, '#ff0000'],
+  [0.5, '#00ff00'],
+  [1, '#0000ff']
+])
+```
+
+Depois rode `npm run docs` para incluir a paleta no catálogo.
+
+---
+
+## O binário nativo
+
+O `node-hid` 3.x traz binários prontos (N-API v4) para todas as plataformas
+que o MyRGB usa. N-API tem ABI estável, então o mesmo binário funciona no Node
+e no Electron — **não há compilação envolvida**.
+
+O `postinstall` roda `tools/check-hid-binary.mjs`, que avisa se o binário da
+sua plataforma não estiver no lugar.
+
+O binário nativo compilado localmente (`node_modules/node-hid/build`) é
+**excluído** do pacote de propósito: em tempo de execução o `pkg-prebuilds`
+prefere esse diretório ao prebuild, e ele conteria o binário do Linux dentro do
+instalador do Windows. O que vai no pacote são só os prebuilds, cada um com o
+binário da plataforma certa.
+
+---
+
+## O instalador do Windows
+
+O instalador NSIS (`MyRGB-<versão>-setup.exe`) precisa ser gerado **no
+Windows** ou numa máquina com o `wine` instalado: o alvo NSIS do
+electron-builder executa o instalador recém-gerado para extrair o
+desinstalador, e isso exige o `wine` no Linux.
+
+```bash
+# no Windows
+npm run build:win        # release/MyRGB-0.1.0-setup.exe
+```
+
+O `build:win:dir` funciona em qualquer sistema e serve para conferir o
+empacotamento (estrutura do asar, binário nativo, ícones) antes de ir para o
+Windows.
+
+---
+
+## Rodando nesta máquina (Linux, Wayland)
+
+Em Wayland, `xwininfo` e `xwd` **não** enxergam a janela do Electron — isso já
+causou uma investigação errada antes. Para inspecionar a interface, use o
+protocolo de depuração:
+
+```bash
+npm run build
+npx electron . --no-sandbox --disable-gpu --remote-debugging-port=9222
+```
+
+E depois, em outro terminal:
+
+```bash
+curl -s http://127.0.0.1:9222/json/list
+```
+
+O `--no-sandbox` é necessário quando
+`kernel.apparmor_restrict_unprivileged_userns = 1` e o `chrome-sandbox`
+empacotado não tem o bit setuid: sem ele o processo de GPU morre com
+`FATAL: GPU process isn't usable`. O `--disable-gpu` (SwiftShader) remove
+esse caminho de erro.
+
+A inicialização leva de 20 a 30 segundos: a leitura do dispositivo faz até 8
+tentativas de leitura com timeout de 1 segundo cada.

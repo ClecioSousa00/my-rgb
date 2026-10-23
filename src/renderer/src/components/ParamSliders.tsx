@@ -1,4 +1,5 @@
 import { useApp, useSelectedZoneConfig } from '../store'
+import { HelpTip } from './HelpTip'
 import type { ParamSpec, ParamValue } from '@shared/types'
 
 export function ParamSliders(): React.JSX.Element | null {
@@ -30,7 +31,10 @@ export function ParamSliders(): React.JSX.Element | null {
   return (
     <div className="panel flex flex-col">
       <div className="panel-header">
-        <span>Parâmetros</span>
+        <span className="flex items-center gap-1.5">
+          Parâmetros
+          <HelpTip text="Ajuste fino do efeito escolhido. Cada padrão tem os seus próprios parâmetros - passe o mouse sobre o '?' ao lado de cada um para saber o que ele faz." />
+        </span>
         <span className="font-mono normal-case tracking-normal text-ink-400">{pattern.name}</span>
       </div>
 
@@ -68,7 +72,10 @@ function ParamControl({
   if (spec.type === 'boolean') {
     return (
       <label className="flex items-center justify-between gap-3">
-        <span className="text-[12px] text-ink-300">{spec.label}</span>
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-300">
+          {spec.label}
+          {spec.description && <HelpTip text={spec.description} />}
+        </span>
         <input
           type="checkbox"
           className="accent-brand-500"
@@ -82,7 +89,10 @@ function ParamControl({
   if (spec.type === 'select') {
     return (
       <label className="flex items-center justify-between gap-3">
-        <span className="text-[12px] text-ink-300">{spec.label}</span>
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-300">
+          {spec.label}
+          {spec.description && <HelpTip text={spec.description} />}
+        </span>
         <select
           className="field w-32"
           value={String(value)}
@@ -104,7 +114,11 @@ function ParamControl({
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className="text-[12px] text-ink-300">{spec.label}</span>
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-300">
+          {spec.label}
+          {spec.description && <HelpTip text={spec.description} />}
+          {spec.unit && <span className="text-[10px] text-ink-500">({spec.unit})</span>}
+        </span>
         <span className="font-mono text-[11px] text-ink-400">
           {formatNumber(numeric)}
           {spec.unit ? ` ${spec.unit}` : ''}

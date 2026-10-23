@@ -28,6 +28,14 @@ export interface EngineState {
   lastFrameSeq: number
 }
 
+/** Emitted after the profile was written to disk. */
+export interface ProfileSavedEvent {
+  /** Name of the profile that was written. */
+  name: string
+  /** Epoch milliseconds of the write. */
+  at: number
+}
+
 export interface MyRgbApi {
   // device
   getDeviceInfo(): Promise<DeviceInfo>
@@ -48,9 +56,13 @@ export interface MyRgbApi {
   deleteProfile(id: string): Promise<Profile>
   setZoneEffect(zoneId: string, effect: EffectDefinition | null): Promise<Profile>
   setZoneConfig(zoneId: string, patch: Partial<ZoneConfig>): Promise<Profile>
+  applyEffectToAll(zoneId: string): Promise<Profile>
   setPalette(palette: Palette): Promise<Profile>
   removePalette(paletteId: string): Promise<Profile>
   setGlobal(patch: Partial<GlobalSettings>): Promise<Profile>
+  exportProfile(): Promise<string | null>
+  importProfile(): Promise<Profile | null>
+  flushProfile(): Promise<void>
 
   // engine
   startEngine(): Promise<EngineState>
@@ -66,6 +78,7 @@ export interface MyRgbApi {
   onDeviceChange(callback: (info: DeviceInfo) => void): Unsubscribe
   onEngineState(callback: (state: EngineState) => void): Unsubscribe
   onProfileChange(callback: (profile: Profile) => void): Unsubscribe
+  onProfileSaved(callback: (event: ProfileSavedEvent) => void): Unsubscribe
   onTrayCommand(callback: (command: string) => void): Unsubscribe
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "my-rgb",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cross-platform RGB control for ASUS AURA USB controllers - identical effects on Linux and Windows",
   "main": "./out/main/index.js",
   "desktopName": "my-rgb",
@@ -36,9 +36,11 @@
     "probe": "node tools/probe-aura.mjs",
     "dump:frames": "npm run build && electron . --dump-frames",
     "write-test": "npm run build && electron . --write-test",
-    "selftest": "npm run build && electron . --selftest"
+    "selftest": "npm run build && electron . --selftest",
+    "docs": "npm run build && electron . --gen-docs documentation/efeitos.md"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "node-hid": "^3.4.0"
   },
   "devDependencies": {

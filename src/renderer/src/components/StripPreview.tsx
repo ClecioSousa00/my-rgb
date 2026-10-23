@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { subscribeFrames, useApp } from '../store'
+import { subscribeFrames, useApp, zoneDisplayName } from '../store'
+import { HelpTip } from './HelpTip'
 import type { Frame, RGB } from '@shared/types'
 
 /** Extract the colours belonging to one zone out of a full frame. */
@@ -45,15 +46,27 @@ function drawStrip(
   ctx.restore()
 }
 
+/** Where one zone ends up in the preview. */
+interface StripLayout {
+  zoneIndex: number
+  labelY: number
+  stripY: number
+  stripH: number
+  selected: boolean
+}
+
 export function StripPreview(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const zones = useApp((s) => s.zones)
+  const profile = useApp((s) => s.profile)
   const selectedZoneId = useApp((s) => s.selectedZoneId)
 
   const frameRef = useRef<Frame | null>(null)
   const zonesRef = useRef(zones)
+  const profileRef = useRef(profile)
   zonesRef.current = zones
+  profileRef.current = profile
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current
@@ -87,30 +100,71 @@ export function StripPreview(): React.JSX.Element {
     const colorsByZone = list.map((_, i) => zoneColors(frame, i, offset))
     const selectedIndex = list.findIndex((z) => z.id === selectedZoneId)
 
-    // Secondary strips: every zone except the selected one, at the bottom.
-    const secondary = list.filter((_, i) => i !== selectedIndex)
-    const secondaryH = 14
-    const secondaryGap = 8
-    const secondaryTop = height - secondary.length * (secondaryH + secondaryGap) + secondaryGap
+    // The stack grows from the bottom up: one thin strip per zone that is not
+    // the one being edited, and the selected zone on top of them.
+    const labelH = 15
+    const thinH = 12
+    const gap = 6
+    const layouts: StripLayout[] = []
 
-    secondary.forEach((zone, idx) => {
-      const zoneIndex = list.findIndex((z) => z.id === zone.id)
+    let cursor = height - 2
+    const secondary = list.filter((_, i) => i !== selectedIndex)
+    for (let idx = secondary.length - 1; idx >= 0; idx--) {
+      const zoneIndex = list.findIndex((z) => z.id === secondary[idx].id)
+      cursor -= thinH
+      const stripY = cursor
+      cursor -= labelH + gap
+      layouts.unshift({ zoneIndex, labelY: cursor + gap, stripY, stripH: thinH, selected: false })
+    }
+
+    if (selectedIndex >= 0) {
+      const stackTop = cursor
+      const stripH = Math.max(24, Math.min(110, stackTop - labelH - 6))
+      const stripY = Math.max(0, stackTop - stripH)
+      layouts.unshift({
+        zoneIndex: selectedIndex,
+        labelY: stripY - labelH,
+        stripY,
+        stripH,
+        selected: true
+      })
+    }
+
+    const configs = profileRef.current?.zones ?? []
+
+    for (const layout of layouts) {
+      const zone = list[layout.zoneIndex]
+      if (!zone) continue
+      const config = configs.find((c) => c.zoneId === zone.id)
+      const name = zoneDisplayName(zone, config)
+
+      ctx.save()
+      ctx.textBaseline = 'alphabetic'
+      ctx.font = layout.selected
+        ? '600 12px Inter, "Segoe UI", system-ui, sans-serif'
+        : '500 10.5px Inter, "Segoe UI", system-ui, sans-serif'
+      ctx.fillStyle = layout.selected ? '#e8ecf5' : '#6b748c'
+      ctx.fillText(name, 2, layout.labelY + labelH - 4)
+
+      if (zone.kind === 'addressable') {
+        const count = `${config?.ledCount ?? 0} LEDs`
+        ctx.font = '500 10px JetBrains Mono, ui-monospace, monospace'
+        ctx.fillStyle = '#3d4457'
+        ctx.textAlign = 'right'
+        ctx.fillText(count, width - 2, layout.labelY + labelH - 4)
+        ctx.textAlign = 'left'
+      }
+      ctx.restore()
+
       drawStrip(
         ctx,
         0,
-        secondaryTop + idx * (secondaryH + secondaryGap),
+        layout.stripY,
         width,
-        secondaryH,
-        colorsByZone[zoneIndex],
-        6
+        layout.stripH,
+        colorsByZone[layout.zoneIndex],
+        layout.selected ? 18 : 6
       )
-    })
-
-    // The selected zone gets the big strip.
-    if (selectedIndex >= 0) {
-      const stripH = Math.min(120, Math.max(48, height - secondaryTop - 40))
-      const y = Math.max(16, secondaryTop - stripH - 26)
-      drawStrip(ctx, 0, y, width, stripH, colorsByZone[selectedIndex], 18)
     }
   }, [selectedZoneId])
 
@@ -127,6 +181,10 @@ export function StripPreview(): React.JSX.Element {
   }, [paint, zones])
 
   useEffect(() => {
+    paint()
+  }, [paint, profile])
+
+  useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
     const observer = new ResizeObserver(() => paint())
@@ -135,13 +193,19 @@ export function StripPreview(): React.JSX.Element {
   }, [paint])
 
   const zone = zones.find((z) => z.id === selectedZoneId)
+  const zoneName = zone
+    ? zoneDisplayName(zone, profile?.zones.find((c) => c.zoneId === zone.id))
+    : null
 
   return (
     <div className="panel flex min-h-0 flex-1 flex-col">
       <div className="panel-header">
-        <span>Pré-visualização</span>
+        <span className="flex items-center gap-1.5">
+          Pré-visualização
+          <HelpTip text="A fita grande é a zona que você está editando; as fitas finas são as outras zonas da placa. Os quadros mostrados aqui são exatamente os que vão para o hardware." />
+        </span>
         <span className="font-mono normal-case tracking-normal text-ink-400">
-          {zone ? `${zone.label} · ${zone.kind === 'addressable' ? 'addressable' : 'fixo'}` : '—'}
+          {zoneName ? `${zoneName} · ${zone?.kind === 'addressable' ? 'addressable' : 'fixo'}` : '—'}
         </span>
       </div>
       <div ref={wrapRef} className="relative min-h-0 flex-1">

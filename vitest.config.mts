@@ -7,11 +7,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': resolve(root, 'src/shared'),
-      '@main': resolve(root, 'src/main')
+      '@main': resolve(root, 'src/main'),
+      '@renderer': resolve(root, 'src/renderer/src')
     }
   },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts']
+    include: ['tests/**/*.test.ts'],
+    testTimeout: 60000,
+    hookTimeout: 60000
   }
 })

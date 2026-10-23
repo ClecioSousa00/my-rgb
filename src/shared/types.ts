@@ -74,6 +74,7 @@ export type ParamSpec =
       label: string
       type: 'boolean'
       default: boolean
+      description?: string
     }
   | {
       key: string
@@ -81,6 +82,7 @@ export type ParamSpec =
       type: 'select'
       default: string
       options: { value: string; label: string }[]
+      description?: string
     }
 
 export interface PatternMeta {
@@ -118,6 +120,14 @@ export interface EffectDefinition {
 export interface ZoneConfig {
   zoneId: string
   enabled: boolean
+  /**
+   * Name the user gave to this zone.
+   *
+   * The hardware only reports what a zone is ("Header ARGB 1", "LEDs
+   * onboard"); this is what the user calls it ("Frente da caixa", "Ventoinha
+   * da esquerda"). Empty means "use the hardware name".
+   */
+  name?: string
   /**
    * Number of LEDs addressed on this zone.
    *
@@ -188,6 +198,8 @@ export const IPC = {
   patternsList: 'patterns:list',
   profileGet: 'profile:get',
   profileSave: 'profile:save',
+  /** Pushed by the main process once the profile really reached the disk. */
+  profileSaved: 'profile:saved',
   profileDuplicate: 'profile:duplicate',
   profileRename: 'profile:rename',
   profileList: 'profile:list',
@@ -195,9 +207,13 @@ export const IPC = {
   profileDelete: 'profile:delete',
   profileSetZone: 'profile:setZone',
   profileSetZoneConfig: 'profile:setZoneConfig',
+  profileApplyToAll: 'profile:applyToAll',
   profileSetPalette: 'profile:setPalette',
   profileRemovePalette: 'profile:removePalette',
   profileSetGlobal: 'profile:setGlobal',
+  profileExport: 'profile:export',
+  profileImport: 'profile:import',
+  profileFlush: 'profile:flush',
   engineStart: 'engine:start',
   engineStop: 'engine:stop',
   engineFrame: 'engine:frame',

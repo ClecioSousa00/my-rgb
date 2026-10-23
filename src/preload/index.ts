@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { EngineState, MyRgbApi, Unsubscribe } from '@shared/api'
+import type { EngineState, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
 import type {
   AppSettings,
   DeviceInfo,
@@ -49,12 +49,17 @@ const api: MyRgbApi = {
     ipcRenderer.invoke(IPC.profileSetZone, zoneId, effect),
   setZoneConfig: (zoneId: string, patch: Partial<ZoneConfig>): Promise<Profile> =>
     ipcRenderer.invoke(IPC.profileSetZoneConfig, zoneId, patch),
+  applyEffectToAll: (zoneId: string): Promise<Profile> =>
+    ipcRenderer.invoke(IPC.profileApplyToAll, zoneId),
   setPalette: (palette: Palette): Promise<Profile> =>
     ipcRenderer.invoke(IPC.profileSetPalette, palette),
   removePalette: (paletteId: string): Promise<Profile> =>
     ipcRenderer.invoke(IPC.profileRemovePalette, paletteId),
   setGlobal: (patch: Partial<GlobalSettings>): Promise<Profile> =>
     ipcRenderer.invoke(IPC.profileSetGlobal, patch),
+  exportProfile: (): Promise<string | null> => ipcRenderer.invoke(IPC.profileExport),
+  importProfile: (): Promise<Profile | null> => ipcRenderer.invoke(IPC.profileImport),
+  flushProfile: (): Promise<void> => ipcRenderer.invoke(IPC.profileFlush),
 
   // engine
   startEngine: (): Promise<EngineState> => ipcRenderer.invoke(IPC.engineStart),
@@ -71,6 +76,8 @@ const api: MyRgbApi = {
   onDeviceChange: (callback: (info: DeviceInfo) => void) => subscribe(IPC.deviceInfo, callback),
   onEngineState: (callback: (state: EngineState) => void) => subscribe(IPC.engineState, callback),
   onProfileChange: (callback: (profile: Profile) => void) => subscribe(IPC.profileGet, callback),
+  onProfileSaved: (callback: (event: ProfileSavedEvent) => void) =>
+    subscribe(IPC.profileSaved, callback),
   onTrayCommand: (callback: (command: string) => void) => subscribe(IPC.engineState, callback)
 }
 

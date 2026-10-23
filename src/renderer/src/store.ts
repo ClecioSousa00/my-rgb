@@ -42,11 +42,14 @@ interface AppState {
   engineRunning: boolean
   ready: boolean
   error: string | null
+  /** True while there are changes that are not on disk yet. */
+  dirty: boolean
 
   init(): Promise<void>
   selectZone(zoneId: string): void
   setZoneEffect(zoneId: string, effect: EffectDefinition | null): Promise<void>
   setZoneConfig(zoneId: string, patch: Partial<ZoneConfig>): Promise<void>
+  applyToAll(): Promise<void>
   setPalette(palette: Palette): Promise<void>
   removePalette(paletteId: string): Promise<void>
   setGlobal(patch: Partial<GlobalSettings>): Promise<void>
@@ -54,9 +57,20 @@ interface AppState {
   saveProfile(profile: Profile): Promise<void>
   duplicateProfile(name: string): Promise<void>
   renameProfile(name: string): Promise<void>
+  exportProfile(): Promise<string | null>
+  importProfile(): Promise<Profile | null>
   toggleEngine(): Promise<void>
   reconnect(): Promise<void>
 }
+
+/**
+ * Mutations that are still on their way to the main process.
+ *
+ * The main process writes the profile to disk a moment after the change, so a
+ * "saved" event that arrives while a mutation is still in flight must not
+ * clear the dirty flag.
+ */
+let pendingMutations = 0
 
 export const useApp = create<AppState>((set, get) => ({
   device: null,
@@ -67,6 +81,7 @@ export const useApp = create<AppState>((set, get) => ({
   engineRunning: false,
   ready: false,
   error: null,
+  dirty: false,
 
   async init() {
     try {
@@ -101,6 +116,10 @@ export const useApp = create<AppState>((set, get) => ({
         for (const listener of frameListeners) listener(frame)
       })
       window.myrgb.onProfileChange((next) => set({ profile: next }))
+      window.myrgb.onProfileSaved(() => {
+        // Only trust the event when nothing else is being changed right now.
+        if (pendingMutations === 0) set({ dirty: false })
+      })
       window.myrgb.onEngineState((state) => set({ engineRunning: state.running }))
       // The conflict with another program can start at any time, so the
       // device status has to be pushed rather than only read once.
@@ -116,27 +135,35 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async setZoneEffect(zoneId, effect) {
-    const profile = await window.myrgb.setZoneEffect(zoneId, effect)
+    const profile = await mutate(set, () => window.myrgb.setZoneEffect(zoneId, effect))
     set({ profile })
   },
 
   async setZoneConfig(zoneId, patch) {
-    const profile = await window.myrgb.setZoneConfig(zoneId, patch)
+    const profile = await mutate(set, () => window.myrgb.setZoneConfig(zoneId, patch))
+    set({ profile })
+  },
+
+  /** Copy the effect of the zone being edited to every other zone. */
+  async applyToAll() {
+    const zoneId = get().selectedZoneId
+    if (!zoneId) return
+    const profile = await mutate(set, () => window.myrgb.applyEffectToAll(zoneId))
     set({ profile })
   },
 
   async setPalette(palette) {
-    const profile = await window.myrgb.setPalette(palette)
+    const profile = await mutate(set, () => window.myrgb.setPalette(palette))
     set({ profile })
   },
 
   async removePalette(paletteId) {
-    const profile = await window.myrgb.removePalette(paletteId)
+    const profile = await mutate(set, () => window.myrgb.removePalette(paletteId))
     set({ profile })
   },
 
   async setGlobal(patch) {
-    const profile = await window.myrgb.setGlobal(patch)
+    const profile = await mutate(set, () => window.myrgb.setGlobal(patch))
     set({ profile })
   },
 
@@ -146,18 +173,33 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async saveProfile(profile) {
-    const saved = await window.myrgb.saveProfile(profile)
+    if (!profile) return
+    const saved = await mutate(set, () => window.myrgb.saveProfile(profile))
     set({ profile: saved })
+    try {
+      await window.myrgb.flushProfile?.()
+    } catch {}
+    set({ dirty: false })
   },
 
   async duplicateProfile(name) {
-    const profile = await window.myrgb.duplicateProfile(name)
+    const profile = await mutate(set, () => window.myrgb.duplicateProfile(name))
     set({ profile })
   },
 
   async renameProfile(name) {
-    const profile = await window.myrgb.renameProfile(name)
+    const profile = await mutate(set, () => window.myrgb.renameProfile(name))
     set({ profile })
+  },
+
+  async exportProfile() {
+    return await window.myrgb.exportProfile()
+  },
+
+  async importProfile() {
+    const profile = await window.myrgb.importProfile()
+    if (profile) set({ profile })
+    return profile
   },
 
   async toggleEngine() {
@@ -187,6 +229,25 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+/**
+ * Run a change that reaches the main process and marks the profile as dirty.
+ *
+ * The flag is only cleared when the main process confirms the write, so the
+ * indicator never promises something that is not on disk yet.
+ */
+async function mutate<T>(
+  set: (partial: Partial<AppState>) => void,
+  run: () => Promise<T>
+): Promise<T> {
+  pendingMutations++
+  set({ dirty: true })
+  try {
+    return await run()
+  } finally {
+    pendingMutations--
+  }
+}
+
 /** Convenience selector: the zone currently being edited. */
 export function useSelectedZone(): ZoneState | undefined {
   return useApp((s) => s.zones.find((z) => z.id === s.selectedZoneId))
@@ -201,6 +262,17 @@ export function useSelectedZoneConfig(): ZoneConfig | undefined {
 export function useSelectedPattern(): PatternMeta | undefined {
   const patternId = useSelectedZoneConfig()?.effect?.patternId
   return useApp((s) => s.patterns.find((p) => p.id === patternId))
+}
+
+/**
+ * The name shown for a zone.
+ *
+ * The user can rename a zone per profile; when they did not, the name the
+ * hardware reports is used.
+ */
+export function zoneDisplayName(zone: ZoneState, config?: ZoneConfig): string {
+  const custom = config?.name?.trim()
+  return custom ? custom : zone.label
 }
 
 export type { ParamValue }

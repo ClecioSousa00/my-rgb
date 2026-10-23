@@ -4,16 +4,7 @@
 
 import type { Pattern } from '../types'
 import { clamp, hash, noise2, pulse } from './helpers'
-
-const RATE = {
-  key: 'rate',
-  label: 'Velocidade',
-  type: 'number' as const,
-  min: 0.05,
-  max: 4,
-  step: 0.05,
-  default: 1
-}
+import { RATE } from './params'
 
 export const atmospherePatterns: Pattern[] = [
   {
@@ -30,7 +21,9 @@ export const atmospherePatterns: Pattern[] = [
         min: 1,
         max: 6,
         step: 1,
-        default: 3
+        default: 3,
+        description:
+          'Quantas cortinas de luz se sobrepõem. Poucas dão uma aurora limpa; seis dão um céu cheio de camadas.'
       },
       {
         key: 'intensity',
@@ -39,7 +32,8 @@ export const atmospherePatterns: Pattern[] = [
         min: 0.1,
         max: 1,
         step: 0.01,
-        default: 0.8
+        default: 0.8,
+        description: 'O brilho geral das cortinas. Valores baixo deixam tudo apagado.'
       }
     ],
     render: (ctx) => {
@@ -72,7 +66,8 @@ export const atmospherePatterns: Pattern[] = [
         min: 1,
         max: 16,
         step: 0.5,
-        default: 4
+        default: 4,
+        description: 'Tamanho das labaredas. Escala alta dá chamas miúdas; escala baixa, chamas grandes.'
       },
       {
         key: 'height',
@@ -81,7 +76,9 @@ export const atmospherePatterns: Pattern[] = [
         min: 0.2,
         max: 1,
         step: 0.01,
-        default: 0.7
+        default: 0.7,
+        description:
+          'O quanto a chama se estica pela fita. 1 deixa o fogo baixo e concentrado; valores baixos esticam a chama por quase toda a fita.'
       }
     ],
     render: (ctx) => {
@@ -110,7 +107,8 @@ export const atmospherePatterns: Pattern[] = [
         min: 0.05,
         max: 1,
         step: 0.01,
-        default: 0.25
+        default: 0.25,
+        description: 'Que fração da fita tem uma estrela acesa ao mesmo tempo.'
       },
       {
         key: 'twinkle',
@@ -119,7 +117,9 @@ export const atmospherePatterns: Pattern[] = [
         min: 0,
         max: 1,
         step: 0.01,
-        default: 0.7
+        default: 0.7,
+        description:
+          'O quanto as estrelas piscam. 0 deixa tudo aceso sem mudar; 1 faz cada estrela acender e apagar depressa.'
       }
     ],
     render: (ctx) => {
@@ -149,7 +149,8 @@ export const atmospherePatterns: Pattern[] = [
         min: 0.02,
         max: 1,
         step: 0.01,
-        default: 0.15
+        default: 0.15,
+        description: 'Que fração da fita pisca ao mesmo tempo.'
       }
     ],
     render: (ctx) => {
@@ -177,7 +178,9 @@ export const atmospherePatterns: Pattern[] = [
         min: 1,
         max: 40,
         step: 1,
-        default: 12
+        default: 12,
+        description:
+          'Quantos pedaços a fita é dividida. Poucos pedaços dão blocos grandes; muitos dão um grão fino.'
       }
     ],
     render: (ctx) => {
@@ -202,7 +205,8 @@ export const atmospherePatterns: Pattern[] = [
         min: 0.5,
         max: 12,
         step: 0.5,
-        default: 2.5
+        default: 2.5,
+        description: 'Tamanho das nuvens. Escala baixa dá manchas largas e lentas.'
       }
     ],
     render: (ctx) => {

@@ -4,16 +4,7 @@
 
 import type { Pattern } from '../types'
 import { clamp, hash, lerp, pulse, wrap01 } from './helpers'
-
-const RATE = {
-  key: 'rate',
-  label: 'Velocidade',
-  type: 'number' as const,
-  min: 0.05,
-  max: 4,
-  step: 0.05,
-  default: 1
-}
+import { RATE } from './params'
 
 export const motionPatterns: Pattern[] = [
   {
@@ -31,7 +22,8 @@ export const motionPatterns: Pattern[] = [
         max: 72,
         step: 1,
         default: 8,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs tem o bloco de luz que corre pela fita.'
       },
       {
         key: 'trail',
@@ -40,7 +32,9 @@ export const motionPatterns: Pattern[] = [
         min: 0.2,
         max: 4,
         step: 0.05,
-        default: 1
+        default: 1,
+        description:
+          'O quanto o rastro se apaga atrás do bloco. Valores altos deixam um rabo longo e suave; valores baixos deixam o rastro curto e marcado.'
       }
     ],
     render: (ctx) => {
@@ -68,7 +62,8 @@ export const motionPatterns: Pattern[] = [
         max: 72,
         step: 1,
         default: 10,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs tem o bloco de luz que corre pela fita.'
       },
       {
         key: 'softness',
@@ -77,7 +72,9 @@ export const motionPatterns: Pattern[] = [
         min: 0,
         max: 1,
         step: 0.01,
-        default: 0.5
+        default: 0.5,
+        description:
+          'O quanto as bordas do bloco ficam suaves. 0 dá um bloco com corte seco; 1 dá uma transição contínua, sem nenhuma borda.'
       }
     ],
     render: (ctx) => {
@@ -105,7 +102,8 @@ export const motionPatterns: Pattern[] = [
         max: 24,
         step: 1,
         default: 3,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs tem a parte mais brilhante da cometa.'
       },
       {
         key: 'tail',
@@ -115,7 +113,8 @@ export const motionPatterns: Pattern[] = [
         max: 144,
         step: 1,
         default: 36,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs a cauda percorre antes de sumir.'
       }
     ],
     render: (ctx) => {
@@ -145,7 +144,8 @@ export const motionPatterns: Pattern[] = [
         min: 1,
         max: 12,
         step: 1,
-        default: 3
+        default: 3,
+        description: 'Quantos meteoros correm ao mesmo tempo. Cada um tem sua própria velocidade.'
       },
       {
         key: 'tail',
@@ -155,7 +155,8 @@ export const motionPatterns: Pattern[] = [
         max: 72,
         step: 1,
         default: 18,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs cada meteoro deixa para trás.'
       }
     ],
     render: (ctx) => {
@@ -189,7 +190,8 @@ export const motionPatterns: Pattern[] = [
         min: 1,
         max: 20,
         step: 1,
-        default: 6
+        default: 6,
+        description: 'Quantas gotas caem ao mesmo tempo, cada uma em um ponto e uma velocidade diferentes.'
       },
       {
         key: 'width',
@@ -198,7 +200,8 @@ export const motionPatterns: Pattern[] = [
         min: 0.5,
         max: 12,
         step: 0.5,
-        default: 2
+        default: 2,
+        description: 'Quantos LEDs cada gota ocupa.'
       }
     ],
     render: (ctx) => {
@@ -232,7 +235,8 @@ export const motionPatterns: Pattern[] = [
         max: 36,
         step: 1,
         default: 4,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs tem o ponto de luz que vai e volta.'
       }
     ],
     render: (ctx) => {
@@ -259,7 +263,8 @@ export const motionPatterns: Pattern[] = [
         max: 72,
         step: 1,
         default: 6,
-        unit: 'LEDs'
+        unit: 'LEDs',
+        description: 'Quantos LEDs tem a barra de luz que percorre a fita.'
       }
     ],
     render: (ctx) => {
@@ -283,7 +288,9 @@ export const motionPatterns: Pattern[] = [
         min: 0.5,
         max: 8,
         step: 0.1,
-        default: 2
+        default: 2,
+        description:
+          'Quantas voltas o gradiente dá do centro até a ponta da fita. Mais profundidade deixa o túnel mais fechado.'
       }
     ],
     render: (ctx) => {
@@ -307,7 +314,9 @@ export const motionPatterns: Pattern[] = [
         min: 0,
         max: 8,
         step: 0.1,
-        default: 1.5
+        default: 1.5,
+        description:
+          'Quantas voltas o gradiente dá da ponta à outra. Valores altos deixam o desenho apertado.'
       }
     ],
     render: (ctx) => {

@@ -114,10 +114,13 @@ export class ProfileStore {
   private writeTimer: NodeJS.Timeout | null = null
   /** Path of the file this store last wrote to. */
   private writtenPath: string | null = null
+  /** Called after every successful write to disk. */
+  private readonly onSaved: ((name: string) => void) | null
 
-  constructor(userDataPath: string, initial: Profile) {
+  constructor(userDataPath: string, initial: Profile, onSaved?: (name: string) => void) {
     this.dir = join(userDataPath, 'profiles')
     this.current = initial
+    this.onSaved = onSaved ?? null
   }
 
   get profile(): Profile {
@@ -177,6 +180,31 @@ export class ProfileStore {
     const zone = this.current.zones.find((z) => z.zoneId === zoneId)
     if (!zone) throw new Error(`Unknown zone: ${zoneId}`)
     Object.assign(zone, patch)
+    return this.save(this.current)
+  }
+
+  /**
+   * Copy one zone's effect to every other zone.
+   *
+   * The LED count and the on/off switch of each zone are left alone - they
+   * describe the hardware, not the effect. The "follow another zone" link is
+   * cleared, because a zone that mirrors someone else would ignore the copy.
+   */
+  applyEffectToAll(sourceZoneId: string): Profile {
+    const source = this.current.zones.find((z) => z.zoneId === sourceZoneId)
+    if (!source) throw new Error(`Unknown zone: ${sourceZoneId}`)
+    if (!source.effect) throw new Error(`Zone ${sourceZoneId} has no effect to copy`)
+
+    const effect: EffectDefinition = {
+      ...source.effect,
+      params: { ...source.effect.params }
+    }
+
+    for (const zone of this.current.zones) {
+      zone.effect = { ...effect, params: { ...effect.params } }
+      zone.followZoneId = null
+    }
+
     return this.save(this.current)
   }
 
@@ -276,6 +304,9 @@ export class ProfileStore {
     const file = join(this.dir, `${sanitize(this.current.name)}.json`)
     writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
     this.writtenPath = file
+    // The UI shows a "saved" indicator, so it has to know when the disk was
+    // really written - not when the change was made.
+    this.onSaved?.(this.current.name)
   }
 
   private pathFor(id: string): string {

@@ -6,6 +6,7 @@ import { StripPreview } from './components/StripPreview'
 import { PatternPicker } from './components/PatternPicker'
 import { GradientEditor } from './components/GradientEditor'
 import { ParamSliders } from './components/ParamSliders'
+import { ToastHost } from './components/Toast'
 
 export default function App(): React.JSX.Element {
   const ready = useApp((s) => s.ready)
@@ -19,7 +20,7 @@ export default function App(): React.JSX.Element {
   }, [init])
 
   return (
-    <div className="flex h-full flex-col bg-ink-950">
+    <div className="relative flex h-full flex-col bg-ink-950">
       <TopBar />
 
       {device?.conflictSuspected && (
@@ -64,6 +65,8 @@ export default function App(): React.JSX.Element {
           Carregando…
         </div>
       )}
+
+      <ToastHost />
     </div>
   )
 }

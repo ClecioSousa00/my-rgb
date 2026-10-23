@@ -247,4 +247,72 @@ describe('ProfileStore', () => {
     const store = new ProfileStore(dir, defaultProfile(ZONES))
     expect(() => store.setZoneEffect('inexistente', null)).toThrow()
   })
+
+  it('keeps the name the user gave to a zone', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneConfig('argb0', { name: 'Frente da caixa' })
+    store.flush()
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    const loaded = reopened.load('Padrão')
+    expect(loaded.zones.find((z) => z.zoneId === 'argb0')?.name).toBe('Frente da caixa')
+  })
+
+  it('keeps the zone name when the profile is reconciled with the hardware', () => {
+    const profile = defaultProfile(ZONES)
+    profile.zones[1].name = 'Ventoinha'
+    const reconciled = reconcileProfile(profile, ZONES)
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb0')?.name).toBe('Ventoinha')
+  })
+
+  it('copies one zone effect to every other zone', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneEffect('argb0', {
+      patternId: 'wave',
+      paletteId: store.profile.palettes[1].id,
+      params: { rate: 2, wavelength: 4 }
+    })
+    store.setZoneConfig('argb2', { ledCount: 30, enabled: false })
+
+    const profile = store.applyEffectToAll('argb0')
+
+    for (const zone of profile.zones) {
+      expect(zone.effect?.patternId).toBe('wave')
+      expect(zone.effect?.paletteId).toBe(store.profile.palettes[1].id)
+      expect(zone.effect?.params).toEqual({ rate: 2, wavelength: 4 })
+    }
+  })
+
+  it('keeps the LED count and the on/off switch of each zone when applying to all', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneConfig('argb2', { ledCount: 30, enabled: false })
+
+    const profile = store.applyEffectToAll('argb0')
+    const target = profile.zones.find((z) => z.zoneId === 'argb2')
+
+    expect(target?.ledCount).toBe(30)
+    expect(target?.enabled).toBe(false)
+  })
+
+  it('breaks the "follow another zone" link when applying to all', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneConfig('argb1', { followZoneId: 'mainboard' })
+
+    const profile = store.applyEffectToAll('argb0')
+
+    for (const zone of profile.zones) {
+      expect(zone.followZoneId).toBeNull()
+    }
+  })
+
+  it('refuses to apply to all when the zone has no effect', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneEffect('argb0', null)
+    expect(() => store.applyEffectToAll('argb0')).toThrow()
+  })
 })
