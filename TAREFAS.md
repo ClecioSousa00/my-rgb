@@ -59,10 +59,10 @@
 
 - [x] **Melhorar visualização de paletas** - Preview maior no seletor de gradiente
 - [x] **Adicionar busca no seletor de efeitos** - Filtrar 34 efeitos por nome/categoria (não necessário)
-- [ ] **Tooltips mais informativos** - Expandir descrições em alguns lugares
-- [ ] **Melhorar responsividade** - Ajustar layout para diferentes resoluções
-- [ ] **Adicionar indicador de zona seguindo outra** - Melhorar UX quando em modo "seguir zona"
-- [ ] **Reorganizar painel de configurações** - Agrupar opções por categoria
+- [x] **Tooltips mais informativos** - Expandir descrições em alguns lugares
+- [x] **Melhorar responsividade** - Ajustar layout para diferentes resoluções
+- [x] **Adicionar indicador de zona seguindo outra** - Melhorar UX quando em modo "seguir zona"
+- [x] **Reorganizar painel de configurações** - Agrupar opções por categoria
 
 ---
 

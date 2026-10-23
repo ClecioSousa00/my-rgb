@@ -298,40 +298,55 @@ export function TopBar(): React.JSX.Element {
               Configurações
             </div>
 
-            <SettingToggle
-              label="Iniciar o motor ao abrir"
-              checked={settings.autoStart}
-              onChange={(v) => void updateSetting({ autoStart: v })}
-            />
-            <SettingToggle
-              label="Iniciar com o sistema"
-              checked={settings.autostartAtLogin}
-              onChange={(v) => void updateSetting({ autostartAtLogin: v })}
-            />
-            <SettingToggle
-              label="Minimizar para a bandeja"
-              checked={settings.minimizeToTray}
-              onChange={(v) => void updateSetting({ minimizeToTray: v })}
-            />
-            <SettingToggle
-              label="Abrir com as luzes apagadas"
-              checked={settings.startWithLightingOff}
-              onChange={(v) => void updateSetting({ startWithLightingOff: v })}
-            />
-            <div className="mt-2">
-              <div className="mb-1 text-[10.5px] uppercase tracking-wider text-ink-400">Perfil ao iniciar</div>
-              <select
-                className="field"
-                value={settings.startupProfile || ''}
-                onChange={(e) => void updateSetting({ startupProfile: e.target.value || null })}
-              >
-                <option value="">Usar último perfil</option>
-                {profileNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+            <div className="mb-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">Inicialização</div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <SettingToggle
+                  label="Iniciar o motor ao abrir"
+                  checked={settings.autoStart}
+                  onChange={(v) => void updateSetting({ autoStart: v })}
+                />
+                <SettingToggle
+                  label="Iniciar com o sistema"
+                  checked={settings.autostartAtLogin}
+                  onChange={(v) => void updateSetting({ autostartAtLogin: v })}
+                />
+              </div>
+            </div>
+
+            <div className="mb-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">Comportamento</div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <SettingToggle
+                  label="Minimizar para a bandeja"
+                  checked={settings.minimizeToTray}
+                  onChange={(v) => void updateSetting({ minimizeToTray: v })}
+                />
+                <SettingToggle
+                  label="Abrir com as luzes apagadas"
+                  checked={settings.startWithLightingOff}
+                  onChange={(v) => void updateSetting({ startWithLightingOff: v })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">Perfis</div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <div className="mb-1 text-[11px] text-ink-300">Perfil ao iniciar</div>
+                <select
+                  className="field"
+                  value={settings.startupProfile || ''}
+                  onChange={(e) => void updateSetting({ startupProfile: e.target.value || null })}
+                >
+                  <option value="">Usar último perfil</option>
+                  {profileNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         )}

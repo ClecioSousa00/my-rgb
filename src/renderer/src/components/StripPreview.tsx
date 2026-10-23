@@ -202,7 +202,7 @@ export function StripPreview(): React.JSX.Element {
       <div className="panel-header">
         <span className="flex items-center gap-1.5">
           Pré-visualização
-          <HelpTip text="A fita grande é a zona que você está editando; as fitas finas são as outras zonas da placa. Os quadros mostrados aqui são exatamente os que vão para o hardware." />
+          <HelpTip text="Vista ao vivo e idêntica ao que é enviado ao controlador. A faixa maior é a zona selecionada; as faixas menores mostram as demais. Clique em qualquer faixa para selecioná-la." />
         </span>
         <span className="font-mono normal-case tracking-normal text-ink-400">
           {zoneName ? `${zoneName} · ${zone?.kind === 'addressable' ? 'addressable' : 'fixo'}` : '—'}

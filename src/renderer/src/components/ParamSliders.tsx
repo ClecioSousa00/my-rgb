@@ -33,7 +33,7 @@ export function ParamSliders(): React.JSX.Element | null {
       <div className="panel-header">
         <span className="flex items-center gap-1.5">
           Parâmetros
-          <HelpTip text="Ajuste fino do efeito escolhido. Cada padrão tem os seus próprios parâmetros - passe o mouse sobre o '?' ao lado de cada um para saber o que ele faz." />
+          <HelpTip text="Ajuste fino do efeito escolhido. Cada padrão tem seus próprios parâmetros. Passe o mouse sobre o '?' ao lado de cada controle para entender o efeito com mais clareza." />
         </span>
         <span className="font-mono normal-case tracking-normal text-ink-400">{pattern.name}</span>
       </div>

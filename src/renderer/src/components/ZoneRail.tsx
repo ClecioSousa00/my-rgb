@@ -219,7 +219,9 @@ function ZoneCard({
       </div>
 
       {followedName && (
-        <div className="mt-1.5 text-[10.5px] text-accent-400">seguindo {followedName}</div>
+        <div className="mt-1.5 flex items-center gap-1 text-[10.5px] text-accent-400">
+          <span className="rounded-full bg-accent-400/15 px-1.5 py-0.5">↷ seguindo {followedName}</span>
+        </div>
       )}
     </div>
   )
