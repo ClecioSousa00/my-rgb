@@ -57,6 +57,9 @@ const api: MyRgbApi = {
     ipcRenderer.invoke(IPC.profileRemovePalette, paletteId),
   setGlobal: (patch: Partial<GlobalSettings>): Promise<Profile> =>
     ipcRenderer.invoke(IPC.profileSetGlobal, patch),
+  exportProfile: (): Promise<string | null> => ipcRenderer.invoke(IPC.profileExport),
+  importProfile: (): Promise<Profile | null> => ipcRenderer.invoke(IPC.profileImport),
+  flushProfile: (): Promise<void> => ipcRenderer.invoke(IPC.profileFlush),
 
   // engine
   startEngine: (): Promise<EngineState> => ipcRenderer.invoke(IPC.engineStart),

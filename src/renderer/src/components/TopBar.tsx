@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../store'
 import type { AppSettings } from '@shared/types'
-
-const FPS_OPTIONS = [15, 20, 30, 60]
+import { showToast } from './Toast'
 
 export function TopBar(): React.JSX.Element {
   const device = useApp((s) => s.device)
@@ -13,16 +12,47 @@ export function TopBar(): React.JSX.Element {
   const loadProfile = useApp((s) => s.loadProfile)
   const duplicateProfile = useApp((s) => s.duplicateProfile)
   const renameProfile = useApp((s) => s.renameProfile)
+  const saveProfile = useApp((s) => s.saveProfile)
+  const exportProfile = useApp((s) => s.exportProfile)
+  const importProfile = useApp((s) => s.importProfile)
 
   const [profileNames, setProfileNames] = useState<string[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const dirty = useApp((s) => s.dirty)
 
+  const [savePromptOpen, setSavePromptOpen] = useState(false)
+  const [savePromptValue, setSavePromptValue] = useState('')
+  const [savePromptError, setSavePromptError] = useState<string | null>(null)
+  const savePromptInputRef = useRef<HTMLInputElement>(null)
+
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     void window.myrgb.listProfiles().then(setProfileNames)
     void window.myrgb.getSettings().then(setSettings)
   }, [])
+
+  useEffect(() => {
+    void window.myrgb.listProfiles().then(setProfileNames)
+  }, [profile?.name])
+
+  useEffect(() => {
+    if (savePromptOpen) {
+      setSavePromptValue(profile ? profile.name : '')
+      setSavePromptError(null)
+      setTimeout(() => savePromptInputRef.current?.select(), 0)
+    }
+  }, [savePromptOpen, profile])
+
+  useEffect(() => {
+    if (renameOpen && profile) {
+      setRenameValue(profile.name)
+      setTimeout(() => renameInputRef.current?.select(), 0)
+    }
+  }, [renameOpen, profile])
 
   const updateSetting = async (patch: Partial<AppSettings>): Promise<void> => {
     setSettings(await window.myrgb.setSettings(patch))
@@ -36,31 +66,79 @@ export function TopBar(): React.JSX.Element {
     setProfileNames(await window.myrgb.listProfiles())
   }
 
-  /**
-   * "Save as" - the current configuration is stored under a new name and
-   * becomes the profile being edited, so the old one stays untouched and both
-   * show up in the dropdown.
-   */
-  const handleSaveAs = async (): Promise<void> => {
+  const handleSave = async (): Promise<void> => {
     if (!profile) return
-    const name = window.prompt('Salvar perfil como', suggestProfileName(profile.name))
-    if (name === null) return
-    const trimmed = name.trim()
-    if (!trimmed) return
-    if (profileNames.includes(trimmed)) {
-      window.alert('Já existe um perfil com esse nome.')
+    setSavePromptValue(profile.name)
+    setSavePromptError(null)
+    setSavePromptOpen(true)
+  }
+
+  const confirmSavePrompt = async (): Promise<void> => {
+    if (!profile) return
+    const trimmed = savePromptValue.trim()
+    if (!trimmed) {
+      setSavePromptError('Digite um nome para o perfil.')
       return
     }
-    await duplicateProfile(trimmed)
+    if (trimmed === profile.name) {
+      await saveProfile(profile)
+      setSavePromptOpen(false)
+      showToast('Perfil salvo')
+      return
+    }
+    if (profileNames.includes(trimmed)) {
+      const overwrite = window.confirm(`Já existe um perfil "${trimmed}". Sobrescrever?`)
+      if (!overwrite) {
+        setSavePromptError('Já existe um perfil com esse nome.')
+        return
+      }
+    }
+    await renameProfile(trimmed)
+    await saveProfile({ ...profile, name: trimmed })
     setProfileNames(await window.myrgb.listProfiles())
+    setSavePromptOpen(false)
+    showToast('Perfil salvo')
   }
 
   const handleRename = async (): Promise<void> => {
     if (!profile) return
-    const name = window.prompt('Renomear perfil', profile.name)
-    if (name === null || name === profile.name) return
-    await renameProfile(name)
+    setRenameOpen(true)
+  }
+
+  const confirmRename = async (): Promise<void> => {
+    if (!profile) return
+    const trimmed = renameValue.trim()
+    if (!trimmed || trimmed === profile.name) {
+      setRenameOpen(false)
+      return
+    }
+    await renameProfile(trimmed)
     setProfileNames(await window.myrgb.listProfiles())
+    setRenameOpen(false)
+    showToast(`Perfil renomeado para “${trimmed}”`)
+  }
+
+  const handleExport = async (): Promise<void> => {
+    try {
+      const path = await exportProfile()
+      if (path) showToast('Perfil exportado')
+      else showToast('Exportação cancelada')
+    } catch (err) {
+      showToast('Erro ao exportar perfil')
+    }
+  }
+
+  const handleImport = async (): Promise<void> => {
+    try {
+      const imported = await importProfile()
+      if (imported) {
+        setProfileNames(await window.myrgb.listProfiles())
+        await handleProfileChange(imported.name)
+        showToast('Perfil importado')
+      }
+    } catch (err) {
+      showToast('Erro ao importar perfil')
+    }
   }
 
   return (
@@ -115,12 +193,13 @@ export function TopBar(): React.JSX.Element {
           ))}
         </select>
         <button
-          className="btn"
-          onClick={() => void handleSaveAs()}
-          title="Guardar a configuração atual em um novo perfil"
+          className="btn btn-primary"
+          onClick={() => void handleSave()}
+          title="Salvar alterações no perfil atual por cima deste arquivo"
         >
-          Salvar como…
+          Salvar
         </button>
+
         <button
           className="btn btn-ghost"
           onClick={() => void handleRename()}
@@ -128,18 +207,28 @@ export function TopBar(): React.JSX.Element {
         >
           ✎
         </button>
-        <span
-          className={`chip border-transparent ${
-            dirty ? 'bg-warn-500/10 text-warn-500' : 'bg-good-500/10 text-good-500'
-          }`}
-          title={
-            dirty
-              ? 'As mudanças ainda não foram gravadas no disco'
-              : 'Tudo que você mudou está gravado no disco'
-          }
+        <button
+          className="btn btn-ghost"
+          onClick={() => void handleExport()}
+          title="Exportar perfil para arquivo"
         >
-          {dirty ? '● não salvo' : '✓ salvo'}
-        </span>
+          Exportar
+        </button>
+        <button
+          className="btn btn-ghost"
+          onClick={() => void handleImport()}
+          title="Importar perfil de arquivo"
+        >
+          Importar
+        </button>
+        {dirty && (
+          <span
+            className="chip border-transparent bg-warn-500/10 text-warn-500"
+            title="Existem mudanças não salvas neste perfil"
+          >
+            ● não salvo
+          </span>
+        )}
       </div>
 
       <div className="h-6 w-px bg-ink-700" />
@@ -176,19 +265,6 @@ export function TopBar(): React.JSX.Element {
           {(profile?.global.speed ?? 1).toFixed(2)}x
         </span>
       </label>
-
-      <select
-        className="field w-16"
-        value={profile?.global.fps ?? 30}
-        onChange={(e) => void setGlobal({ fps: Number(e.target.value) })}
-        title="Quadros por segundo"
-      >
-        {FPS_OPTIONS.map((fps) => (
-          <option key={fps} value={fps}>
-            {fps} fps
-          </option>
-        ))}
-      </select>
 
       <div className="h-6 w-px bg-ink-700" />
 
@@ -246,6 +322,65 @@ export function TopBar(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      {savePromptOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+          <div className="panel w-80 p-4 shadow-2xl">
+            <div className="mb-2 text-sm font-semibold">Salvar perfil</div>
+            <div className="mb-1 text-[11px] text-ink-400">
+              Informe o nome do perfil. Se já existir, você pode optar por sobrescrever.
+            </div>
+            <input
+              ref={savePromptInputRef}
+              className="field"
+              value={savePromptValue}
+              onChange={(e) => {
+                setSavePromptValue(e.target.value)
+                setSavePromptError(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void confirmSavePrompt()
+                if (e.key === 'Escape') setSavePromptOpen(false)
+              }}
+            />
+            {savePromptError && <div className="mt-1 text-[11px] text-bad-500">{savePromptError}</div>}
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="btn btn-ghost" onClick={() => setSavePromptOpen(false)}>
+                Cancelar
+              </button>
+              <button className="btn btn-primary" onClick={() => void confirmSavePrompt()}>
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renameOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+          <div className="panel w-80 p-4 shadow-2xl">
+            <div className="mb-2 text-sm font-semibold">Renomear perfil</div>
+            <input
+              ref={renameInputRef}
+              className="field"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void confirmRename()
+                if (e.key === 'Escape') setRenameOpen(false)
+              }}
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="btn btn-ghost" onClick={() => setRenameOpen(false)}>
+                Cancelar
+              </button>
+              <button className="btn btn-primary" onClick={() => void confirmRename()}>
+                Renomear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

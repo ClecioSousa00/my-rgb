@@ -60,6 +60,9 @@ export interface MyRgbApi {
   setPalette(palette: Palette): Promise<Profile>
   removePalette(paletteId: string): Promise<Profile>
   setGlobal(patch: Partial<GlobalSettings>): Promise<Profile>
+  exportProfile(): Promise<string | null>
+  importProfile(): Promise<Profile | null>
+  flushProfile(): Promise<void>
 
   // engine
   startEngine(): Promise<EngineState>

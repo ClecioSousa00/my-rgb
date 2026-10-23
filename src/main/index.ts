@@ -5,8 +5,8 @@
  * the renderer over a narrow IPC surface. The renderer never touches HID.
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { mkdirSync, writeFileSync } from 'fs'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
@@ -275,12 +275,14 @@ class MyRgbApp {
     ipcMain.handle(IPC.profileSave, (_e, profile: Profile) => store.save(profile))
     ipcMain.handle(IPC.profileDuplicate, (_e, name: string) => {
       const profile = store.duplicateProfile(name)
+      store.flush?.()
       this.engine.setProfile(profile)
       this.emitProfile(profile)
       return profile
     })
     ipcMain.handle(IPC.profileRename, (_e, name: string) => {
       const profile = store.renameProfile(name)
+      store.flush?.()
       this.engine.setProfile(profile)
       this.emitProfile(profile)
       return profile
@@ -329,6 +331,58 @@ class MyRgbApp {
       this.engine.setProfile(profile)
       this.emitProfile(profile)
       return profile
+    })
+    ipcMain.handle(IPC.profileFlush, () => {
+      store.flush?.()
+    })
+    ipcMain.handle(IPC.profileExport, async () => {
+      if (!this.window) return null
+      const profile = store.profile
+      const result = await dialog.showSaveDialog(this.window, {
+        title: 'Exportar perfil',
+        defaultPath: `${profile.name.replace(/[\\/:*?"<>|]/g, '_')}.myrgb.json`,
+        filters: [
+          { name: 'MyRGB Profile', extensions: ['myrgb.json', 'json'] },
+          { name: 'JSON', extensions: ['json'] }
+        ]
+      })
+      if (result.canceled || !result.filePath) return null
+      writeFileSync(result.filePath, JSON.stringify(profile, null, 2), 'utf8')
+      return result.filePath
+    })
+    ipcMain.handle(IPC.profileImport, async () => {
+      if (!this.window) return null
+      const result = await dialog.showOpenDialog(this.window, {
+        title: 'Importar perfil',
+        properties: ['openFile'],
+        filters: [
+          { name: 'MyRGB Profile', extensions: ['myrgb.json', 'json'] },
+          { name: 'JSON', extensions: ['json'] }
+        ]
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      try {
+        const content = readFileSync(result.filePaths[0], 'utf8')
+        const parsed = JSON.parse(content) as Profile
+        if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.zones)) {
+          throw new Error('Arquivo de perfil inválido')
+        }
+        // Save as a new profile copy in profiles dir and load it
+        const imported = store.duplicateProfile(parsed.name || 'Importado')
+        // Overwrite with imported data
+        const full = {
+          ...parsed,
+          name: parsed.name || imported.name
+        }
+        const saved = store.save(full)
+        store.flush?.()
+        this.engine.setProfile(saved)
+        this.settings.set({ lastProfile: saved.name })
+        this.emitProfile(saved)
+        return saved
+      } catch (err) {
+        throw err
+      }
     })
     ipcMain.handle(IPC.engineStart, () => {
       this.engine.start()

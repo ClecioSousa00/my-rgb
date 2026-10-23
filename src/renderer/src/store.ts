@@ -57,6 +57,8 @@ interface AppState {
   saveProfile(profile: Profile): Promise<void>
   duplicateProfile(name: string): Promise<void>
   renameProfile(name: string): Promise<void>
+  exportProfile(): Promise<string | null>
+  importProfile(): Promise<Profile | null>
   toggleEngine(): Promise<void>
   reconnect(): Promise<void>
 }
@@ -171,8 +173,13 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async saveProfile(profile) {
+    if (!profile) return
     const saved = await mutate(set, () => window.myrgb.saveProfile(profile))
     set({ profile: saved })
+    try {
+      await window.myrgb.flushProfile?.()
+    } catch {}
+    set({ dirty: false })
   },
 
   async duplicateProfile(name) {
@@ -183,6 +190,16 @@ export const useApp = create<AppState>((set, get) => ({
   async renameProfile(name) {
     const profile = await mutate(set, () => window.myrgb.renameProfile(name))
     set({ profile })
+  },
+
+  async exportProfile() {
+    return await window.myrgb.exportProfile()
+  },
+
+  async importProfile() {
+    const profile = await window.myrgb.importProfile()
+    if (profile) set({ profile })
+    return profile
   },
 
   async toggleEngine() {
