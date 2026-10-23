@@ -11,14 +11,14 @@ operacionais.
 ![MyRGB](build/icon-256.png)
 
 > **Documentação:** a pasta [`documentation/`](documentation/) explica o
-> programa por dentro, o que cada parte da interface faz, o catálogo dos 34
+> programa por dentro, o que cada parte da interface faz, o catálogo dos 50
 > efeitos, as zonas e os perfis, e como desenvolver.
 
 ---
 
 ## O que ele faz
 
-- **34 efeitos prontos**, organizados em 6 categorias (mais que o OpenRGB oferece).
+- **50 efeitos prontos**, organizados em 6 categorias (mais que o OpenRGB oferece).
 - **Autoria visual de efeitos**: escolha um padrão, um gradiente e ajuste
   parâmetros por sliders — sem scripting, sem timeline.
 - **Gradientes multi-parada** com interpolação em RGB ou HSV, editáveis
@@ -125,14 +125,14 @@ tem um **?** ao lado do rótulo que explica aquela controle. O catálogo
 completo dos efeitos está em
 [documentation/efeitos.md](documentation/efeitos.md).
 
-### Os 34 efeitos
+### Os 50 efeitos
 
 | Categoria | Efeitos |
 |---|---|
-| **Básicos** | Sólido · Gradiente · Gradiente pulsante · Respiração · Fade · Ciclo de cores |
-| **Ondulação** | Onda · Onda dupla · Interferência · Água · Plasma · Pulso · Pulso central |
-| **Movimento** | Chase · Chase suave · Cometa · Meteoros · Chuva · Ponta a ponta · Varredura · Túnel · Espiral |
-| **Atmosfera** | Aurora · Fogo · Campo de estrelas · Cintilação · Dissolve · Névoa |
+| **Básicos** | Sólido · Gradiente · Gradiente pulsante · Respiração · Fade · Ciclo de cores · Batida · Estrobo · Preenchimento |
+| **Ondulação** | Onda · Onda dupla · Interferência · Água · Plasma · Pulso · Pulso central · Ondulações · Onda de gradiente · Mapa de ruído |
+| **Movimento** | Chase · Chase suave · Cometa · Meteoros · Chuva · Ponta a ponta · Varredura · Túnel · Espiral · Bola quicando · Visor · Letreiro · Sinelon · Pipoca · Bolhas |
+| **Atmosfera** | Aurora · Fogo · Campo de estrelas · Cintilação · Dissolve · Névoa · Relâmpago · Fogos de artifício · Vela · Amanhecer |
 | **Espectro** | Arco-íris · Arco-íris pulsante · Varredura de matiz |
 | **Pontos** | Dot chase · Caça aos pontos · Rastro |
 
@@ -236,7 +236,7 @@ src/
   shared/          tipos + matemática de cor (usados pelos dois lados)
   main/            processo principal
     aura/          protocolo (puro) + transporte HID
-    engine/        motor de efeitos + os 34 padrões
+    engine/        motor de efeitos + os 50 padrões
     store/         perfis e configurações em JSON
     platform/      detecção de conflito com Armoury Crate / OpenRGB
   preload/         ponte contextBridge (única ponte renderer ↔ main)

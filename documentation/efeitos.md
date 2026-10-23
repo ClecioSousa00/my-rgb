@@ -2,7 +2,7 @@
 
 <!-- Arquivo gerado. Para atualizar: npm run docs. As mudanças feitas à mão são perdidas. -->
 
-O MyRGB tem **34 efeitos** em **6 categorias**. Cada efeito é um *padrão de movimento*: ele diz como a luz se distribui ao longo da fita. As cores vêm do gradiente, que é uma peça separada — por isso dá para combinar qualquer efeito com qualquer paleta.
+O MyRGB tem **50 efeitos** em **6 categorias**. Cada efeito é um *padrão de movimento*: ele diz como a luz se distribui ao longo da fita. As cores vêm do gradiente, que é uma peça separada — por isso dá para combinar qualquer efeito com qualquer paleta.
 
 ## Como um efeito é montado
 
@@ -14,10 +14,10 @@ Isso significa que o mesmo efeito com gradientes diferentes dá resultados bem d
 
 | Categoria | Efeitos |
 |---|---|
-| **Básicos** | Sólido · Gradiente · Gradiente pulsante · Respiração · Fade · Ciclo de cores |
-| **Ondulação** | Onda · Onda dupla · Interferência · Água · Plasma · Pulso · Pulso central |
-| **Movimento** | Chase · Chase suave · Cometa · Meteoros · Chuva · Ponta a ponta · Varredura · Túnel · Espiral |
-| **Atmosfera** | Aurora · Fogo · Campo de estrelas · Cintilação · Dissolve · Névoa |
+| **Básicos** | Sólido · Gradiente · Gradiente pulsante · Respiração · Fade · Ciclo de cores · Batida · Estrobo · Preenchimento |
+| **Ondulação** | Onda · Onda dupla · Interferência · Água · Plasma · Pulso · Pulso central · Ondulações · Onda de gradiente · Mapa de ruído |
+| **Movimento** | Chase · Chase suave · Cometa · Meteoros · Chuva · Ponta a ponta · Varredura · Túnel · Espiral · Bola quicando · Visor · Letreiro · Sinelon · Pipoca · Bolhas |
+| **Atmosfera** | Aurora · Fogo · Campo de estrelas · Cintilação · Dissolve · Névoa · Relâmpago · Fogos de artifício · Vela · Amanhecer |
 | **Espectro** | Arco-íris · Arco-íris pulsante · Varredura de matiz |
 | **Pontos** | Dot chase · Caça aos pontos · Rastro |
 
@@ -93,6 +93,39 @@ Percorre todo o gradiente em ciclo contínuo.
 
 - **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
 
+### Batida — `heartbeat`
+
+Pulsação em dois tempos, como o batimento do coração.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Ponto do gradiente** (`point`, 0 – 1, padrão 0.50) — Qual cor do gradiente pulsa. 0 é a primeira parada e 1 é a última; no meio fica a cor do meio.
+- **Brilho mínimo** (`floor`, 0 – 0.50, padrão 0.04) — O brilho que fica entre as batidas. 0 deixa a fita completamente apagada no intervalo.
+- **Pausa** (`rest`, 0 – 0.70, padrão 0.42) — Fração de cada ciclo sem batida, como o intervalo de descanso entre um batimento e o próximo.
+
+### Estrobo — `strobe`
+
+Piscadas rápidas e regulares, com pausa entre os disparos.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Ponto do gradiente** (`point`, 0 – 1, padrão 0.50) — Qual cor do gradiente aparece em cada piscada.
+- **Duração da piscada** (`duty`, 0.03 – 0.60, padrão 0.18) — Quanto de cada ciclo fica aceso. Valores baixos dão flashes curtos; altos deixam quase tudo aceso.
+- **Variação de cor** (`spread`, 0 – 1, padrão 0) — O quanto a cor muda a cada piscada. 0 mantém sempre a mesma cor; 1 percorre o gradiente inteiro.
+
+### Preenchimento — `fill`
+
+A cor preenche a fita LED a LED e depois se apaga.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Ponto do gradiente** (`point`, 0 – 1, padrão 0.50) — Qual cor do gradiente preenche a fita.
+- **Brilho do fundo** (`background`, 0 – 0.40, padrão 0.05) — O brilho da parte ainda não preenchida. 0 apaga de vez o resto da fita até a cor chegar.
+- **Movimento** (`mode`, Preencher e apagar | Preencher e recomeçar, padrão Preencher e apagar) — O que acontece quando o preenchimento chega ao fim: ele volta apagando ou recomeça do início de uma vez.
+
 ## Ondulação
 
 ### Onda — `wave`
@@ -163,6 +196,39 @@ Respiração que nasce no centro da fita e se espalha.
 
 - **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
 - **Alcance** (`width`, 0.10 – 1, padrão 0.60) — Que parte da fita respira. 0.2 só o miolo acende; 1 a fita inteira acende ao mesmo tempo.
+
+### Ondulações — `ripple`
+
+Anéis que nascem em pontos aleatórios e se espalham pela fita.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Quantidade de anéis** (`count`, 1 – 8, padrão 3) — Quantos anéis existem ao mesmo tempo. Cada um nasce em um ponto e em um ritmo diferentes.
+- **Largura do anel** (`width`, 0.01 – 0.40, padrão 0.08) — Espessura de cada anel, em fração da fita. Valores baixos dão ondas finas; altos dão faixas largas.
+- **Desvanecimento** (`fade`, 0 – 1, padrão 0.70) — O quanto o anel perde força enquanto se afasta do centro. 0 mantém o brilho até o fim.
+
+### Onda de gradiente — `gradient-wave`
+
+O próprio gradiente ondula enquanto escorrega pela fita.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Repetições** (`stretch`, 0.25 – 4, padrão 1) — Quantas vezes o gradiente cabe na fita. 1 mostra uma cópia; 4 mostra quatro cópias encolhidas.
+- **Ondulação** (`sway`, 0 – 1, padrão 0.35) — O quanto as faixas do gradiente se curvam. 0 deixa as faixas retas; 1 exagera a onda.
+- **Direção** (`direction`, Para a direita | Para a esquerda, padrão Para a direita) — Para que lado o gradiente escorrega pela fita.
+
+### Mapa de ruído — `noise-map`
+
+Manchas de ruído suave que mudam de cor ao longo do tempo.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Escala** (`scale`, 0.50 – 16, padrão 4) — Tamanho das manchas. Escala baixa dá nuvens largas; escala alta dá um desenho miúdo.
+- **Detalhe** (`detail`, 1 – 4, padrão 2) — Quantas camadas de ruído são somadas. Mais camadas dão um desenho mais rico e irregular.
+- **Contraste** (`contrast`, 0.20 – 1, padrão 0.70) — O quanto as manchas se afastam da cor do meio do gradiente. Valores altos usam as pontas do gradiente.
 
 ## Movimento
 
@@ -252,6 +318,67 @@ Gradiente que gira ao longo da fita.
 - **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
 - **Torção** (`twist`, 0 – 8, padrão 1.50) — Quantas voltas o gradiente dá da ponta à outra. Valores altos deixam o desenho apertado.
 
+### Bola quicando — `bounce`
+
+Uma bola cai, quica e perde altura a cada toque no chão.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Tamanho da bola** (`size`, 1 – 24 LEDs, padrão 4) — Quantos LEDs a bola ocupa.
+- **Elasticidade** (`elasticity`, 0.30 – 1, padrão 0.72) — Quanta altura a bola recupera a cada quique. 1 quica sempre na mesma altura; 0.3 morre rápido.
+
+### Visor — `visor`
+
+Uma barra varre a fita de um lado ao outro, com rastro nas duas pontas.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Largura da barra** (`width`, 1 – 36 LEDs, padrão 5) — Quantos LEDs tem o núcleo brilhante que varre a fita.
+- **Rastro** (`trail`, 0.50 – 8, padrão 3) — O quanto o brilho se espalha para os lados da barra. Valores altos dão um rastro longo e suave.
+
+### Letreiro — `marquee`
+
+Blocos acesos correndo com espaços iguais, como um letreiro de teatro.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Bloco aceso** (`block`, 1 – 12 LEDs, padrão 1) — Quantos LEDs ficam acesos em cada bloco.
+- **Espaçamento** (`gap`, 1 – 24 LEDs, padrão 3) — Quantos LEDs apagados ficam entre um bloco e o próximo.
+- **Brilho do fundo** (`background`, 0 – 0.40, padrão 0) — O brilho dos LEDs apagados. 0 deixa o fundo totalmente escuro.
+
+### Sinelon — `sinelon`
+
+Um ponto oscila pela fita deixando um rastro na direção do movimento.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Comprimento do rastro** (`trail`, 4 – 144 LEDs, padrão 48) — Quantos LEDs o rastro ocupa atrás do ponto.
+- **Imprevisibilidade** (`wander`, 0 – 1, padrão 0.35) — O quanto o vaivém foge do compasso regular. 0 vai e volta sempre no mesmo ritmo; 1 fica imprevisível.
+
+### Pipoca — `popcorn`
+
+Estouros curtos em pontos aleatórios da fita.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Quantidade** (`count`, 1 – 20, padrão 6) — Quantos estouros acontecem em paralelo, cada um com seu próprio ritmo.
+- **Tamanho do estouro** (`width`, 1 – 12 LEDs, padrão 3) — Quantos LEDs cada estouro ocupa.
+
+### Bolhas — `bubbles`
+
+Bolhas que sobem pela fita oscilando de um lado para o outro.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Quantidade** (`count`, 1 – 16, padrão 6) — Quantas bolhas sobem ao mesmo tempo.
+- **Tamanho da bolha** (`size`, 1 – 16 LEDs, padrão 4) — Quantos LEDs cada bolha ocupa. O tamanho ainda pulsa levemente enquanto ela sobe.
+
 ## Atmosfera
 
 ### Aurora — `aurora`
@@ -310,6 +437,46 @@ Nuvens lentas e sobrepostas.
 
 - **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
 - **Escala** (`scale`, 0.50 – 12, padrão 2.50) — Tamanho das nuvens. Escala baixa dá manchas largas e lentas.
+
+### Relâmpago — `lightning`
+
+Clarões brancos rápidos e irregulares, como uma tempestade.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Frequência** (`frequency`, 0.20 – 4 x/s, padrão 1.20) — Quantos relâmpagos por segundo, em média. Valores altos deixam a tempestade violenta.
+- **Brilho do céu** (`background`, 0 – 0.30, padrão 0.04) — O brilho que fica entre os relâmpagos. 0 deixa a fita apagada até o próximo clarão.
+
+### Fogos de artifício — `fireworks`
+
+Explosões que se abrem em anéis e caem apagando.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Quantidade** (`count`, 1 – 10, padrão 3) — Quantos fogos existem ao mesmo tempo, cada um com seu próprio ritmo.
+- **Alcance da explosão** (`spread`, 0.10 – 1, padrão 0.45) — Que parte da fita a explosão cobre até desaparecer. 1 toma a fita inteira.
+
+### Vela — `candle`
+
+Brilho quente e trêmulo, como a chama de uma vela.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Tremulação** (`flicker`, 0 – 1, padrão 0.55) — O quanto a chama oscila. 0 dá uma luz constante; 1 dá uma tremulação forte e irregular.
+- **Ponto do gradiente** (`point`, 0 – 1, padrão 0.35) — Qual cor do gradiente a chama usa. Nos gradientes quentes, valores baixos ficam alaranjados.
+
+### Amanhecer — `sunrise`
+
+A fita clareia devagar, atravessando o gradiente em minutos.
+
+**Parâmetros**
+
+- **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Duração** (`duration`, 30 – 900 s, padrão 240) — Quantos segundos leva um ciclo completo, do escuro ao claro e de volta.
+- **Brilho mínimo** (`floor`, 0 – 0.40, padrão 0.03) — O brilho no ponto mais escuro do ciclo. 0 deixa a fita apagar por completo antes de clarear de novo.
 
 ## Espectro
 

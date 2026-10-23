@@ -324,5 +324,314 @@ export const motionPatterns: Pattern[] = [
       const phase = ctx.position * twist * 2 - ctx.time * Number(ctx.params.rate ?? 1)
       return { u: wrap01(phase) }
     }
+  },
+  {
+    id: 'bounce',
+    name: 'Bola quicando',
+    category: 'Movimento',
+    description: 'Uma bola cai, quica e perde altura a cada toque no chão.',
+    params: [
+      RATE,
+      {
+        key: 'size',
+        label: 'Tamanho da bola',
+        type: 'number',
+        min: 1,
+        max: 24,
+        step: 1,
+        default: 4,
+        unit: 'LEDs',
+        description: 'Quantos LEDs a bola ocupa.'
+      },
+      {
+        key: 'elasticity',
+        label: 'Elasticidade',
+        type: 'number',
+        min: 0.3,
+        max: 1,
+        step: 0.01,
+        default: 0.72,
+        description:
+          'Quanta altura a bola recupera a cada quique. 1 quica sempre na mesma altura; 0.3 morre rápido.'
+      }
+    ],
+    render: (ctx) => {
+      const size = Number(ctx.params.size ?? 4)
+      const elasticity = Number(ctx.params.elasticity ?? 0.72)
+      const rate = Number(ctx.params.rate ?? 1)
+      const t = ctx.time * rate * 0.7
+      const bounce = Math.floor(t)
+      const ft = t - bounce
+      const height = Math.sin(ft * Math.PI)
+      const energy = Math.pow(elasticity, bounce % 12)
+      const center = 0.06 + 0.88 * height * energy
+      const squash = 1 + (1 - height) * 1.4 * energy
+      const halfWidth = (size * 0.5 * squash) / Math.max(1, ctx.ledCount)
+      const d = ctx.position - center
+
+      return { u: 1, intensity: clamp(pulse(d, halfWidth), 0, 1) }
+    }
+  },
+  {
+    id: 'visor',
+    name: 'Visor',
+    category: 'Movimento',
+    description: 'Uma barra varre a fita de um lado ao outro, com rastro nas duas pontas.',
+    params: [
+      RATE,
+      {
+        key: 'width',
+        label: 'Largura da barra',
+        type: 'number',
+        min: 1,
+        max: 36,
+        step: 1,
+        default: 5,
+        unit: 'LEDs',
+        description: 'Quantos LEDs tem o núcleo brilhante que varre a fita.'
+      },
+      {
+        key: 'trail',
+        label: 'Rastro',
+        type: 'number',
+        min: 0.5,
+        max: 8,
+        step: 0.1,
+        default: 3,
+        description:
+          'O quanto o brilho se espalha para os lados da barra. Valores altos dão um rastro longo e suave.'
+      }
+    ],
+    render: (ctx) => {
+      const width = Math.max(1, Number(ctx.params.width ?? 5))
+      const trail = Math.max(0.5, Number(ctx.params.trail ?? 3))
+      const phase = wrap01(ctx.time * Number(ctx.params.rate ?? 1) * 0.22)
+      const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2
+      const pos = tri * (ctx.ledCount - 1)
+      const d = ctx.ledIndex - pos
+      const core = pulse(d, width * 0.5)
+      const glow = Math.exp(-Math.abs(d) / (width * trail)) * 0.55
+
+      return { u: 1, intensity: clamp(Math.max(core, glow), 0, 1) }
+    }
+  },
+  {
+    id: 'marquee',
+    name: 'Letreiro',
+    category: 'Movimento',
+    description: 'Blocos acesos correndo com espaços iguais, como um letreiro de teatro.',
+    params: [
+      RATE,
+      {
+        key: 'block',
+        label: 'Bloco aceso',
+        type: 'number',
+        min: 1,
+        max: 12,
+        step: 1,
+        default: 1,
+        unit: 'LEDs',
+        description: 'Quantos LEDs ficam acesos em cada bloco.'
+      },
+      {
+        key: 'gap',
+        label: 'Espaçamento',
+        type: 'number',
+        min: 1,
+        max: 24,
+        step: 1,
+        default: 3,
+        unit: 'LEDs',
+        description: 'Quantos LEDs apagados ficam entre um bloco e o próximo.'
+      },
+      {
+        key: 'background',
+        label: 'Brilho do fundo',
+        type: 'number',
+        min: 0,
+        max: 0.4,
+        step: 0.01,
+        default: 0,
+        description: 'O brilho dos LEDs apagados. 0 deixa o fundo totalmente escuro.'
+      }
+    ],
+    render: (ctx) => {
+      const block = Math.max(1, Math.round(Number(ctx.params.block ?? 1)))
+      const gap = Math.max(1, Math.round(Number(ctx.params.gap ?? 3)))
+      const background = Number(ctx.params.background ?? 0)
+      const rate = Number(ctx.params.rate ?? 1)
+      const period = block + gap
+      const shifted = ctx.ledIndex - ctx.time * rate * 10
+      const m = ((shifted % period) + period) % period
+      const lit = m < block
+
+      return { u: 1, intensity: lit ? 1 : background }
+    }
+  },
+  {
+    id: 'sinelon',
+    name: 'Sinelon',
+    category: 'Movimento',
+    description: 'Um ponto oscila pela fita deixando um rastro na direção do movimento.',
+    params: [
+      RATE,
+      {
+        key: 'trail',
+        label: 'Comprimento do rastro',
+        type: 'number',
+        min: 4,
+        max: 144,
+        step: 1,
+        default: 48,
+        unit: 'LEDs',
+        description: 'Quantos LEDs o rastro ocupa atrás do ponto.'
+      },
+      {
+        key: 'wander',
+        label: 'Imprevisibilidade',
+        type: 'number',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        default: 0.35,
+        description:
+          'O quanto o vaivém foge do compasso regular. 0 vai e volta sempre no mesmo ritmo; 1 fica imprevisível.'
+      }
+    ],
+    render: (ctx) => {
+      const rate = Number(ctx.params.rate ?? 1)
+      const trail = Math.max(1, Number(ctx.params.trail ?? 48))
+      const wander = Number(ctx.params.wander ?? 0.35)
+      const theta =
+        ctx.time * rate * 1.2 + Math.sin(ctx.time * rate * 0.37) * wander * 4
+      const pos = (0.5 + 0.5 * Math.sin(theta)) * ctx.ledCount
+      const x = ctx.position * ctx.ledCount
+      const dir = Math.cos(theta) >= 0 ? 1 : -1
+      const behind = (pos - x) * dir
+      const head = pulse(x - pos, 2)
+      let tail = 0
+
+      if (behind >= 0 && behind < trail) {
+        tail = Math.pow(1 - behind / trail, 2) * 0.8
+      }
+
+      return { u: 1, intensity: clamp(Math.max(head, tail), 0, 1) }
+    }
+  },
+  {
+    id: 'popcorn',
+    name: 'Pipoca',
+    category: 'Movimento',
+    description: 'Estouros curtos em pontos aleatórios da fita.',
+    params: [
+      RATE,
+      {
+        key: 'count',
+        label: 'Quantidade',
+        type: 'number',
+        min: 1,
+        max: 20,
+        step: 1,
+        default: 6,
+        description: 'Quantos estouros acontecem em paralelo, cada um com seu próprio ritmo.'
+      },
+      {
+        key: 'width',
+        label: 'Tamanho do estouro',
+        type: 'number',
+        min: 1,
+        max: 12,
+        step: 1,
+        default: 3,
+        unit: 'LEDs',
+        description: 'Quantos LEDs cada estouro ocupa.'
+      }
+    ],
+    render: (ctx) => {
+      const count = Math.round(Number(ctx.params.count ?? 6))
+      const width = Number(ctx.params.width ?? 3)
+      const rate = Number(ctx.params.rate ?? 1)
+      const x = ctx.position * ctx.ledCount
+      let best = 0
+      let bestU = 0
+
+      for (let i = 0; i < count; i++) {
+        const seed = hash(i * 13.1 + 5.7)
+        const period = 0.8 + seed * 1.7
+        const local = (ctx.time * rate) / period + seed * 11
+        const n = Math.floor(local)
+        const ft = local - n
+
+        // Some slots stay silent so the pops do not look metronomic.
+        if (hash(n * 7.31 + i * 3.7) < 0.25) continue
+
+        const pos = hash(n * 11.7 + i * 5.3) * ctx.ledCount
+        const life = Math.pow(1 - ft, 2)
+        const pop = pulse(x - pos, width) * life
+
+        if (pop > best) {
+          best = pop
+          bestU = hash(n * 3.1 + i * 9.7)
+        }
+      }
+
+      return { u: bestU, intensity: clamp(best, 0, 1) }
+    }
+  },
+  {
+    id: 'bubbles',
+    name: 'Bolhas',
+    category: 'Movimento',
+    description: 'Bolhas que sobem pela fita oscilando de um lado para o outro.',
+    params: [
+      RATE,
+      {
+        key: 'count',
+        label: 'Quantidade',
+        type: 'number',
+        min: 1,
+        max: 16,
+        step: 1,
+        default: 6,
+        description: 'Quantas bolhas sobem ao mesmo tempo.'
+      },
+      {
+        key: 'size',
+        label: 'Tamanho da bolha',
+        type: 'number',
+        min: 1,
+        max: 16,
+        step: 1,
+        default: 4,
+        unit: 'LEDs',
+        description: 'Quantos LEDs cada bolha ocupa. O tamanho ainda pulsa levemente enquanto ela sobe.'
+      }
+    ],
+    render: (ctx) => {
+      const count = Math.round(Number(ctx.params.count ?? 6))
+      const size = Number(ctx.params.size ?? 4)
+      const rate = Number(ctx.params.rate ?? 1)
+      const x = ctx.position * ctx.ledCount
+      let best = 0
+      let bestU = 0
+
+      for (let i = 0; i < count; i++) {
+        const seed = hash(i * 23.3 + 1.7)
+        const speed = 0.08 + seed * 0.18
+        const p = wrap01((ctx.time * rate * speed) + seed)
+        const wobble = 1 + 0.45 * Math.sin(ctx.time * rate * 2.2 + seed * 12)
+        const pos = p * (ctx.ledCount + size * 6) - size * 3
+        const envelope = Math.sin(p * Math.PI)
+        const halfWidth = ((size * 0.5 * wobble) / Math.max(1, ctx.ledCount))
+        const bubble = pulse(x - pos, halfWidth) * envelope
+
+        if (bubble > best) {
+          best = bubble
+          bestU = hash(i * 7.1 + 3.3)
+        }
+      }
+
+      return { u: bestU, intensity: clamp(best, 0, 1) }
+    }
   }
 ]

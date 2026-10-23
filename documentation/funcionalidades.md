@@ -189,7 +189,7 @@ pausado.
 
 ## Efeitos
 
-A grade com os 34 padrões, agrupados por categoria. Clicar num padrão aplica
+A grade com os 50 padrões, agrupados por categoria. Clicar num padrão aplica
 ele na zona selecionada.
 
 O nome de cada padrão é o identificador interno dele (`wave`, `chase`,
@@ -260,7 +260,7 @@ ligar/desligar as luzes, pausar e retomar o motor, e abrir a janela.
 | | |
 |---|---|
 | **Zonas** | ligar, desligar, renomear, escolher a quantidade de LEDs, espelhar outra zona |
-| **Efeitos** | 34 padrões em 6 categorias, com parâmetros próprios |
+| **Efeitos** | 50 padrões em 6 categorias, com parâmetros próprios |
 | **Cores** | 12 paletas prontas, gradientes multi-parada, interpolação RGB ou HSV, paletas duplicáveis |
 | **Pré-visualização** | o quadro real de todas as zonas, com o nome de cada uma |
 | **Perfis** | quantos quiser, com nome; troca instantânea; salvo automático |

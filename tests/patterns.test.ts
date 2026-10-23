@@ -11,8 +11,8 @@ import { describe, expect, it } from 'vitest'
 import { ALL_PATTERNS, defaultParams, patternCategories, patternMetadata } from '@main/engine/patterns'
 
 describe('pattern metadata', () => {
-  it('ships 34 patterns', () => {
-    expect(ALL_PATTERNS).toHaveLength(34)
+  it('ships 50 patterns', () => {
+    expect(ALL_PATTERNS).toHaveLength(50)
   })
 
   it('gives every pattern a name, a category and a description', () => {
@@ -59,7 +59,7 @@ describe('pattern metadata', () => {
 
   it('sends the descriptions to the renderer', () => {
     const metadata = patternMetadata()
-    expect(metadata).toHaveLength(34)
+    expect(metadata).toHaveLength(50)
     for (const pattern of metadata) {
       for (const spec of pattern.params) {
         expect(spec.description, `${pattern.id}/${spec.key}`).toBeTruthy()

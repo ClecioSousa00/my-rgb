@@ -3,7 +3,7 @@
  */
 
 import type { Pattern } from '../types'
-import { clamp, lerp, noise, wrap01 } from './helpers'
+import { clamp, hash, lerp, noise, noise2, pulse, wrap01 } from './helpers'
 import { RATE } from './params'
 
 export const wavePatterns: Pattern[] = [
@@ -271,6 +271,189 @@ export const wavePatterns: Pattern[] = [
       const d = Math.abs(ctx.position - 0.5) * 2
       const falloff = clamp(1 - d / Math.max(0.001, width), 0, 1)
       return { u: clamp(0.5 + (wave - 0.5) * falloff, 0, 1) }
+    }
+  },
+  {
+    id: 'ripple',
+    name: 'Ondulações',
+    category: 'Ondulação',
+    description: 'Anéis que nascem em pontos aleatórios e se espalham pela fita.',
+    params: [
+      RATE,
+      {
+        key: 'count',
+        label: 'Quantidade de anéis',
+        type: 'number',
+        min: 1,
+        max: 8,
+        step: 1,
+        default: 3,
+        description:
+          'Quantos anéis existem ao mesmo tempo. Cada um nasce em um ponto e em um ritmo diferentes.'
+      },
+      {
+        key: 'width',
+        label: 'Largura do anel',
+        type: 'number',
+        min: 0.01,
+        max: 0.4,
+        step: 0.01,
+        default: 0.08,
+        description:
+          'Espessura de cada anel, em fração da fita. Valores baixos dão ondas finas; altos dão faixas largas.'
+      },
+      {
+        key: 'fade',
+        label: 'Desvanecimento',
+        type: 'number',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        default: 0.7,
+        description:
+          'O quanto o anel perde força enquanto se afasta do centro. 0 mantém o brilho até o fim.'
+      }
+    ],
+    render: (ctx) => {
+      const count = Math.round(Number(ctx.params.count ?? 3))
+      const width = Number(ctx.params.width ?? 0.08)
+      const fade = Number(ctx.params.fade ?? 0.7)
+      const rate = Number(ctx.params.rate ?? 1)
+      let best = 0
+      let bestU = 0
+
+      for (let i = 0; i < count; i++) {
+        const seed = hash(i * 19.7 + 3.1)
+        const center = hash(i * 7.3 + 11.7)
+        const speed = 0.18 + seed * 0.22
+        const age = wrap01(ctx.time * rate * speed + seed)
+        const radius = age * 1.15
+        const d = Math.abs(ctx.position - center)
+        const ring = pulse(d - radius, width) * (1 - fade * age)
+
+        if (ring > best) {
+          best = ring
+          bestU = hash(i * 3.9 + 7.1)
+        }
+      }
+
+      return { u: bestU, intensity: clamp(best, 0, 1) }
+    }
+  },
+  {
+    id: 'gradient-wave',
+    name: 'Onda de gradiente',
+    category: 'Ondulação',
+    description: 'O próprio gradiente ondula enquanto escorrega pela fita.',
+    params: [
+      RATE,
+      {
+        key: 'stretch',
+        label: 'Repetições',
+        type: 'number',
+        min: 0.25,
+        max: 4,
+        step: 0.25,
+        default: 1,
+        description:
+          'Quantas vezes o gradiente cabe na fita. 1 mostra uma cópia; 4 mostra quatro cópias encolhidas.'
+      },
+      {
+        key: 'sway',
+        label: 'Ondulação',
+        type: 'number',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        default: 0.35,
+        description:
+          'O quanto as faixas do gradiente se curvam. 0 deixa as faixas retas; 1 exagera a onda.'
+      },
+      {
+        key: 'direction',
+        label: 'Direção',
+        type: 'select',
+        default: 'forward',
+        options: [
+          { value: 'forward', label: 'Para a direita' },
+          { value: 'backward', label: 'Para a esquerda' }
+        ],
+        description: 'Para que lado o gradiente escorrega pela fita.'
+      }
+    ],
+    render: (ctx) => {
+      const rate = Number(ctx.params.rate ?? 1)
+      const stretch = Number(ctx.params.stretch ?? 1)
+      const sway = Number(ctx.params.sway ?? 0.35)
+      const dir = String(ctx.params.direction ?? 'forward') === 'backward' ? -1 : 1
+      const drift = wrap01(ctx.time * rate * 0.22 * dir)
+      const warp = Math.sin(ctx.position * Math.PI * 2 + ctx.time * rate * 1.4) * sway * 0.25
+
+      return { u: wrap01(ctx.position * stretch + drift + warp) }
+    }
+  },
+  {
+    id: 'noise-map',
+    name: 'Mapa de ruído',
+    category: 'Ondulação',
+    description: 'Manchas de ruído suave que mudam de cor ao longo do tempo.',
+    params: [
+      RATE,
+      {
+        key: 'scale',
+        label: 'Escala',
+        type: 'number',
+        min: 0.5,
+        max: 16,
+        step: 0.5,
+        default: 4,
+        description:
+          'Tamanho das manchas. Escala baixa dá nuvens largas; escala alta dá um desenho miúdo.'
+      },
+      {
+        key: 'detail',
+        label: 'Detalhe',
+        type: 'number',
+        min: 1,
+        max: 4,
+        step: 1,
+        default: 2,
+        description:
+          'Quantas camadas de ruído são somadas. Mais camadas dão um desenho mais rico e irregular.'
+      },
+      {
+        key: 'contrast',
+        label: 'Contraste',
+        type: 'number',
+        min: 0.2,
+        max: 1,
+        step: 0.01,
+        default: 0.7,
+        description:
+          'O quanto as manchas se afastam da cor do meio do gradiente. Valores altos usam as pontas do gradiente.'
+      }
+    ],
+    render: (ctx) => {
+      const rate = Number(ctx.params.rate ?? 1)
+      const scale = Number(ctx.params.scale ?? 4)
+      const detail = Math.round(Number(ctx.params.detail ?? 2))
+      const contrast = Number(ctx.params.contrast ?? 0.7)
+      let sum = 0
+      let amp = 1
+      let norm = 0
+
+      for (let i = 0; i < detail; i++) {
+        const layer = noise2(
+          ctx.position * scale * (i + 1) + i * 17.3,
+          ctx.time * rate * 0.35 + i * 9.1
+        )
+        sum += layer * amp
+        norm += amp
+        amp *= 0.55
+      }
+
+      const n = norm > 0 ? sum / norm : 0
+      return { u: clamp(0.5 + 0.5 * n * contrast, 0, 1) }
     }
   }
 ]

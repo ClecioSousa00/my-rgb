@@ -345,7 +345,7 @@ src/
     engine/
       engine.ts        o laço de quadros
       palette.ts       paletas embutidas + amostragem
-      patterns/        os 34 padrões e o registro
+      patterns/        os 50 padrões e o registro
     store/
       profileStore.ts  perfis em disco, reconciliação com o hardware
       settings.ts      configurações da aplicação

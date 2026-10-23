@@ -3,7 +3,7 @@
  */
 
 import type { Pattern } from '../types'
-import { clamp, hash, noise2, pulse } from './helpers'
+import { clamp, hash, noise, noise2, pulse, wrap01 } from './helpers'
 import { RATE } from './params'
 
 export const atmospherePatterns: Pattern[] = [
@@ -215,6 +215,207 @@ export const atmospherePatterns: Pattern[] = [
       const a = noise2(ctx.position * scale, ctx.time * rate * 0.3)
       const b = noise2(ctx.position * scale * 1.7 + 31, ctx.time * rate * 0.45)
       return { u: clamp(0.5 + 0.5 * (a * 0.6 + b * 0.4), 0, 1) }
+    }
+  },
+  {
+    id: 'lightning',
+    name: 'Relâmpago',
+    category: 'Atmosfera',
+    description: 'Clarões brancos rápidos e irregulares, como uma tempestade.',
+    params: [
+      RATE,
+      {
+        key: 'frequency',
+        label: 'Frequência',
+        type: 'number',
+        min: 0.2,
+        max: 4,
+        step: 0.1,
+        default: 1.2,
+        unit: 'x/s',
+        description:
+          'Quantos relâmpagos por segundo, em média. Valores altos deixam a tempestade violenta.'
+      },
+      {
+        key: 'background',
+        label: 'Brilho do céu',
+        type: 'number',
+        min: 0,
+        max: 0.3,
+        step: 0.01,
+        default: 0.04,
+        description:
+          'O brilho que fica entre os relâmpagos. 0 deixa a fita apagada até o próximo clarão.'
+      }
+    ],
+    render: (ctx) => {
+      const rate = Number(ctx.params.rate ?? 1)
+      const frequency = Number(ctx.params.frequency ?? 1.2)
+      const background = Number(ctx.params.background ?? 0.04)
+      const t = ctx.time * rate * frequency
+      const strike = Math.floor(t)
+      const ft = t - strike
+      const active = hash(strike * 3.7 + 1.3) > 0.3
+      let flash = 0
+
+      if (active) {
+        const seed = hash(strike * 7.1)
+        // A quick main flash followed by a weaker echo, like a real strike.
+        flash = Math.exp(-ft * (10 + seed * 12))
+        flash += 0.55 * Math.exp(-Math.pow((ft - 0.09 - seed * 0.08) * 14, 2))
+      }
+
+      const center = hash(strike * 5.3 + 9.1)
+      const d = Math.abs(ctx.position - center) * 2
+      const bolt = flash * (0.55 + 0.45 * Math.exp(-d * 3))
+
+      return { u: 0.85, intensity: clamp(background + bolt, 0, 1) }
+    }
+  },
+  {
+    id: 'fireworks',
+    name: 'Fogos de artifício',
+    category: 'Atmosfera',
+    description: 'Explosões que se abrem em anéis e caem apagando.',
+    params: [
+      RATE,
+      {
+        key: 'count',
+        label: 'Quantidade',
+        type: 'number',
+        min: 1,
+        max: 10,
+        step: 1,
+        default: 3,
+        description: 'Quantos fogos existem ao mesmo tempo, cada um com seu próprio ritmo.'
+      },
+      {
+        key: 'spread',
+        label: 'Alcance da explosão',
+        type: 'number',
+        min: 0.1,
+        max: 1,
+        step: 0.01,
+        default: 0.45,
+        description:
+          'Que parte da fita a explosão cobre até desaparecer. 1 toma a fita inteira.'
+      }
+    ],
+    render: (ctx) => {
+      const count = Math.round(Number(ctx.params.count ?? 3))
+      const spread = Number(ctx.params.spread ?? 0.45)
+      const rate = Number(ctx.params.rate ?? 1)
+      const x = ctx.position * ctx.ledCount
+      let best = 0
+      let bestU = 0
+
+      for (let i = 0; i < count; i++) {
+        const seed = hash(i * 31.7 + 2.9)
+        const period = 1.1 + seed * 1.9
+        const local = (ctx.time * rate) / period + seed * 13
+        const n = Math.floor(local)
+        const ft = local - n
+
+        // Leave some slots empty so the fireworks feel random.
+        if (hash(n * 5.9 + i * 7.3) < 0.2) continue
+
+        const center = hash(n * 3.3 + i * 11.1) * ctx.ledCount
+        const radius = (1 - Math.pow(1 - ft, 2)) * spread * ctx.ledCount
+        const ring = pulse(Math.abs(x - center) - radius, 2.2) * Math.pow(1 - ft, 1.8)
+
+        if (ring > best) {
+          best = ring
+          bestU = hash(n * 7.7 + i * 2.3)
+        }
+      }
+
+      return { u: bestU, intensity: clamp(best, 0, 1) }
+    }
+  },
+  {
+    id: 'candle',
+    name: 'Vela',
+    category: 'Atmosfera',
+    description: 'Brilho quente e trêmulo, como a chama de uma vela.',
+    params: [
+      RATE,
+      {
+        key: 'flicker',
+        label: 'Tremulação',
+        type: 'number',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        default: 0.55,
+        description:
+          'O quanto a chama oscila. 0 dá uma luz constante; 1 dá uma tremulação forte e irregular.'
+      },
+      {
+        key: 'point',
+        label: 'Ponto do gradiente',
+        type: 'number',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        default: 0.35,
+        description:
+          'Qual cor do gradiente a chama usa. Nos gradientes quentes, valores baixos ficam alaranjados.'
+      }
+    ],
+    render: (ctx) => {
+      const rate = Number(ctx.params.rate ?? 1)
+      const flicker = Number(ctx.params.flicker ?? 0.55)
+      const point = Number(ctx.params.point ?? 0.35)
+      const slow = noise2(ctx.position * 2.5, ctx.time * rate * 1.7)
+      const fast = noise2(ctx.position * 9 + 17, ctx.time * rate * 6.5)
+      const gust = noise(ctx.time * rate * 0.55 + 4)
+      const wobble = slow * 0.55 + fast * 0.3 + gust * 0.35
+      const brightness = clamp(0.65 + wobble * flicker, 0.08, 1)
+
+      return {
+        u: clamp(point + wobble * 0.12 * flicker, 0, 1),
+        intensity: brightness
+      }
+    }
+  },
+  {
+    id: 'sunrise',
+    name: 'Amanhecer',
+    category: 'Atmosfera',
+    description: 'A fita clareia devagar, atravessando o gradiente em minutos.',
+    params: [
+      RATE,
+      {
+        key: 'duration',
+        label: 'Duração',
+        type: 'number',
+        min: 30,
+        max: 900,
+        step: 10,
+        default: 240,
+        unit: 's',
+        description: 'Quantos segundos leva um ciclo completo, do escuro ao claro e de volta.'
+      },
+      {
+        key: 'floor',
+        label: 'Brilho mínimo',
+        type: 'number',
+        min: 0,
+        max: 0.4,
+        step: 0.01,
+        default: 0.03,
+        description:
+          'O brilho no ponto mais escuro do ciclo. 0 deixa a fita apagar por completo antes de clarear de novo.'
+      }
+    ],
+    render: (ctx) => {
+      const rate = Number(ctx.params.rate ?? 1)
+      const duration = Math.max(1, Number(ctx.params.duration ?? 240))
+      const floor = Number(ctx.params.floor ?? 0.03)
+      const phase = wrap01((ctx.time * rate) / duration)
+      const smooth = phase * phase * (3 - 2 * phase)
+
+      return { u: smooth, intensity: floor + (1 - floor) * smooth }
     }
   }
 ]
