@@ -26,8 +26,8 @@
 - [x] **Modo "Ao iniciar" por perfil** - Escolher perfil padrão ao abrir app
 - [ ] **Histórico de alterações (Undo/Redo)** - Desfazer/refazer mudanças no perfil
 - [ ] **Agrupar zonas** - Permitir agrupar zonas para aplicar configuração em conjunto
-- [ ] **Sincronizar com sistema de bandeja** - Melhorar integração com tray (ícone dinâmico, menu contextual)
-- [ ] **Notificações** - Avisos sobre conflitos com outros programas (Armoury Crate, OpenRGB)
+- [x] **Sincronizar com sistema de bandeja** - Melhorar integração com tray (ícone dinâmico, menu contextual)
+- [x] **Notificações** - Avisos sobre conflitos com outros programas (Armoury Crate, OpenRGB)
 
 ---
 
