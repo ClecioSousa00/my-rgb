@@ -51,7 +51,7 @@
 - [x] **window.prompt não funciona em alguns contextos** - Substituído por modais, verificar edge cases
 - [ ] **Conflito com Armoury Crate no Windows** - Melhorar detecção e instruções para usuário
 - [ ] **FPS fixo pode não ser ideal para todos os casos** - Avaliar se realmente necessário expor
-- [ ] **Salvamento automático vs manual** - Clarificar comportamento atual
+- [x] **Salvamento automático vs manual** - Clarificar comportamento atual
 
 ---
 

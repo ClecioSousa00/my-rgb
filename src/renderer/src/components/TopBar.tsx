@@ -230,9 +230,9 @@ export function TopBar(): React.JSX.Element {
         {dirty && (
           <span
             className="chip border-transparent bg-warn-500/10 text-warn-500"
-            title="Existem mudanças não salvas neste perfil"
+            title="Alterações pendentes. O perfil é salvo automaticamente no disco após alguns instantes. Use 'Salvar' para renomear ou criar uma cópia."
           >
-            ● não salvo
+            ● alterações pendentes
           </span>
         )}
       </div>
