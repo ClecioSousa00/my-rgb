@@ -147,6 +147,8 @@ export interface GlobalSettings {
   fps: number
   /** When false the engine renders but never touches the hardware. */
   outputEnabled: boolean
+  /** Apply effect changes to every zone at once. */
+  applyToAllZones?: boolean
 }
 
 export interface Profile {

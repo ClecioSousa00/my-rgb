@@ -10,18 +10,12 @@ export function ZoneRail(): React.JSX.Element {
   const selectedZoneId = useApp((s) => s.selectedZoneId)
   const selectZone = useApp((s) => s.selectZone)
   const setZoneConfig = useApp((s) => s.setZoneConfig)
-  const applyToAll = useApp((s) => s.applyToAll)
+  const setGlobal = useApp((s) => s.setGlobal)
 
   const configFor = (zoneId: string): ZoneConfig | undefined =>
     profile?.zones.find((z) => z.zoneId === zoneId)
 
-  const selectedConfig = selectedZoneId ? configFor(selectedZoneId) : undefined
-  const canApplyToAll = zones.length > 1 && Boolean(selectedConfig?.effect)
-
-  const handleApplyToAll = async (): Promise<void> => {
-    await applyToAll()
-    showToast(`Efeito aplicado a ${zones.length} zonas`)
-  }
+  const applyToAllZones = profile?.global?.applyToAllZones ?? false
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-ink-700 bg-ink-900/40">
@@ -33,14 +27,18 @@ export function ZoneRail(): React.JSX.Element {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <button
-          className="btn mb-2 w-full"
-          disabled={!canApplyToAll}
-          onClick={() => void handleApplyToAll()}
-          title="Copia o efeito da zona selecionada para todas as zonas. O número de LEDs e o ligado/desligado de cada uma são mantidos."
-        >
-          ⇉ Aplicar a todas as zonas
-        </button>
+        {zones.length > 1 && (
+          <label className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-2">
+            <span className="text-[11.5px] text-ink-300">Aplicar a todas as zonas</span>
+            <input
+              type="checkbox"
+              className="accent-brand-500"
+              checked={applyToAllZones}
+              title="Ao marcar, qualquer efeito escolhido será aplicado a todas as zonas ao mesmo tempo."
+              onChange={(e) => void setGlobal({ applyToAllZones: e.target.checked })}
+            />
+          </label>
+        )}
 
         {zones.map((zone) => {
           const config = configFor(zone.id)

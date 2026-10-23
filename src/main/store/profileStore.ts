@@ -23,7 +23,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   brightness: 1,
   speed: 1,
   fps: 30,
-  outputEnabled: true
+  outputEnabled: true,
+  applyToAllZones: false
 }
 
 /** Default LED count for an addressable header. */
@@ -172,7 +173,17 @@ export class ProfileStore {
   setZoneEffect(zoneId: string, effect: EffectDefinition | null): Profile {
     const zone = this.current.zones.find((z) => z.zoneId === zoneId)
     if (!zone) throw new Error(`Unknown zone: ${zoneId}`)
-    zone.effect = effect ? { ...effect, params: { ...effect.params } } : null
+    const next = effect ? { ...effect, params: { ...effect.params } } : null
+
+    if (this.current.global?.applyToAllZones && this.current.zones.length > 1) {
+      for (const z of this.current.zones) {
+        z.effect = next ? { ...next, params: { ...next.params } } : null
+        z.followZoneId = null
+      }
+      return this.save(this.current)
+    }
+
+    zone.effect = next
     return this.save(this.current)
   }
 
