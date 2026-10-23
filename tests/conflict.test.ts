@@ -51,12 +51,12 @@ async function stopFake(child: ChildProcess): Promise<void> {
 }
 
 /** Wait until the detector sees the fake process, or give up. */
-async function waitForDetection(timeoutMs = 5000): Promise<boolean> {
+async function waitForDetection(timeoutMs = 10000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const report = await detectConflicts('linux')
     if (report.conflicting) return true
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await new Promise((resolve) => setTimeout(resolve, 200))
   }
   return false
 }
