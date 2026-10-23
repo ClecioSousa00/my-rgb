@@ -37,7 +37,24 @@ export interface ConflictReport {
 }
 
 /** Names of the application's own process, never treated as a conflict. */
-const OWN_PROCESSES = new Set(['my-rgb', 'my-rgb.exe', 'electron', 'electron.exe'])
+const OWN_PROCESSES = new Set([
+  'my-rgb',
+  'my-rgb.exe',
+  'electron',
+  'electron.exe',
+  'vitest',
+  'vitest.exe',
+  'node',
+  'node.exe',
+  'npm',
+  'npm.exe',
+  'pnpm',
+  'pnpm.exe',
+  'yarn',
+  'yarn.exe',
+  'npx',
+  'npx.exe'
+])
 
 export async function detectConflicts(platform = process.platform): Promise<ConflictReport> {
   const names = KNOWN_CONFLICTS[platform] ?? []
