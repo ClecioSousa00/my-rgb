@@ -57,7 +57,7 @@
 
 ## 5. Melhorias na Interface
 
-- [ ] **Melhorar visualização de paletas** - Preview maior no seletor de gradiente
+- [x] **Melhorar visualização de paletas** - Preview maior no seletor de gradiente
 - [x] **Adicionar busca no seletor de efeitos** - Filtrar 34 efeitos por nome/categoria (não necessário)
 - [ ] **Tooltips mais informativos** - Expandir descrições em alguns lugares
 - [ ] **Melhorar responsividade** - Ajustar layout para diferentes resoluções
