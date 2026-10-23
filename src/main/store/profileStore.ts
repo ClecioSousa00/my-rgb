@@ -30,7 +30,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
 export const DEFAULT_HEADER_LEDS = 72
 
 /** How long to wait before writing the profile to disk. */
-const WRITE_DEBOUNCE_MS = 250
+const WRITE_DEBOUNCE_MS = 150
 
 export function defaultProfile(zones: ZoneState[] = []): Profile {
   // Every zone starts with the same effect, matching what reconcileProfile
