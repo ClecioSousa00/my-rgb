@@ -1,6 +1,6 @@
 {
   "name": "my-rgb",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cross-platform RGB control for ASUS AURA USB controllers - identical effects on Linux and Windows",
   "main": "./out/main/index.js",
   "desktopName": "my-rgb",
