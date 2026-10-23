@@ -283,7 +283,7 @@ export function TopBar(): React.JSX.Element {
         {engineRunning ? 'Pausar' : 'Retomar'}
       </button>
 
-      <div className="relative">
+      <div className="relative" style={{ zIndex: 10000 }}>
         <button
           className="btn btn-ghost px-2 text-[18px] leading-none"
           onClick={() => setShowSettings((v) => !v)}
@@ -293,7 +293,7 @@ export function TopBar(): React.JSX.Element {
         </button>
 
         {showSettings && settings && (
-          <div className="panel absolute right-0 top-9 z-[9999] w-72 p-3 shadow-2xl">
+          <div className="panel absolute right-0 top-9 z-[10000] w-72 p-3 shadow-2xl">
             <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
               Configurações
             </div>

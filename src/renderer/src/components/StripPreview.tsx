@@ -198,7 +198,7 @@ export function StripPreview(): React.JSX.Element {
     : null
 
   return (
-    <div className="panel relative isolate flex min-h-0 flex-1 flex-col">
+    <div className="panel relative flex min-h-0 flex-1 flex-col">
       <div className="panel-header">
         <span className="flex items-center gap-1.5">
           Pré-visualização
