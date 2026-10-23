@@ -169,10 +169,14 @@ export function GradientEditor(): React.JSX.Element {
 
       <div className="p-3">
         {/* the gradient bar */}
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[10.5px] uppercase tracking-wider text-ink-400">Pré-visualização</span>
+        </div>
+
         <div
           ref={barRef}
           onClick={handleBarClick}
-          className="relative h-9 cursor-copy rounded-lg border border-ink-600"
+          className="relative h-14 cursor-copy rounded-xl border border-ink-600 shadow-inner"
           style={{ background: paletteToCssGradient(palette) }}
           title="Clique para adicionar uma parada"
         >
@@ -187,12 +191,16 @@ export function GradientEditor(): React.JSX.Element {
                 setDragPosition(stop.position)
               }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 shadow-md transition-transform active:cursor-grabbing"
+              className="absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 shadow-lg transition-transform active:cursor-grabbing"
               style={{
                 left: `${stop.position * 100}%`,
                 background: stop.color,
-                borderColor: activeStop === index ? '#fff' : 'rgba(0,0,0,0.55)',
-                transform: `translate(-50%, -50%) scale(${activeStop === index ? 1.18 : 1})`
+                borderColor: activeStop === index ? '#fff' : 'rgba(0,0,0,0.7)',
+                boxShadow:
+                  activeStop === index
+                    ? '0 0 0 2px rgba(99, 102, 241, 0.6), 0 2px 6px rgba(0,0,0,0.6)'
+                    : '0 2px 6px rgba(0,0,0,0.6)',
+                transform: `translate(-50%, -50%) scale(${activeStop === index ? 1.22 : 1})`
               }}
               title={`${stop.color} @ ${(stop.position * 100).toFixed(0)}%`}
             />
