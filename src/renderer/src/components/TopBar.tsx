@@ -227,14 +227,7 @@ export function TopBar(): React.JSX.Element {
         >
           Importar
         </button>
-        {dirty && (
-          <span
-            className="chip border-transparent bg-warn-500/10 text-warn-500"
-            title="Alterações pendentes. O perfil é salvo automaticamente no disco após alguns instantes. Use 'Salvar' para renomear ou criar uma cópia."
-          >
-            ● alterações pendentes
-          </span>
-        )}
+
       </div>
 
       <div className="h-6 w-px bg-ink-700" />
