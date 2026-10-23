@@ -13,9 +13,9 @@
 ## 1. Desempenho
 
 - [x] **Reduzir uso de CPU no renderer** - Otimizar re-renders desnecessários nos componentes React
-- [ ] **Otimizar engine de efeitos** - Avaliar se há cálculos redundantes em loops críticos
+- [x] **Otimizar engine de efeitos** - Avaliar se há cálculos redundantes em loops críticos
 - [x] **Melhorar debouncing de salvamento** - Ajustar `WRITE_DEBOUNCE_MS` conforme necessidade
-- [ ] **Lazy loading de componentes** - Carregar painéis pesados sob demanda
+- [x] **Lazy loading de componentes** - Carregar painéis pesados sob demanda
 - [x] **Verificar uso de GPU no preview** - Otimizar renderização do canvas de preview
 
 ---
