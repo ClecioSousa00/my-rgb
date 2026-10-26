@@ -1,5 +1,65 @@
 # Funcionalidades
 
+O MyRGB tem uma navegação lateral com dez páginas: a de **Iluminação** (a tela
+original, descrita abaixo) e nove páginas de diagnóstico e desempenho que estão
+sendo incorporadas do Reset Explode. Este documento começa pela navegação e
+depois detalha a tela de iluminação, que é a que já está completa.
+
+---
+
+## A navegação
+
+```
+┌──────────────┬────────────────────────────────────────────────────────┐
+│ M MyRGB      │ ILUMINAÇÃO   ● AULA3-AR32-0309   Perfil [Padrão ▾] …   │
+├──────────────┼────────────────────────────────────────────────────────┤
+│ MYRGB     ▾  │                                                        │
+│  Visão geral │                                                        │
+│  Iluminação  │                                                        │
+│ DIAGNÓSTICO▾ │                                                        │
+│  Sistema     │                                                        │
+│  Sensores    │                                                        │
+│  Discos      │                                                        │
+│  Rede        │                                                        │
+│ DESEMPENHO▾  │                                                        │
+│  Jogos       │                                                        │
+│  Gargalo     │                                                        │
+│  Overlay     │                                                        │
+│ INTEGRAÇÕES▾ │                                                        │
+│  Integrações │                                                        │
+└──────────────┴────────────────────────────────────────────────────────┘
+```
+
+- Os grupos recolhem ao clicar no título. A página aberta e os grupos
+  recolhidos ficam gravados em `settings.json`, então o programa abre do jeito
+  que você deixou.
+- O item ativo é marcado por **uma barra branca à esquerda** e pelo fundo mais
+  claro — sem cor, como no Reset Explode.
+- O visual é monocromático de propósito: preto, branco e cinzas. Estados
+  (bom/atenção/ruim) aparecem por **inversão** do selo, não por cor.
+- Enquanto uma página não está implementada, ela mostra o título, o que vai
+  conter e a fase do plano — nunca uma tela em branco.
+
+| Página | O que é |
+|---|---|
+| Iluminação | Efeitos, zonas, gradiente e parâmetros (tela original) |
+| Visão geral | Resumo de hardware, desempenho e saúde |
+| Sistema | SO, placa-mãe/BIOS, CPU, RAM por módulo, GPU e discos |
+| Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo |
+| Discos | Unidades e saúde S.M.A.R.T. |
+| Rede | Latência, jitter, perda, DNS, velocidade e bufferbloat |
+| Jogos | FPS esperado por jogo, resolução, preset e upscaling |
+| Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão |
+| Overlay | Métricas por cima do jogo |
+| Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
+
+> **Nota:** só a página de Iluminação está funcional nesta fase. As demais
+> descrevem o que virá; o plano do projeto tem a ordem completa.
+
+---
+
+## A tela de iluminação
+
 O MyRGB tem seis painéis. Este documento diz o que cada um faz, o que cada
 botão faz e o que dá para combinar.
 

@@ -9,15 +9,18 @@
 
 import { create } from 'zustand'
 import { showToast } from './components/Toast'
+import { isPageId } from './navigation'
 import type {
   DeviceInfo,
   EffectDefinition,
   Frame,
   GlobalSettings,
+  PageId,
   Palette,
   ParamValue,
   PatternMeta,
   Profile,
+  UiSettings,
   ZoneConfig,
   ZoneState
 } from '@shared/types'
@@ -45,8 +48,14 @@ interface AppState {
   error: string | null
   /** True while there are changes that are not on disk yet. */
   dirty: boolean
+  /** Page currently shown. */
+  page: PageId
+  /** Sidebar groups the user collapsed. */
+  collapsedGroups: string[]
 
   init(): Promise<void>
+  setPage(page: PageId): void
+  toggleGroup(groupId: string): void
   selectZone(zoneId: string): void
   setZoneEffect(zoneId: string, effect: EffectDefinition | null): Promise<void>
   setZoneConfig(zoneId: string, patch: Partial<ZoneConfig>): Promise<void>
@@ -73,6 +82,35 @@ interface AppState {
  */
 let pendingMutations = 0
 
+/**
+ * Navigation state, mirrored from the settings store.
+ *
+ * Kept outside React so a page change can be persisted without re-rendering
+ * anything, and kept in one object so the page and the collapsed groups do
+ * not overwrite each other when two changes happen close together.
+ */
+let uiState: UiSettings = { lastPage: 'lighting', collapsedGroups: [] }
+
+function normalizeUi(ui: UiSettings | undefined): {
+  page: PageId
+  collapsedGroups: string[]
+} {
+  const saved = ui?.lastPage
+  const page: PageId = isPageId(saved) ? saved : 'lighting'
+  const collapsedGroups = Array.isArray(ui?.collapsedGroups)
+    ? ui.collapsedGroups.filter((group): group is string => typeof group === 'string')
+    : []
+  uiState = { lastPage: page, collapsedGroups }
+  return { page, collapsedGroups }
+}
+
+function persistUi(patch: Partial<UiSettings>): void {
+  uiState = { ...uiState, ...patch }
+  // A failure here is not worth a banner: the worst case is starting on the
+  // default page next time.
+  void window.myrgb.setSettings({ ui: uiState }).catch(() => {})
+}
+
 export const useApp = create<AppState>((set, get) => ({
   device: null,
   zones: [],
@@ -83,15 +121,18 @@ export const useApp = create<AppState>((set, get) => ({
   ready: false,
   error: null,
   dirty: false,
+  page: 'lighting',
+  collapsedGroups: [],
 
   async init() {
     try {
-      const [device, zones, patterns, profile, engineState] = await Promise.all([
+      const [device, zones, patterns, profile, engineState, settings] = await Promise.all([
         window.myrgb.getDeviceInfo(),
         window.myrgb.listZones(),
         window.myrgb.listPatterns(),
         window.myrgb.getProfile(),
-        window.myrgb.getEngineState()
+        window.myrgb.getEngineState(),
+        window.myrgb.getSettings()
       ])
 
       set({
@@ -102,13 +143,18 @@ export const useApp = create<AppState>((set, get) => ({
         engineRunning: engineState.running,
         selectedZoneId: zones[0]?.id ?? '',
         ready: true,
-        error: device.connected ? null : (device.error ?? 'Dispositivo não encontrado')
+        error: device.connected ? null : (device.error ?? 'Dispositivo não encontrado'),
+        ...normalizeUi(settings.ui)
       })
 
       // The self test waits for this instead of a fixed delay, so a slow
       // start (an AppImage mounting, for instance) is not mistaken for a
       // broken UI.
       ;(window as unknown as { __myRgbReady?: boolean }).__myRgbReady = true
+      // Lets the self test open a given page without clicking the sidebar.
+      ;(window as unknown as { __myRgbNavigate?: (page: PageId) => void }).__myRgbNavigate = (
+        page
+      ) => get().setPage(page)
 
       window.myrgb.onFrame((frame) => {
         // Counted so the self test can prove frames are really flowing.
@@ -162,6 +208,22 @@ export const useApp = create<AppState>((set, get) => ({
 
   selectZone(zoneId) {
     set({ selectedZoneId: zoneId })
+  },
+
+  setPage(page) {
+    // Clicking the page that is already open must not write settings.json.
+    if (get().page === page) return
+    set({ page })
+    persistUi({ lastPage: page })
+  },
+
+  toggleGroup(groupId) {
+    const current = get().collapsedGroups
+    const collapsedGroups = current.includes(groupId)
+      ? current.filter((id) => id !== groupId)
+      : [...current, groupId]
+    set({ collapsedGroups })
+    persistUi({ collapsedGroups })
   },
 
   async setZoneEffect(zoneId, effect) {

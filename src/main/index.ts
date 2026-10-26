@@ -5,18 +5,12 @@
  * the renderer over a narrow IPC surface. The renderer never touches HID.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { app, BrowserWindow, shell } from 'electron'
+import { mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
-import { patternMetadata } from './engine/patterns'
-import {
-  defaultProfile,
-  ProfileStore,
-  reconcileProfile,
-  validateImportedProfile
-} from './store/profileStore'
+import { defaultProfile, ProfileStore, reconcileProfile } from './store/profileStore'
 import { SettingsStore } from './store/settings'
 import { buildZones } from './zones'
 import { createTray, type TrayHandle } from './tray'
@@ -25,6 +19,7 @@ import { detectConflicts, type ConflictReport } from './platform/conflict'
 import { runFrameDump } from './dumpFrames'
 import { buildEffectsDoc } from './docs/effectsDoc'
 import { initAutoUpdater } from './updater'
+import { registerIpc } from './ipc/register'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
@@ -39,11 +34,11 @@ const DEVICE_POLL_MS = 3000
 
 class MyRgbApp {
   private device = new AuraUsbDevice()
-  private zones: ZoneState[] = []
+  zones: ZoneState[] = []
   engine!: EffectEngine
-  private profileStore!: ProfileStore
-  private settings!: SettingsStore
-  private window: BrowserWindow | null = null
+  profileStore!: ProfileStore
+  settings!: SettingsStore
+  window: BrowserWindow | null = null
   private trayHandle: TrayHandle | null = null
   private conflicts: ConflictReport = { conflicting: false, processes: [], hint: '' }
   private conflictTimer: NodeJS.Timeout | null = null
@@ -100,7 +95,7 @@ class MyRgbApp {
 
     this.createWindow()
     this.createTray()
-    this.registerIpc()
+    this.installIpc()
 
     if (this.settings.settings.autoStart) {
       this.engine.start()
@@ -137,8 +132,26 @@ class MyRgbApp {
     this.profileStore.save(reconciled)
   }
 
-  private get deviceInfo(): DeviceInfo {
+  get deviceInfo(): DeviceInfo {
     return { ...this.device.info, conflictSuspected: this.conflicts.conflicting }
+  }
+
+  /** Reopen the controller. Used by the "Reconectar" button. */
+  async reconnect(): Promise<DeviceInfo> {
+    this.device.close()
+    await this.openDevice()
+    await this.refreshConflicts()
+    return this.deviceInfo
+  }
+
+  /** Redraw the tray menu after something it displays changed. */
+  refreshTray(): void {
+    this.trayHandle?.refresh()
+  }
+
+  /** Forget the last hardware error before starting the engine again. */
+  clearEngineError(): void {
+    this.lastEngineError = null
   }
 
   private async refreshConflicts(): Promise<void> {
@@ -222,12 +235,12 @@ class MyRgbApp {
       return
     }
     this.window = new BrowserWindow({
-      width: 1280,
-      height: 840,
-      minWidth: 960,
-      minHeight: 620,
+      width: 1360,
+      height: 860,
+      minWidth: 1120,
+      minHeight: 680,
       show: false,
-      backgroundColor: '#0b0d12',
+      backgroundColor: '#000000',
       title: 'MyRGB',
       icon: resolveResource('build', 'icon.png') ?? undefined,
       webPreferences: {
@@ -328,14 +341,14 @@ class MyRgbApp {
     }
   }
 
-  private emitEngineState(): void {
+  emitEngineState(): void {
     const state = this.engineState
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.engineState, state)
     }
   }
 
-  private get engineState(): EngineState {
+  get engineState(): EngineState {
     return {
       running: this.engine.isRunning,
       fps: this.profileStore.profile.global.fps,
@@ -346,170 +359,12 @@ class MyRgbApp {
 
   // --- IPC ----------------------------------------------------------------
 
-  private registerIpc(): void {
-    const store = this.profileStore
-
-    ipcMain.handle(IPC.deviceInfo, () => this.deviceInfo)
-    ipcMain.handle(IPC.deviceReconnect, async () => {
-      this.device.close()
-      await this.openDevice()
-      await this.refreshConflicts()
-      return this.deviceInfo
-    })
-    ipcMain.handle(IPC.zonesList, () => this.zones)
-    ipcMain.handle(IPC.patternsList, () => patternMetadata())
-    ipcMain.handle(IPC.profileGet, () => store.profile)
-    ipcMain.handle(IPC.profileSave, (_e, profile: Profile) => {
-      const before = store.profile.name
-      const saved = store.save(profile)
-      this.rememberProfileName(before, saved.name)
-      return saved
-    })
-    ipcMain.handle(IPC.profileDuplicate, (_e, name: string) => {
-      const before = store.profile.name
-      const profile = store.duplicateProfile(name)
-      store.flush?.()
-      this.engine.setProfile(profile)
-      this.rememberProfileName(before, profile.name)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileRename, (_e, name: string, overwrite = false) => {
-      const before = store.profile.name
-      const profile = store.renameProfile(name, overwrite)
-      store.flush?.()
-      this.engine.setProfile(profile)
-      this.rememberProfileName(before, profile.name)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileList, () => store.list())
-    ipcMain.handle(IPC.profileLoad, (_e, id: string) => {
-      const profile = store.load(id)
-      this.engine.setProfile(profile)
-      this.settings.set({ lastProfile: profile.name })
-      this.trayHandle?.refresh()
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileDelete, (_e, id: string) => {
-      const deleted = store.displayName(id)
-      const profile = store.delete(id)
-      this.engine.setProfile(profile)
-      // The delete may have moved the app to another profile, and the deleted
-      // one may be the profile chosen for startup.
-      const startup = this.settings.settings.startupProfile
-      this.settings.set({
-        lastProfile: profile.name,
-        ...(startup && startup === deleted ? { startupProfile: null } : {})
-      })
-      this.trayHandle?.refresh()
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileSetZone, (_e, zoneId: string, effect) => {
-      const profile = store.setZoneEffect(zoneId, effect)
-      this.engine.setProfile(profile)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileSetZoneConfig, (_e, zoneId: string, patch) => {
-      const profile = store.setZoneConfig(zoneId, patch)
-      this.engine.setProfile(profile)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileApplyToAll, (_e, zoneId: string) => {
-      const profile = store.applyEffectToAll(zoneId)
-      this.engine.setProfile(profile)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileSetPalette, (_e, palette) => {
-      const profile = store.setPalette(palette)
-      this.engine.setProfile(profile)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileRemovePalette, (_e, paletteId: string) => {
-      const profile = store.removePalette(paletteId)
-      this.engine.setProfile(profile)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileSetGlobal, (_e, patch) => {
-      const profile = store.setGlobal(patch)
-      this.engine.setProfile(profile)
-      this.emitProfile(profile)
-      return profile
-    })
-    ipcMain.handle(IPC.profileFlush, () => {
-      store.flush?.()
-    })
-    ipcMain.handle(IPC.profileExport, async () => {
-      if (!this.window) return null
-      const profile = store.profile
-      const result = await dialog.showSaveDialog(this.window, {
-        title: 'Exportar perfil',
-        defaultPath: `${profile.name.replace(/[\\/:*?"<>|]/g, '_')}.myrgb.json`,
-        filters: [
-          { name: 'MyRGB Profile', extensions: ['myrgb.json', 'json'] },
-          { name: 'JSON', extensions: ['json'] }
-        ]
-      })
-      if (result.canceled || !result.filePath) return null
-      writeFileSync(result.filePath, JSON.stringify(profile, null, 2), 'utf8')
-      return result.filePath
-    })
-    ipcMain.handle(IPC.profileImport, async () => {
-      if (!this.window) return null
-      const result = await dialog.showOpenDialog(this.window, {
-        title: 'Importar perfil',
-        properties: ['openFile'],
-        filters: [
-          { name: 'MyRGB Profile', extensions: ['myrgb.json', 'json'] },
-          { name: 'JSON', extensions: ['json'] }
-        ]
-      })
-      if (result.canceled || result.filePaths.length === 0) return null
-      try {
-        const content = readFileSync(result.filePaths[0], 'utf8')
-        const parsed = JSON.parse(content) as unknown
-        const imported = validateImportedProfile(parsed)
-        // Never overwrite a profile with the same name: give the import the
-        // first free variant ("Nome (2)", ...) and save it once, validated.
-        const name = store.availableName(imported.name)
-        const before = store.profile.name
-        const saved = store.save(reconcileProfile({ ...imported, name }, this.zones))
-        store.flush?.()
-        this.engine.setProfile(saved)
-        this.rememberProfileName(before, saved.name)
-        this.emitProfile(saved)
-        return saved
-      } catch (err) {
-        throw err
-      }
-    })
-    ipcMain.handle(IPC.engineStart, () => {
-      this.lastEngineError = null
-      this.engine.start()
-      this.emitEngineState()
-      return this.engineState
-    })
-    ipcMain.handle(IPC.engineStop, () => {
-      this.engine.stop()
-      this.emitEngineState()
-      return this.engineState
-    })
-    ipcMain.handle(IPC.engineState, () => this.engineState)
-    ipcMain.handle(IPC.settingsGet, () => this.settings.settings)
-    ipcMain.handle(IPC.settingsSet, (_e, patch) => {
-      const settings = this.settings.set(patch)
-      if (patch.autostartAtLogin !== undefined) {
-        this.applyAutostart(settings.autostartAtLogin)
-      }
-      return settings
-    })
+  /**
+   * Hand the application to the IPC layer. All channels live in
+   * `ipc/register.ts`, so the surface stays auditable in one place.
+   */
+  private installIpc(): void {
+    registerIpc(this)
   }
 
   /**
@@ -518,7 +373,7 @@ class MyRgbApp {
    * Electron maps this to the Windows registry on Windows and to a
    * .desktop autostart entry on Linux, so the same code covers both.
    */
-  private applyAutostart(enabled: boolean): void {
+  applyAutostart(enabled: boolean): void {
     try {
       app.setLoginItemSettings({
         openAtLogin: enabled,
@@ -530,7 +385,7 @@ class MyRgbApp {
     }
   }
 
-  private emitProfile(profile: Profile): void {
+  emitProfile(profile: Profile): void {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.profileGet, profile)
     }
@@ -541,7 +396,7 @@ class MyRgbApp {
    * under a new name. Otherwise the next start looks for the old file, does
    * not find it and silently falls back to the default profile.
    */
-  private rememberProfileName(before: string, after: string): void {
+  rememberProfileName(before: string, after: string): void {
     if (!before || before === after) return
     this.settings.set({
       lastProfile: after,
@@ -746,6 +601,19 @@ async function runSelfTest(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
 
+  // The app may have been left on another page on the previous run. Every
+  // check below is about the lighting screen, so open it explicitly - and use
+  // the round trip to prove the sidebar really swaps pages.
+  await window.webContents.executeJavaScript(`
+    (async () => {
+      window.__myRgbNavigate && window.__myRgbNavigate('system')
+      await new Promise((r) => setTimeout(r, 250))
+      window.__myRgbPageSwitch = /O que está dentro da máquina/.test(document.body.innerText)
+      window.__myRgbNavigate && window.__myRgbNavigate('lighting')
+      await new Promise((r) => setTimeout(r, 400))
+    })()
+  `)
+
   const report = await window.webContents.executeJavaScript(`
     (async () => {
       // Probe every call the renderer makes on startup. One of them hanging
@@ -771,6 +639,8 @@ async function runSelfTest(): Promise<void> {
         canvases: document.querySelectorAll('canvas').length,
         sliders: document.querySelectorAll('input[type=range]').length,
         frames: window.__myRgbFrameCount ?? 0,
+        nav: document.querySelectorAll('.nav-item').length,
+        pageSwitch: window.__myRgbPageSwitch === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
         gradient: /gradiente/i.test(document.body.innerText),
@@ -782,7 +652,13 @@ async function runSelfTest(): Promise<void> {
 
   console.log('SELFTEST ' + JSON.stringify(report, null, 2))
   const ok =
-    report.mounted && report.bridge && report.buttons > 10 && report.canvases === 1 && report.frames > 0
+    report.mounted &&
+    report.bridge &&
+    report.buttons > 10 &&
+    report.canvases === 1 &&
+    report.frames > 0 &&
+    report.nav > 0 &&
+    report.pageSwitch === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
 }

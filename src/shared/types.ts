@@ -159,6 +159,27 @@ export interface Profile {
   global: GlobalSettings
 }
 
+/** Pages reachable from the sidebar. */
+export type PageId =
+  | 'overview'
+  | 'lighting'
+  | 'system'
+  | 'sensors'
+  | 'disks'
+  | 'network'
+  | 'games'
+  | 'bottleneck'
+  | 'overlay'
+  | 'integrations'
+
+/** Navigation state that survives a restart. */
+export interface UiSettings {
+  /** Page shown on the next start. */
+  lastPage?: PageId
+  /** Sidebar groups the user collapsed. */
+  collapsedGroups?: string[]
+}
+
 /** Application level preferences, stored outside the profiles. */
 export interface AppSettings {
   /** Start the engine as soon as the app launches. */
@@ -173,6 +194,8 @@ export interface AppSettings {
   startWithLightingOff: boolean
   /** Profile to load on startup (overrides lastProfile if set). */
   startupProfile?: string | null
+  /** Window state that is not a preference but should be remembered. */
+  ui?: UiSettings
 }
 
 // ---------------------------------------------------------------------------

@@ -12,7 +12,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   minimizeToTray: true,
   lastProfile: 'Padrão',
   startWithLightingOff: false,
-  startupProfile: null
+  startupProfile: null,
+  ui: { lastPage: 'lighting', collapsedGroups: [] }
 }
 
 export class SettingsStore {
@@ -35,7 +36,13 @@ export class SettingsStore {
   }
 
   set(patch: Partial<AppSettings>): AppSettings {
-    this.data = { ...this.data, ...patch }
+    // The navigation state is written field by field (page on click, group on
+    // collapse), so merging it here keeps one write from wiping the other.
+    this.data = {
+      ...this.data,
+      ...patch,
+      ui: patch.ui ? { ...this.data.ui, ...patch.ui } : this.data.ui
+    }
     this.write()
     return this.data
   }
@@ -44,7 +51,11 @@ export class SettingsStore {
     if (!existsSync(this.file)) return
     try {
       const parsed = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<AppSettings>
-      this.data = { ...DEFAULT_SETTINGS, ...parsed }
+      this.data = {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        ui: { ...DEFAULT_SETTINGS.ui, ...(parsed.ui ?? {}) }
+      }
     } catch {
       this.data = { ...DEFAULT_SETTINGS }
     }

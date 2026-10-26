@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../store'
+import { pageTitle } from '../navigation'
 import type { AppSettings } from '@shared/types'
 import { showToast } from './Toast'
 
 export function TopBar(): React.JSX.Element {
   const device = useApp((s) => s.device)
   const profile = useApp((s) => s.profile)
-  const engineRunning = useApp((s) => s.engineRunning)
-  const toggleEngine = useApp((s) => s.toggleEngine)
-  const setGlobal = useApp((s) => s.setGlobal)
+  const page = useApp((s) => s.page)
   const loadProfile = useApp((s) => s.loadProfile)
   const renameProfile = useApp((s) => s.renameProfile)
   const saveProfile = useApp((s) => s.saveProfile)
@@ -59,7 +58,6 @@ export function TopBar(): React.JSX.Element {
   }
 
   const connected = device?.connected ?? false
-  const lightsOn = profile?.global.outputEnabled ?? true
 
   const handleProfileChange = async (name: string): Promise<void> => {
     await loadProfile(name)
@@ -161,24 +159,27 @@ export function TopBar(): React.JSX.Element {
   }
 
   return (
-    <header className="relative z-30 flex h-14 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900/80 px-4 backdrop-blur">
+    <header className="relative z-30 flex h-12 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-950 px-4">
       <div className="flex items-center gap-2.5">
-        <div
-          className="h-6 w-6 rounded-md"
-          style={{
-            background: 'linear-gradient(135deg,#7c5cff 0%,#00d4ff 50%,#29d67f 100%)'
-          }}
-        />
-        <span className="text-[15px] font-semibold tracking-tight">MyRGB</span>
+        <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-ink-100 font-mono text-[12px] font-bold text-black">
+          M
+        </div>
+        <span className="text-[14px] font-semibold tracking-tight">MyRGB</span>
       </div>
 
-      <div className="h-6 w-px bg-ink-700" />
+      <div className="h-5 w-px bg-ink-700" />
 
-      {/* device status */}
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+        {pageTitle(page)}
+      </span>
+
+      <div className="h-5 w-px bg-ink-700" />
+
+      {/* device status: filled dot = connected, hollow ring = missing */}
       <div className="flex items-center gap-2">
         <span
           className={`h-1.5 w-1.5 rounded-full ${
-            connected ? 'bg-good-500 animate-pulse-dot' : 'bg-bad-500'
+            connected ? 'animate-pulse-dot bg-ink-100' : 'border border-ink-100'
           }`}
         />
         <span className="text-[12px] text-ink-300">
@@ -186,7 +187,7 @@ export function TopBar(): React.JSX.Element {
         </span>
         {device?.conflictSuspected && (
           <span
-            className="chip border-warn-500/40 bg-warn-500/10 text-warn-500"
+            className="chip border-ink-500 text-ink-200"
             title="Outro programa pode estar controlando o mesmo controlador"
           >
             conflito
@@ -243,58 +244,7 @@ export function TopBar(): React.JSX.Element {
 
       </div>
 
-      <div className="h-6 w-px bg-ink-700" />
-
-      {/* global controls */}
-      <label className="flex items-center gap-2" title="Brilho global">
-        <span className="text-[11px] uppercase tracking-wider text-ink-400">Brilho</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={profile?.global.brightness ?? 1}
-          className="w-20"
-          onChange={(e) => void setGlobal({ brightness: Number(e.target.value) })}
-        />
-        <span className="w-8 font-mono text-[11px] text-ink-400">
-          {Math.round((profile?.global.brightness ?? 1) * 100)}%
-        </span>
-      </label>
-
-      <label className="flex items-center gap-2" title="Velocidade global">
-        <span className="text-[11px] uppercase tracking-wider text-ink-400">Veloc.</span>
-        <input
-          type="range"
-          min={0.1}
-          max={3}
-          step={0.05}
-          value={profile?.global.speed ?? 1}
-          className="w-20"
-          onChange={(e) => void setGlobal({ speed: Number(e.target.value) })}
-        />
-        <span className="w-8 font-mono text-[11px] text-ink-400">
-          {(profile?.global.speed ?? 1).toFixed(2)}x
-        </span>
-      </label>
-
-      <div className="h-6 w-px bg-ink-700" />
-
-      <button
-        className={`btn ${lightsOn ? 'btn-primary' : ''}`}
-        onClick={() => void setGlobal({ outputEnabled: !lightsOn })}
-        title="Envia os quadros para o hardware"
-      >
-        {lightsOn ? 'Luzes ligadas' : 'Luzes desligadas'}
-      </button>
-
-      <button
-        className="btn btn-ghost"
-        onClick={() => void toggleEngine()}
-        title={engineRunning ? 'Pausar o motor de efeitos' : 'Retomar o motor de efeitos'}
-      >
-        {engineRunning ? 'Pausar' : 'Retomar'}
-      </button>
+      <div className="h-5 w-px bg-ink-700" />
 
       <div className="relative">
         <button
