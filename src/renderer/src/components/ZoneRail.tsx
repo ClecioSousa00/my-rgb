@@ -200,14 +200,19 @@ function ZoneCard({
               className="field h-6 w-14 px-1.5 py-0 text-[11px]"
               min={0}
               max={zone.maxLedCount}
+              step={1}
               value={config?.ledCount ?? 0}
               title="Quantidade de LEDs neste header"
               onClick={(e) => e.stopPropagation()}
-              onChange={(e) =>
-                void onConfig({
-                  ledCount: Math.max(0, Math.min(zone.maxLedCount, Number(e.target.value)))
-                })
-              }
+              onChange={(e) => {
+                // LED counts are whole numbers. Letting 1.5 through reaches
+                // `new Array(1.5)` in the engine and crashes the app.
+                const raw = Number(e.target.value)
+                const count = Number.isFinite(raw)
+                  ? Math.max(0, Math.min(zone.maxLedCount, Math.round(raw)))
+                  : 0
+                void onConfig({ ledCount: count })
+              }}
             />
             <span className="text-[10.5px] text-ink-400">/ {zone.maxLedCount} LEDs</span>
           </>

@@ -33,6 +33,29 @@ export const DEFAULT_HEADER_LEDS = 72
 /** How long to wait before writing the profile to disk. */
 const WRITE_DEBOUNCE_MS = 150
 
+/**
+ * Turn a profile name into the file name used on disk.
+ *
+ * Accents and other characters that are not safe in a file name become "_"
+ * here. The file name is only an identifier: the profile keeps the real name
+ * inside the JSON, and that is what the UI shows.
+ */
+export function profileFileId(name: string): string {
+  return sanitize(name)
+}
+
+/**
+ * LED counts must be whole, finite numbers. A fractional count reaches the
+ * engine and `new Array(1.5)` throws `RangeError`, taking the whole main
+ * process down.
+ */
+export function normalizeLedCount(value: unknown, max = Number.POSITIVE_INFINITY): number {
+  const count = Math.round(Number(value))
+  if (!Number.isFinite(count)) return 0
+  const limit = Number.isFinite(max) ? Math.max(0, Math.round(max)) : Number.POSITIVE_INFINITY
+  return Math.max(0, Math.min(count, limit))
+}
+
 export function defaultProfile(zones: ZoneState[] = []): Profile {
   // Every zone starts with the same effect, matching what reconcileProfile
   // does for zones that have none yet.
@@ -63,28 +86,33 @@ export function defaultProfile(zones: ZoneState[] = []): Profile {
  * the layout changes.
  */
 export function reconcileProfile(profile: Profile, zones: ZoneState[]): Profile {
-  const next: Profile = {
-    ...profile,
-    zones: zones.map((zone) => {
-      const existing = profile.zones.find((z) => z.zoneId === zone.id)
-      if (existing) {
-        return {
-          ...existing,
-          ledCount: Math.max(
-            0,
-            Math.min(existing.ledCount || 0, zone.maxLedCount) || existing.ledCount || 0
-          )
-        }
-      }
-      return {
-        zoneId: zone.id,
-        enabled: true,
-        ledCount: zone.kind === 'addressable' ? DEFAULT_HEADER_LEDS : zone.maxLedCount,
-        effect: null,
-        followZoneId: null
-      }
-    })
-  }
+  // No hardware layout means there is nothing to reconcile. Clearing the
+  // zones here would erase the user's profile - names, effects, LED counts -
+  // whenever the controller is unplugged or the udev rule is missing.
+  const zoneConfigs: ZoneConfig[] =
+    zones.length === 0
+      ? profile.zones.map((zone) => ({
+          ...zone,
+          effect: zone.effect ? { ...zone.effect, params: { ...zone.effect.params } } : null
+        }))
+      : zones.map((zone) => {
+          const existing = profile.zones.find((z) => z.zoneId === zone.id)
+          if (existing) {
+            return {
+              ...existing,
+              ledCount: normalizeLedCount(existing.ledCount, zone.maxLedCount)
+            }
+          }
+          return {
+            zoneId: zone.id,
+            enabled: true,
+            ledCount: zone.kind === 'addressable' ? DEFAULT_HEADER_LEDS : zone.maxLedCount,
+            effect: null,
+            followZoneId: null
+          }
+        })
+
+  const next: Profile = { ...profile, zones: zoneConfigs }
 
   // Every zone gets a valid effect, so switching one on later shows something
   // sensible straight away.
@@ -128,9 +156,9 @@ export class ProfileStore {
     return this.current
   }
 
-  /** Load a profile by id, or the last used one. */
+  /** Load a profile by name (or file id), or the last used one. */
   load(id?: string): Profile {
-    const target = id ? this.pathFor(id) : this.lastUsedPath()
+    const target = id ? this.resolvePath(id) : this.lastUsedPath()
     if (target && existsSync(target)) {
       try {
         const parsed = JSON.parse(readFileSync(target, 'utf8')) as Profile
@@ -145,12 +173,24 @@ export class ProfileStore {
     return this.current
   }
 
+  /** Names shown in the profile selector, read from the JSON, not the file name. */
   list(): string[] {
     if (!existsSync(this.dir)) return []
-    return readdirSync(this.dir)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => f.slice(0, -5))
-      .sort()
+    const names: string[] = []
+    for (const file of readdirSync(this.dir)) {
+      if (!file.endsWith('.json')) continue
+      const fallback = file.slice(0, -5)
+      const full = join(this.dir, file)
+      try {
+        const parsed = JSON.parse(readFileSync(full, 'utf8')) as Partial<Profile>
+        const name = typeof parsed.name === 'string' ? parsed.name.trim() : ''
+        names.push(name || fallback)
+      } catch {
+        // A damaged file still has a name on disk; show it instead of hiding it.
+        names.push(fallback)
+      }
+    }
+    return names.sort()
   }
 
   save(profile: Profile): Profile {
@@ -160,10 +200,11 @@ export class ProfileStore {
   }
 
   delete(id: string): void {
-    const path = this.pathFor(id)
-    if (existsSync(path)) unlinkSync(path)
-    if (this.writtenPath === path) this.writtenPath = null
-    if (this.current.name === id) {
+    const path = this.resolvePath(id)
+    const currentPath = this.pathFor(this.current.name)
+    if (path && existsSync(path)) unlinkSync(path)
+    if (path && this.writtenPath === path) this.writtenPath = null
+    if (id === this.current.name || path === currentPath) {
       this.current = defaultProfile()
       this.writeCurrent()
     }
@@ -190,7 +231,13 @@ export class ProfileStore {
   setZoneConfig(zoneId: string, patch: Partial<ZoneConfig>): Profile {
     const zone = this.current.zones.find((z) => z.zoneId === zoneId)
     if (!zone) throw new Error(`Unknown zone: ${zoneId}`)
-    Object.assign(zone, patch)
+    const next = { ...patch }
+    if (next.ledCount !== undefined) {
+      // The number input can produce 1.5 or NaN; keep the profile (and the
+      // engine) on whole LED counts only.
+      next.ledCount = normalizeLedCount(next.ledCount)
+    }
+    Object.assign(zone, next)
     return this.save(this.current)
   }
 
@@ -283,8 +330,8 @@ export class ProfileStore {
     const name = newName.trim()
     if (!name || name === oldName) return this.current
 
-    const oldPath = this.pathFor(oldName)
-    if (existsSync(oldPath)) unlinkSync(oldPath)
+    const oldPath = this.writtenPath ?? this.resolvePath(oldName)
+    if (oldPath && existsSync(oldPath)) unlinkSync(oldPath)
     if (this.writtenPath === oldPath) this.writtenPath = null
 
     this.current = { ...this.current, name }
@@ -312,7 +359,7 @@ export class ProfileStore {
 
   private writeNow(): void {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
-    const file = join(this.dir, `${sanitize(this.current.name)}.json`)
+    const file = this.pathFor(this.current.name)
     writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
     this.writtenPath = file
     // The UI shows a "saved" indicator, so it has to know when the disk was
@@ -320,12 +367,38 @@ export class ProfileStore {
     this.onSaved?.(this.current.name)
   }
 
-  private pathFor(id: string): string {
-    return join(this.dir, `${sanitize(id)}.json`)
+  /**
+   * Resolve a profile name to its file.
+   *
+   * The direct hit covers both the sanitised file id ("Padr_o" for "Padrão")
+   * and names that need no sanitising. The scan adds two fallbacks: old files
+   * are also addressable by their raw file name, and profiles whose file was
+   * renamed by hand still load by the name stored inside the JSON.
+   */
+  private resolvePath(id: string): string | null {
+    const direct = this.pathFor(id)
+    if (existsSync(direct)) return direct
+    if (!existsSync(this.dir)) return null
+
+    for (const file of readdirSync(this.dir)) {
+      if (!file.endsWith('.json')) continue
+      if (file.slice(0, -5) === id) return join(this.dir, file)
+      try {
+        const parsed = JSON.parse(readFileSync(join(this.dir, file), 'utf8')) as Partial<Profile>
+        if (parsed.name === id) return join(this.dir, file)
+      } catch {
+        /* ignore damaged files here; load() reports them */
+      }
+    }
+    return null
   }
 
-  private lastUsedPath(): string {
-    return this.pathFor(this.current.name)
+  private pathFor(id: string): string {
+    return join(this.dir, `${profileFileId(id)}.json`)
+  }
+
+  private lastUsedPath(): string | null {
+    return this.resolvePath(this.current.name) ?? this.pathFor(this.current.name)
   }
 }
 

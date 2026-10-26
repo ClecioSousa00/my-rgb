@@ -6,7 +6,7 @@
  */
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
@@ -49,11 +49,26 @@ class MyRgbApp {
     this.profileStore = new ProfileStore(app.getPath('userData'), initial, (name) =>
       this.emitProfileSaved(name)
     )
+    const startup = this.settings.settings.startupProfile || this.settings.settings.lastProfile
     try {
-      const startup = this.settings.settings.startupProfile || this.settings.settings.lastProfile
       this.profileStore.load(startup)
     } catch {
       /* keep the default profile */
+    }
+
+    // The pointer must match the profile that was really loaded. A profile
+    // renamed outside the app (or saved under a sanitised file name) would
+    // otherwise be looked up by the old name on the next start.
+    this.settings.set({ lastProfile: this.profileStore.profile.name })
+
+    // "Open with the lights off" means the output starts disabled - the
+    // window still opens normally. Applying it here, before the device is
+    // opened, is what actually darkens the LEDs on startup.
+    if (
+      this.settings.settings.startWithLightingOff &&
+      this.profileStore.profile.global.outputEnabled
+    ) {
+      this.profileStore.setGlobal({ outputEnabled: false })
     }
 
     this.engine = new EffectEngine(this.profileStore.profile, this.zones, {
@@ -85,6 +100,11 @@ class MyRgbApp {
     }
     this.reconcile()
     this.engine.setZones(this.zones)
+    // reconcile() may have added zones or fixed their LED counts. The engine
+    // holds its own reference to the profile, so it has to be told about the
+    // new one - otherwise the first start (and every newly connected zone)
+    // renders with the old, zoneless profile.
+    this.engine.setProfile(this.profileStore.profile)
     this.engine.setDevice(ok ? this.device : null)
     // If the lights are supposed to be off, darken them right away instead of
     // leaving whatever the previous owner left on the controller.
@@ -158,8 +178,9 @@ class MyRgbApp {
     })
 
     this.window.once('ready-to-show', () => {
-      const hidden = process.argv.includes('--hidden')
-      if (!hidden && !this.settings.settings.startWithLightingOff) this.window?.show()
+      // Only the autostart flag hides the window. "Open with the lights off"
+      // affects the hardware output, never the window.
+      if (!process.argv.includes('--hidden')) this.window?.show()
     })
 
     this.window.on('close', (event) => {
@@ -274,18 +295,27 @@ class MyRgbApp {
     ipcMain.handle(IPC.zonesList, () => this.zones)
     ipcMain.handle(IPC.patternsList, () => patternMetadata())
     ipcMain.handle(IPC.profileGet, () => store.profile)
-    ipcMain.handle(IPC.profileSave, (_e, profile: Profile) => store.save(profile))
+    ipcMain.handle(IPC.profileSave, (_e, profile: Profile) => {
+      const before = store.profile.name
+      const saved = store.save(profile)
+      this.rememberProfileName(before, saved.name)
+      return saved
+    })
     ipcMain.handle(IPC.profileDuplicate, (_e, name: string) => {
+      const before = store.profile.name
       const profile = store.duplicateProfile(name)
       store.flush?.()
       this.engine.setProfile(profile)
+      this.rememberProfileName(before, profile.name)
       this.emitProfile(profile)
       return profile
     })
     ipcMain.handle(IPC.profileRename, (_e, name: string) => {
+      const before = store.profile.name
       const profile = store.renameProfile(name)
       store.flush?.()
       this.engine.setProfile(profile)
+      this.rememberProfileName(before, profile.name)
       this.emitProfile(profile)
       return profile
     })
@@ -293,7 +323,7 @@ class MyRgbApp {
     ipcMain.handle(IPC.profileLoad, (_e, id: string) => {
       const profile = store.load(id)
       this.engine.setProfile(profile)
-      this.settings.set({ lastProfile: id })
+      this.settings.set({ lastProfile: profile.name })
       this.emitProfile(profile)
       return profile
     })
@@ -370,6 +400,7 @@ class MyRgbApp {
           throw new Error('Arquivo de perfil inválido')
         }
         // Save as a new profile copy in profiles dir and load it
+        const before = store.profile.name
         const imported = store.duplicateProfile(parsed.name || 'Importado')
         // Overwrite with imported data
         const full = {
@@ -379,7 +410,7 @@ class MyRgbApp {
         const saved = store.save(full)
         store.flush?.()
         this.engine.setProfile(saved)
-        this.settings.set({ lastProfile: saved.name })
+        this.rememberProfileName(before, saved.name)
         this.emitProfile(saved)
         return saved
       } catch (err) {
@@ -429,6 +460,19 @@ class MyRgbApp {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.profileGet, profile)
     }
+  }
+
+  /**
+   * Keep the startup pointers in sync when a profile is renamed or saved
+   * under a new name. Otherwise the next start looks for the old file, does
+   * not find it and silently falls back to the default profile.
+   */
+  private rememberProfileName(before: string, after: string): void {
+    if (!before || before === after) return
+    this.settings.set({
+      lastProfile: after,
+      ...(this.settings.settings.startupProfile === before ? { startupProfile: after } : {})
+    })
   }
 
   /**

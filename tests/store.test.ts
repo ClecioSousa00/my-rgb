@@ -130,6 +130,34 @@ describe('reconcileProfile', () => {
     const reconciled = reconcileProfile(profile, ZONES)
     expect(reconciled.palettes.length).toBeGreaterThan(0)
   })
+
+  it('keeps the zones when no hardware is present', () => {
+    const profile = defaultProfile(ZONES)
+    profile.zones[1].name = 'Ventoinha'
+    profile.zones[1].ledCount = 30
+
+    const reconciled = reconcileProfile(profile, [])
+
+    expect(reconciled.zones).toHaveLength(profile.zones.length)
+    expect(reconciled.zones[1].name).toBe('Ventoinha')
+    expect(reconciled.zones[1].ledCount).toBe(30)
+    expect(reconciled.zones[1].effect?.patternId).toBe('rainbow')
+  })
+
+  it('normalises fractional and invalid LED counts to whole numbers', () => {
+    const profile = emptyProfile()
+    profile.zones = [
+      { zoneId: 'argb0', enabled: true, ledCount: 1.5, effect: null, followZoneId: null },
+      { zoneId: 'argb1', enabled: true, ledCount: Number.NaN, effect: null, followZoneId: null },
+      { zoneId: 'argb2', enabled: true, ledCount: 500, effect: null, followZoneId: null }
+    ]
+
+    const reconciled = reconcileProfile(profile, ZONES)
+
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb0')?.ledCount).toBe(2)
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb1')?.ledCount).toBe(0)
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb2')?.ledCount).toBe(120)
+  })
 })
 
 describe('ProfileStore', () => {
@@ -240,6 +268,48 @@ describe('ProfileStore', () => {
 
     const reopened = new ProfileStore(dir, defaultProfile())
     expect(reopened.load('persistido').name).toBe('persistido')
+  })
+
+  it('lists names with accents as they were typed, not as file names', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Padrão' })
+    store.flush()
+
+    expect(store.list()).toEqual(['Padrão'])
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Padrão').name).toBe('Padrão')
+    // The sanitised file identifier still works for older callers.
+    expect(reopened.load('Padr_o').name).toBe('Padrão')
+  })
+
+  it('renames a profile with accents without leaving the old file behind', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Padrão' })
+    store.flush()
+
+    store.renameProfile('Coração')
+    store.flush()
+
+    expect(store.list()).toEqual(['Coração'])
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Coração').name).toBe('Coração')
+  })
+
+  it('normalises the LED count when a zone is configured', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+
+    store.setZoneConfig('argb0', { ledCount: 1.5 })
+    expect(store.profile.zones.find((z) => z.zoneId === 'argb0')?.ledCount).toBe(2)
+
+    store.setZoneConfig('argb1', { ledCount: Number.NaN })
+    expect(store.profile.zones.find((z) => z.zoneId === 'argb1')?.ledCount).toBe(0)
+
+    store.setZoneConfig('argb2', { ledCount: -7 })
+    expect(store.profile.zones.find((z) => z.zoneId === 'argb2')?.ledCount).toBe(0)
   })
 
   it('rejects unknown zones', () => {

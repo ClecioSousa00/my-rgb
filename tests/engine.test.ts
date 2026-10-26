@@ -116,6 +116,19 @@ describe('engine', () => {
     }
   })
 
+  it('never crashes on fractional or invalid LED counts', () => {
+    const { profile, zones } = buildProfile()
+    profile.zones[1].ledCount = 1.5
+    profile.zones[2].ledCount = Number.NaN
+    // Above the hardware ceiling: clamped instead of allocating a huge array.
+    profile.zones[3].ledCount = 500
+
+    const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
+    const frame = engine.renderFrame(1_700_000_000_000)
+
+    expect(frame.zoneLedCounts).toEqual([1, 2, 0, 120])
+  })
+
   it('renders every built-in pattern without throwing', () => {
     const { profile, zones } = buildProfile()
     const engine = new EffectEngine(profile, zones, { onFrame: () => {} })

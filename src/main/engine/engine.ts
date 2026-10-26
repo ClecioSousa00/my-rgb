@@ -80,7 +80,7 @@ export class EffectEngine {
 
     for (const zone of this.zones) {
       const config = this.profile.zones.find((z) => z.zoneId === zone.id)
-      const count = config?.ledCount ?? 0
+      const count = ledCountFor(config, zone)
       if (count <= 0) continue
       try {
         this.device.setChannelLeds(
@@ -131,7 +131,7 @@ export class EffectEngine {
 
     for (const zone of this.zones) {
       const config = this.profile.zones.find((z) => z.zoneId === zone.id)
-      const ledCount = config?.ledCount ?? 0
+      const ledCount = ledCountFor(config, zone)
       zoneLedCounts.push(ledCount)
 
       const colors = this.renderZone(config, ledCount, time, speed)
@@ -267,6 +267,21 @@ export class EffectEngine {
 
 function clamp255(v: number): number {
   return v < 0 ? 0 : v > 255 ? 255 : Math.round(v)
+}
+
+/**
+ * Whole LED count for a zone, clamped to what the hardware can address.
+ *
+ * The store already normalises this, but a profile copied from another
+ * machine (or edited by hand) can carry `1.5` or `NaN`. That reaches
+ * `new Array(ledCount)` and throws `RangeError`, killing the main process.
+ */
+function ledCountFor(config: ZoneConfig | undefined, zone: ZoneState): number {
+  const count = Math.round(Number(config?.ledCount ?? 0))
+  if (!Number.isFinite(count)) return 0
+  const max = Number(zone.maxLedCount)
+  const limit = Number.isFinite(max) ? Math.max(0, Math.round(max)) : count
+  return Math.max(0, Math.min(count, limit))
 }
 
 function errorMessage(err: unknown): string {
