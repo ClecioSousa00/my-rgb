@@ -197,54 +197,60 @@ export function TopBar(): React.JSX.Element {
 
       <div className="flex-1" />
 
-      {/* profile */}
-      <div className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wider text-ink-400">Perfil</span>
-        <select
-          className="field w-36"
-          value={profile?.name ?? ''}
-          onChange={(e) => void handleProfileChange(e.target.value)}
-        >
-          {profileNames.length === 0 && <option value={profile?.name ?? ''}>{profile?.name}</option>}
-          {profileNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <button
-          className="btn btn-primary"
-          onClick={() => void handleSave()}
-          title="Salvar alterações no perfil atual por cima deste arquivo"
-        >
-          Salvar
-        </button>
+      {/* The profile belongs to the lighting screen. On the other pages there
+          is nothing to edit, so the whole group stays out of the header. */}
+      {page === 'lighting' && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-ink-400">Perfil</span>
+            <select
+              className="field w-36"
+              value={profile?.name ?? ''}
+              onChange={(e) => void handleProfileChange(e.target.value)}
+            >
+              {profileNames.length === 0 && (
+                <option value={profile?.name ?? ''}>{profile?.name}</option>
+              )}
+              {profileNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn btn-primary"
+              onClick={() => void handleSave()}
+              title="Salvar alterações no perfil atual por cima deste arquivo"
+            >
+              Salvar
+            </button>
 
-        <button
-          className="btn btn-ghost"
-          onClick={() => void handleRename()}
-          title="Renomear este perfil"
-        >
-          ✎
-        </button>
-        <button
-          className="btn btn-ghost"
-          onClick={() => void handleExport()}
-          title="Exportar perfil para arquivo"
-        >
-          Exportar
-        </button>
-        <button
-          className="btn btn-ghost"
-          onClick={() => void handleImport()}
-          title="Importar perfil de arquivo"
-        >
-          Importar
-        </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => void handleRename()}
+              title="Renomear este perfil"
+            >
+              ✎
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => void handleExport()}
+              title="Exportar perfil para arquivo"
+            >
+              Exportar
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => void handleImport()}
+              title="Importar perfil de arquivo"
+            >
+              Importar
+            </button>
+          </div>
 
-      </div>
-
-      <div className="h-5 w-px bg-ink-700" />
+          <div className="h-5 w-px bg-ink-700" />
+        </>
+      )}
 
       <div className="relative">
         <button

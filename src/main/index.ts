@@ -608,10 +608,18 @@ async function runSelfTest(): Promise<void> {
     (async () => {
       window.__myRgbNavigate && window.__myRgbNavigate('system')
       await new Promise((r) => setTimeout(r, 250))
+      const systemHeader = document.querySelector('header')
       window.__myRgbPageSwitch =
-        document.querySelector('.page-title')?.textContent === 'Sistema'
+        document.querySelector('.page-title')?.textContent === 'Sistema' &&
+        systemHeader?.querySelector('select') === null &&
+        !/Salvar/.test(systemHeader?.textContent ?? '')
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await new Promise((r) => setTimeout(r, 400))
+      // The profile controls only make sense on the lighting screen, and they
+      // have to be back when it is open again.
+      window.__myRgbProfileVisible = /Salvar/.test(
+        document.querySelector('header')?.textContent ?? ''
+      )
     })()
   `)
 
@@ -642,6 +650,7 @@ async function runSelfTest(): Promise<void> {
         frames: window.__myRgbFrameCount ?? 0,
         nav: document.querySelectorAll('.nav-item').length,
         pageSwitch: window.__myRgbPageSwitch === true,
+        profileVisible: window.__myRgbProfileVisible === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
         gradient: /gradiente/i.test(document.body.innerText),
@@ -659,7 +668,8 @@ async function runSelfTest(): Promise<void> {
     report.canvases === 1 &&
     report.frames > 0 &&
     report.nav > 0 &&
-    report.pageSwitch === true
+    report.pageSwitch === true &&
+    report.profileVisible === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
 }
