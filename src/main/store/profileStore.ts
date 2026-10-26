@@ -7,7 +7,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs'
-import { join } from 'path'
+import { basename, join } from 'path'
 import type {
   EffectDefinition,
   GlobalSettings,
@@ -298,11 +298,23 @@ export class ProfileStore {
   private writtenPath: string | null = null
   /** Called after every successful write to disk. */
   private readonly onSaved: ((name: string) => void) | null
+  /** Called when a write fails (disk full, no permission, ...). */
+  private readonly onError: ((message: string) => void) | null
+  /** Last write error, so a failing disk does not spam the UI. */
+  private lastWriteError: string | null = null
 
-  constructor(userDataPath: string, initial: Profile, onSaved?: (name: string) => void) {
+  constructor(
+    userDataPath: string,
+    initial: Profile,
+    callbacks: {
+      onSaved?: (name: string) => void
+      onError?: (message: string) => void
+    } = {}
+  ) {
     this.dir = join(userDataPath, 'profiles')
     this.current = initial
-    this.onSaved = onSaved ?? null
+    this.onSaved = callbacks.onSaved ?? null
+    this.onError = callbacks.onError ?? null
   }
 
   get profile(): Profile {
@@ -352,15 +364,62 @@ export class ProfileStore {
     return this.current
   }
 
-  delete(id: string): void {
+  /**
+   * Delete a saved profile.
+   *
+   * Returns the profile that is current afterwards. When the deleted profile
+   * was the one in use, another saved profile takes its place; if none is
+   * left, the current configuration (zones, effects, LED counts) is kept
+   * under the default name instead of falling back to a zoneless profile.
+   */
+  delete(id: string): Profile {
     const path = this.resolvePath(id)
+    if (!path) throw new Error(`Perfil não encontrado: ${id}`)
+
+    const deletedName = this.nameAt(path)
     const currentPath = this.pathFor(this.current.name)
-    if (path && existsSync(path)) unlinkSync(path)
-    if (path && this.writtenPath === path) this.writtenPath = null
-    if (id === this.current.name || path === currentPath) {
-      this.current = defaultProfile()
-      this.writeCurrent()
+    const isCurrent =
+      path === currentPath ||
+      path === this.writtenPath ||
+      deletedName === this.current.name ||
+      id === this.current.name
+
+    unlinkSync(path)
+    if (this.writtenPath === path) this.writtenPath = null
+
+    if (!isCurrent) return this.current
+
+    const remaining = this.list()[0]
+    if (remaining) {
+      const next = this.load(remaining)
+      this.flush()
+      return next
     }
+
+    // Nothing left on disk: keep what the user configured and only reset the
+    // name, so the hardware layout is not lost with the last profile.
+    this.current = { ...this.current, name: 'Padrão' }
+    this.flush()
+    return this.current
+  }
+
+  /** Displayed name of the profile behind an id/name, or null if missing. */
+  displayName(id: string): string | null {
+    const path = this.resolvePath(id)
+    return path ? this.nameAt(path) : null
+  }
+
+  /** Displayed name of the profile stored in a file. */
+  private nameAt(path: string): string {
+    try {
+      const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<Profile>
+      const name = typeof parsed.name === 'string' ? parsed.name.trim() : ''
+      if (name) return name
+    } catch {
+      /* damaged file: the file name is the best we have */
+    }
+    const file = basename(path)
+    return file.endsWith('.json') ? file.slice(0, -5) : file
   }
 
   /** Replace the effect of one zone. */
@@ -532,10 +591,23 @@ export class ProfileStore {
   }
 
   private writeNow(): void {
-    if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
-    const file = this.pathFor(this.current.name)
-    writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
-    this.writtenPath = file
+    try {
+      if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
+      const file = this.pathFor(this.current.name)
+      writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
+      this.writtenPath = file
+      this.lastWriteError = null
+    } catch (err) {
+      // This runs from a debounce timer and from IPC flushes: an uncaught
+      // exception here would take the whole main process down (disk full,
+      // read-only home, missing permission).
+      const message = `Não foi possível salvar o perfil: ${errorMessage(err)}`
+      if (message !== this.lastWriteError) {
+        this.lastWriteError = message
+        this.onError?.(message)
+      }
+      return
+    }
     // The UI shows a "saved" indicator, so it has to know when the disk was
     // really written - not when the change was made.
     this.onSaved?.(this.current.name)

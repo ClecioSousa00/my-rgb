@@ -79,6 +79,7 @@ const api: MyRgbApi = {
   onProfileChange: (callback: (profile: Profile) => void) => subscribe(IPC.profileGet, callback),
   onProfileSaved: (callback: (event: ProfileSavedEvent) => void) =>
     subscribe(IPC.profileSaved, callback),
+  onAppError: (callback: (message: string) => void) => subscribe(IPC.appError, callback),
   onTrayCommand: (callback: (command: string) => void) => subscribe(IPC.engineState, callback)
 }
 

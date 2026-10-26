@@ -8,6 +8,7 @@
  */
 
 import { create } from 'zustand'
+import { showToast } from './components/Toast'
 import type {
   DeviceInfo,
   EffectDefinition,
@@ -120,6 +121,9 @@ export const useApp = create<AppState>((set, get) => ({
         // Only trust the event when nothing else is being changed right now.
         if (pendingMutations === 0) set({ dirty: false })
       })
+      // A failed write must not pass silently: the "saved" indicator would
+      // otherwise lie. The banner is reserved for hardware problems.
+      window.myrgb.onAppError((message) => showToast(message, 6000))
       window.myrgb.onEngineState((state) =>
         set({
           engineRunning: state.running,

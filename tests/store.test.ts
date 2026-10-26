@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
@@ -17,6 +17,7 @@ import {
   reconcileProfile,
   validateImportedProfile
 } from '@main/store/profileStore'
+import { SettingsStore } from '@main/store/settings'
 import { buildZones } from '@main/zones'
 import { BUILTIN_PALETTES } from '@main/engine/palette'
 import { defaultParams } from '@main/engine/patterns'
@@ -500,5 +501,88 @@ describe('ProfileStore', () => {
     const store = new ProfileStore(dir, defaultProfile(ZONES))
     store.setZoneEffect('argb0', null)
     expect(() => store.applyEffectToAll('argb0')).toThrow()
+  })
+})
+
+describe('ProfileStore delete', () => {
+  it('switches to another saved profile when the current one is deleted', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Estudo' })
+    store.flush()
+
+    const profile = store.delete('Estudo')
+
+    expect(profile.name).toBe('Gamer')
+    expect(store.profile.name).toBe('Gamer')
+    expect(store.list()).toEqual(['Gamer'])
+    expect(existsSync(join(dir, 'profiles', 'Estudo.json'))).toBe(false)
+  })
+
+  it('keeps the hardware zones when the last profile is deleted', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneConfig('argb0', { ledCount: 42, name: 'Fita' })
+    store.flush()
+
+    const profile = store.delete(store.profile.name)
+
+    // Falling back to a zoneless profile would silently wipe the layout.
+    expect(profile.zones).toHaveLength(ZONES.length)
+    expect(profile.zones.find((z) => z.zoneId === 'argb0')?.ledCount).toBe(42)
+    expect(profile.name).toBe('Padrão')
+    expect(store.list()).toEqual(['Padrão'])
+  })
+
+  it('leaves the current profile alone when another one is deleted', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Estudo' })
+    store.flush()
+
+    const profile = store.delete('Gamer')
+
+    expect(profile.name).toBe('Estudo')
+    expect(store.profile.name).toBe('Estudo')
+    expect(store.list()).toEqual(['Estudo'])
+  })
+
+  it('reports a profile that does not exist', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    expect(() => store.delete('nao-existe')).toThrow()
+  })
+})
+
+describe('write failures', () => {
+  it('reports a profile write error instead of crashing', () => {
+    const dir = tempDir()
+    // A file where the profiles directory should be makes every write fail.
+    writeFileSync(join(dir, 'profiles'), 'nao é um diretório')
+    const errors: string[] = []
+    const store = new ProfileStore(dir, defaultProfile(ZONES), {
+      onError: (message) => errors.push(message)
+    })
+
+    expect(() => store.flush()).not.toThrow()
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('perfil')
+  })
+
+  it('reports a settings write error instead of crashing', () => {
+    const dir = tempDir()
+    // A directory where settings.json should be makes the write fail.
+    mkdirSync(join(dir, 'settings.json'))
+    const errors: string[] = []
+    const settings = new SettingsStore(dir, (message) => errors.push(message))
+
+    expect(() => settings.set({ lastProfile: 'Outro' })).not.toThrow()
+    expect(settings.settings.lastProfile).toBe('Outro')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('configurações')
   })
 })

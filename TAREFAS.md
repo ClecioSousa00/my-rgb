@@ -76,9 +76,9 @@
 
 **Menores**
 
-- [ ] **Falha ao gravar perfil/settings pode derrubar o processo** - `writeFileSync` dentro do timer de debounce (`ProfileStore.writeNow` e `SettingsStore.write`) não tem tratamento; disco cheio ou falta de permissão gera exceção não capturada.
-- [ ] **`profileDelete` está inconsistente** - Reseta para um perfil sem zonas e não atualiza motor, UI nem `lastProfile`. Hoje não há botão na interface, mas o IPC existe.
-- [ ] **Campo de cor do gradiente aceita texto inválido** - Digitar um valor que não é hexadecimal quebra o CSS do gradiente (o motor usa magenta como fallback); validar/formatar no `onChange`.
+- [x] **Falha ao gravar perfil/settings pode derrubar o processo** - `writeFileSync` dentro do timer de debounce (`ProfileStore.writeNow` e `SettingsStore.write`) não tem tratamento; disco cheio ou falta de permissão gera exceção não capturada. **Corrigido:** as duas gravações capturam o erro, repetem o aviso só quando a mensagem muda e enviam um toast ao renderer por `app:error` (as falhas de startup ficam em fila até a janela abrir).
+- [x] **`profileDelete` está inconsistente** - Reseta para um perfil sem zonas e não atualiza motor, UI nem `lastProfile`. Hoje não há botão na interface, mas o IPC existe. **Corrigido:** apagar o perfil atual passa para outro perfil salvo (ou mantém as zonas sob o nome "Padrão" se não sobrar nenhum), atualiza motor/bandeja/renderer, grava `lastProfile` e limpa `startupProfile` quando ele apontava para o perfil apagado.
+- [x] **Campo de cor do gradiente aceita texto inválido** - Digitar um valor que não é hexadecimal quebra o CSS do gradiente (o motor usa magenta como fallback); validar/formatar no `onChange`. **Corrigido:** o campo usa um rascunho local, mostra borda de erro enquanto o texto é inválido e só grava no perfil valores válidos (`normalizeHexColor`, aceita `#abc`, `abc`, `#aabbcc`); ao sair ou apertar Enter com texto inválido, volta à última cor válida.
 
 ---
 

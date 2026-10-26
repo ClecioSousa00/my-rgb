@@ -52,15 +52,20 @@ class MyRgbApp {
   private devicePresent = false
   /** Last hardware write error, forwarded to the UI. */
   private lastEngineError: string | null = null
+  /** Disk/app messages waiting for a window to show them. */
+  private pendingAppErrors: string[] = []
   private quitting = false
 
   async start(): Promise<void> {
-    this.settings = new SettingsStore(app.getPath('userData'))
+    this.settings = new SettingsStore(app.getPath('userData'), (message) =>
+      this.emitAppError(message)
+    )
 
     const initial = defaultProfile()
-    this.profileStore = new ProfileStore(app.getPath('userData'), initial, (name) =>
-      this.emitProfileSaved(name)
-    )
+    this.profileStore = new ProfileStore(app.getPath('userData'), initial, {
+      onSaved: (name) => this.emitProfileSaved(name),
+      onError: (message) => this.emitAppError(message)
+    })
     const startup = this.settings.settings.startupProfile || this.settings.settings.lastProfile
     try {
       this.profileStore.load(startup)
@@ -267,6 +272,9 @@ class MyRgbApp {
       console.error(`[renderer] process gone: ${details.reason}`)
     })
 
+    // Tell the UI about writes that failed before it was even open.
+    this.window.webContents.once('did-finish-load', () => this.flushAppErrors())
+
     const devUrl = process.env.ELECTRON_RENDERER_URL
     if (isDev && devUrl) {
       void this.window.loadURL(devUrl)
@@ -384,7 +392,21 @@ class MyRgbApp {
       this.emitProfile(profile)
       return profile
     })
-    ipcMain.handle(IPC.profileDelete, (_e, id: string) => store.delete(id))
+    ipcMain.handle(IPC.profileDelete, (_e, id: string) => {
+      const deleted = store.displayName(id)
+      const profile = store.delete(id)
+      this.engine.setProfile(profile)
+      // The delete may have moved the app to another profile, and the deleted
+      // one may be the profile chosen for startup.
+      const startup = this.settings.settings.startupProfile
+      this.settings.set({
+        lastProfile: profile.name,
+        ...(startup && startup === deleted ? { startupProfile: null } : {})
+      })
+      this.trayHandle?.refresh()
+      this.emitProfile(profile)
+      return profile
+    })
     ipcMain.handle(IPC.profileSetZone, (_e, zoneId: string, effect) => {
       const profile = store.setZoneEffect(zoneId, effect)
       this.engine.setProfile(profile)
@@ -537,6 +559,29 @@ class MyRgbApp {
   private emitProfileSaved(name: string): void {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.profileSaved, { name, at: Date.now() })
+    }
+  }
+
+  /**
+   * Report a failure outside the lighting engine - typically a profile or
+   * settings write that the disk refused.
+   *
+   * Failures during startup happen before the window exists, so those are
+   * kept and delivered once the renderer is ready instead of being lost.
+   */
+  private emitAppError(message: string): void {
+    console.error(`[app] ${message}`)
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send(IPC.appError, message)
+      return
+    }
+    if (this.pendingAppErrors.length < 5) this.pendingAppErrors.push(message)
+  }
+
+  private flushAppErrors(): void {
+    if (!this.window || this.window.isDestroyed()) return
+    for (const message of this.pendingAppErrors.splice(0)) {
+      this.window.webContents.send(IPC.appError, message)
     }
   }
 

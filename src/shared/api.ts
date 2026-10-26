@@ -81,6 +81,8 @@ export interface MyRgbApi {
   onEngineState(callback: (state: EngineState) => void): Unsubscribe
   onProfileChange(callback: (profile: Profile) => void): Unsubscribe
   onProfileSaved(callback: (event: ProfileSavedEvent) => void): Unsubscribe
+  /** Emitted when the main process cannot persist data (disk full, ...). */
+  onAppError(callback: (message: string) => void): Unsubscribe
   onTrayCommand(callback: (command: string) => void): Unsubscribe
 }
 

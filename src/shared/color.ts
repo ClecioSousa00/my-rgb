@@ -32,6 +32,22 @@ export function rgbToHex({ r, g, b }: RGB): string {
   return `#${to(r)}${to(g)}${to(b)}`
 }
 
+const HEX_COLOR = /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+/**
+ * Normalise a colour typed by the user.
+ *
+ * Accepts `#rgb`, `rgb`, `#rrggbb` and `rrggbb` (with surrounding spaces) and
+ * returns the canonical `#rrggbb` form, or null when the text is not a colour.
+ * Callers keep the previous value on null instead of handing garbage to CSS
+ * and to the engine, which would silently fall back to magenta.
+ */
+export function normalizeHexColor(value: string): string | null {
+  const text = value.trim()
+  if (!HEX_COLOR.test(text)) return null
+  return rgbToHex(hexToRgb(text))
+}
+
 export function rgbToHsv({ r, g, b }: RGB): { h: number; s: number; v: number } {
   const rn = r / 255
   const gn = g / 255

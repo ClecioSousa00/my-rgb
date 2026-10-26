@@ -222,6 +222,8 @@ export const IPC = {
   engineStop: 'engine:stop',
   engineFrame: 'engine:frame',
   engineState: 'engine:state',
+  /** Pushed when something outside the engine fails (disk write, ...). */
+  appError: 'app:error',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set'
 } as const

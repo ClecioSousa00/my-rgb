@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp, useSelectedZoneConfig } from '../store'
-import { paletteToCssGradient, samplePalette, rgbToHex } from '@shared/color'
+import { paletteToCssGradient, samplePalette, rgbToHex, normalizeHexColor } from '@shared/color'
 import { HelpTip } from './HelpTip'
 import type { Palette } from '@shared/types'
 
@@ -17,6 +17,15 @@ export function GradientEditor(): React.JSX.Element {
   const [dragging, setDragging] = useState<number | null>(null)
   /** Local position while dragging, so the store is not hammered. */
   const [dragPosition, setDragPosition] = useState<number | null>(null)
+  /**
+   * Text being typed in the hex field.
+   *
+   * Null means "show the stored colour". Keeping the raw text in local state
+   * lets the user type an incomplete value like "#7c5c" without the store
+   * receiving (#7c5c is not a colour) and without the field jumping back to
+   * the old value before they finish.
+   */
+  const [colorDraft, setColorDraft] = useState<string | null>(null)
 
   const palettes = profile?.palettes ?? []
   const paletteId = zoneConfig?.effect?.paletteId ?? palettes[0]?.id
@@ -37,6 +46,17 @@ export function GradientEditor(): React.JSX.Element {
       setActiveStop(palette.stops.length - 1)
     }
   }, [palette, activeStop])
+
+  /** Colour the hex field should display when nothing is being typed. */
+  const activeStopColor =
+    palette && activeStop !== null ? (palette.stops[activeStop]?.color ?? null) : null
+
+  // A draft belongs to a single stop. Switching stops, palettes or the stored
+  // colour (colour picker, drag, other window) discards it, so the field
+  // never keeps showing text that no longer describes the palette.
+  useEffect(() => {
+    setColorDraft(null)
+  }, [activeStop, palette?.id, activeStopColor])
 
   const commit = useCallback(
     (next: Palette) => {
@@ -102,6 +122,26 @@ export function GradientEditor(): React.JSX.Element {
   const updateStop = (index: number, patch: Partial<{ position: number; color: string }>): void => {
     const stops = palette.stops.map((s, i) => (i === index ? { ...s, ...patch } : s))
     commit({ ...palette, stops })
+  }
+
+  const colorDraftInvalid = colorDraft !== null && normalizeHexColor(colorDraft) === null
+
+  /**
+   * Turn the typed text into a colour, or throw it away.
+   *
+   * Only complete hex values reach the store. Invalid text is discarded on
+   * blur/Enter and the stop keeps its last valid colour - otherwise the
+   * gradient CSS breaks and the engine paints magenta.
+   */
+  const commitColorDraft = (): void => {
+    if (activeStop === null || colorDraft === null) return
+    const color = normalizeHexColor(colorDraft)
+    if (!color) {
+      setColorDraft(null)
+      return
+    }
+    if (color !== selected?.color) updateStop(activeStop, { color })
+    else setColorDraft(null)
   }
 
   const removeStop = (index: number): void => {
@@ -240,9 +280,23 @@ export function GradientEditor(): React.JSX.Element {
             />
             <input
               type="text"
-              className="field w-20 font-mono text-[11px]"
-              value={selected.color}
-              onChange={(e) => updateStop(activeStop, { color: e.target.value })}
+              className={`field w-20 font-mono text-[11px] ${
+                colorDraftInvalid ? 'border-bad-500 text-bad-500' : ''
+              }`}
+              value={colorDraft ?? selected.color}
+              onChange={(e) => setColorDraft(e.target.value)}
+              onBlur={commitColorDraft}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitColorDraft()
+                } else if (e.key === 'Escape') {
+                  setColorDraft(null)
+                }
+              }}
+              spellCheck={false}
+              aria-invalid={colorDraftInvalid}
+              title="Cor da parada em hexadecimal (#rrggbb)"
             />
             <input
               type="range"
