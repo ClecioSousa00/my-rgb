@@ -256,6 +256,13 @@
     background: var(--color-ink-100);
   }
 
+  /* Keyboard users need to see where they are. */
+  .nav-item:focus-visible,
+  .nav-group-label:focus-visible {
+    outline: 1px solid var(--color-ink-100);
+    outline-offset: -2px;
+  }
+
   /* --- dashboard pieces -------------------------------------------------- */
 
   .page-title {

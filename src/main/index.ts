@@ -608,7 +608,8 @@ async function runSelfTest(): Promise<void> {
     (async () => {
       window.__myRgbNavigate && window.__myRgbNavigate('system')
       await new Promise((r) => setTimeout(r, 250))
-      window.__myRgbPageSwitch = /O que está dentro da máquina/.test(document.body.innerText)
+      window.__myRgbPageSwitch =
+        document.querySelector('.page-title')?.textContent === 'Sistema'
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await new Promise((r) => setTimeout(r, 400))
     })()
