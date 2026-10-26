@@ -28,6 +28,12 @@ describe('pattern metadata', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
+  it('lets the breathing effect choose its gradient colour', () => {
+    const breathe = ALL_PATTERNS.find((p) => p.id === 'breathe')
+    expect(breathe?.params.some((param) => param.key === 'point')).toBe(true)
+    expect(defaultParams('breathe').point).toBe(0)
+  })
+
   it('gives every parameter a label and a description', () => {
     const missing: string[] = []
     for (const pattern of ALL_PATTERNS) {

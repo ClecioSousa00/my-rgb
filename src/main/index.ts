@@ -11,7 +11,12 @@ import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
 import { patternMetadata } from './engine/patterns'
-import { defaultProfile, ProfileStore, reconcileProfile } from './store/profileStore'
+import {
+  defaultProfile,
+  ProfileStore,
+  reconcileProfile,
+  validateImportedProfile
+} from './store/profileStore'
 import { SettingsStore } from './store/settings'
 import { buildZones } from './zones'
 import { createTray, type TrayHandle } from './tray'
@@ -29,6 +34,8 @@ const isDev = !app.isPackaged
 
 /** How often to look for other programs fighting us for the controller. */
 const CONFLICT_POLL_MS = 5000
+/** How often to check whether the controller was plugged or unplugged. */
+const DEVICE_POLL_MS = 3000
 
 class MyRgbApp {
   private device = new AuraUsbDevice()
@@ -40,6 +47,11 @@ class MyRgbApp {
   private trayHandle: TrayHandle | null = null
   private conflicts: ConflictReport = { conflicting: false, processes: [], hint: '' }
   private conflictTimer: NodeJS.Timeout | null = null
+  private deviceTimer: NodeJS.Timeout | null = null
+  /** Whether the controller was attached during the previous check. */
+  private devicePresent = false
+  /** Last hardware write error, forwarded to the UI. */
+  private lastEngineError: string | null = null
   private quitting = false
 
   async start(): Promise<void> {
@@ -79,6 +91,7 @@ class MyRgbApp {
     await this.openDevice()
     this.refreshConflicts()
     this.startConflictWatch()
+    this.startDeviceWatch()
 
     this.createWindow()
     this.createTray()
@@ -98,6 +111,7 @@ class MyRgbApp {
     } else if (this.device.info.layout) {
       this.zones = buildZones(this.device.info.layout)
     }
+    if (ok) this.lastEngineError = null
     this.reconcile()
     this.engine.setZones(this.zones)
     // reconcile() may have added zones or fixed their LED counts. The engine
@@ -150,6 +164,48 @@ class MyRgbApp {
     this.conflictTimer = setInterval(() => {
       void this.refreshConflicts()
     }, CONFLICT_POLL_MS)
+  }
+
+  /**
+   * Watch the USB bus for the controller being unplugged or plugged back in.
+   *
+   * Without this, pulling the cable leaves the engine stopped on the first
+   * write error while the UI still says "connected". The handle can also
+   * survive an unplug on some platforms, so the presence check uses the HID
+   * device list instead of `device.connected`.
+   */
+  private startDeviceWatch(): void {
+    if (this.deviceTimer) clearInterval(this.deviceTimer)
+    this.devicePresent = AuraUsbDevice.list().length > 0
+    this.deviceTimer = setInterval(() => {
+      void this.checkDevicePresence()
+    }, DEVICE_POLL_MS)
+  }
+
+  private async checkDevicePresence(): Promise<void> {
+    const present = AuraUsbDevice.list().length > 0
+    if (present === this.devicePresent) return
+    this.devicePresent = present
+
+    if (!present) {
+      this.device.markDisconnected(
+        'O controlador AURA foi desconectado. Reconecte o cabo USB.'
+      )
+      this.zones = []
+      this.engine.setZones([])
+      this.engine.setDevice(null)
+      this.lastEngineError = null
+      this.pushDeviceInfo()
+      this.emitEngineState()
+      return
+    }
+
+    // Plugged back in: claim the channels and restore the current profile.
+    await this.openDevice()
+    await this.refreshConflicts()
+    this.pushDeviceInfo()
+    this.emitProfile(this.profileStore.profile)
+    this.emitEngineState()
   }
 
   // --- window & tray ------------------------------------------------------
@@ -230,6 +286,9 @@ class MyRgbApp {
         const next = !this.profileStore.profile.global.outputEnabled
         const profile = this.profileStore.setGlobal({ outputEnabled: next })
         this.engine.setProfile(profile)
+        // The renderer owns the "Luzes" button; without this push the first
+        // click in the window looks like it did nothing.
+        this.emitProfile(profile)
       },
       onQuit: () => {
         this.quitting = true
@@ -249,13 +308,9 @@ class MyRgbApp {
   }
 
   private pushError(message: string): void {
+    this.lastEngineError = message
     if (this.window && !this.window.isDestroyed()) {
-      this.window.webContents.send(IPC.engineState, {
-        running: this.engine.isRunning,
-        fps: this.profileStore.profile.global.fps,
-        lastFrameSeq: -1,
-        error: message
-      } as EngineState & { error: string })
+      this.window.webContents.send(IPC.engineState, this.engineState)
     }
   }
 
@@ -276,7 +331,8 @@ class MyRgbApp {
     return {
       running: this.engine.isRunning,
       fps: this.profileStore.profile.global.fps,
-      lastFrameSeq: -1
+      lastFrameSeq: -1,
+      error: this.lastEngineError
     }
   }
 
@@ -310,9 +366,9 @@ class MyRgbApp {
       this.emitProfile(profile)
       return profile
     })
-    ipcMain.handle(IPC.profileRename, (_e, name: string) => {
+    ipcMain.handle(IPC.profileRename, (_e, name: string, overwrite = false) => {
       const before = store.profile.name
-      const profile = store.renameProfile(name)
+      const profile = store.renameProfile(name, overwrite)
       store.flush?.()
       this.engine.setProfile(profile)
       this.rememberProfileName(before, profile.name)
@@ -324,6 +380,7 @@ class MyRgbApp {
       const profile = store.load(id)
       this.engine.setProfile(profile)
       this.settings.set({ lastProfile: profile.name })
+      this.trayHandle?.refresh()
       this.emitProfile(profile)
       return profile
     })
@@ -395,19 +452,13 @@ class MyRgbApp {
       if (result.canceled || result.filePaths.length === 0) return null
       try {
         const content = readFileSync(result.filePaths[0], 'utf8')
-        const parsed = JSON.parse(content) as Profile
-        if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.zones)) {
-          throw new Error('Arquivo de perfil inválido')
-        }
-        // Save as a new profile copy in profiles dir and load it
+        const parsed = JSON.parse(content) as unknown
+        const imported = validateImportedProfile(parsed)
+        // Never overwrite a profile with the same name: give the import the
+        // first free variant ("Nome (2)", ...) and save it once, validated.
+        const name = store.availableName(imported.name)
         const before = store.profile.name
-        const imported = store.duplicateProfile(parsed.name || 'Importado')
-        // Overwrite with imported data
-        const full = {
-          ...parsed,
-          name: parsed.name || imported.name
-        }
-        const saved = store.save(full)
+        const saved = store.save(reconcileProfile({ ...imported, name }, this.zones))
         store.flush?.()
         this.engine.setProfile(saved)
         this.rememberProfileName(before, saved.name)
@@ -418,6 +469,7 @@ class MyRgbApp {
       }
     })
     ipcMain.handle(IPC.engineStart, () => {
+      this.lastEngineError = null
       this.engine.start()
       this.emitEngineState()
       return this.engineState
@@ -473,6 +525,7 @@ class MyRgbApp {
       lastProfile: after,
       ...(this.settings.settings.startupProfile === before ? { startupProfile: after } : {})
     })
+    this.trayHandle?.refresh()
   }
 
   /**
@@ -497,6 +550,10 @@ class MyRgbApp {
     if (this.conflictTimer) {
       clearInterval(this.conflictTimer)
       this.conflictTimer = null
+    }
+    if (this.deviceTimer) {
+      clearInterval(this.deviceTimer)
+      this.deviceTimer = null
     }
     this.profileStore?.flush()
     this.trayHandle?.tray.destroy()

@@ -622,7 +622,8 @@ export const motionPatterns: Pattern[] = [
         const wobble = 1 + 0.45 * Math.sin(ctx.time * rate * 2.2 + seed * 12)
         const pos = p * (ctx.ledCount + size * 6) - size * 3
         const envelope = Math.sin(p * Math.PI)
-        const halfWidth = ((size * 0.5 * wobble) / Math.max(1, ctx.ledCount))
+        // Both x and pos are measured in LEDs, so the half width must be too.
+        const halfWidth = size * 0.5 * wobble
         const bubble = pulse(x - pos, halfWidth) * envelope
 
         if (bubble > best) {

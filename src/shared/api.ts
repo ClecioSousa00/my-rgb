@@ -26,6 +26,8 @@ export interface EngineState {
   running: boolean
   fps: number
   lastFrameSeq: number
+  /** Last hardware error, or null when everything is fine. */
+  error?: string | null
 }
 
 /** Emitted after the profile was written to disk. */
@@ -50,7 +52,7 @@ export interface MyRgbApi {
   getProfile(): Promise<Profile>
   saveProfile(profile: Profile): Promise<Profile>
   duplicateProfile(name: string): Promise<Profile>
-  renameProfile(name: string): Promise<Profile>
+  renameProfile(name: string, overwrite?: boolean): Promise<Profile>
   listProfiles(): Promise<string[]>
   loadProfile(id: string): Promise<Profile>
   deleteProfile(id: string): Promise<Profile>

@@ -12,12 +12,13 @@ import type {
   EffectDefinition,
   GlobalSettings,
   Palette,
+  ParamValue,
   Profile,
   ZoneConfig,
   ZoneState
 } from '@shared/types'
-import { BUILTIN_PALETTES } from '../engine/palette'
-import { defaultParams } from '../engine/patterns'
+import { BUILTIN_PALETTES, hexToRgb, rgbToHex } from '../engine/palette'
+import { defaultParams, getPattern } from '../engine/patterns'
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
   brightness: 1,
@@ -54,6 +55,158 @@ export function normalizeLedCount(value: unknown, max = Number.POSITIVE_INFINITY
   if (!Number.isFinite(count)) return 0
   const limit = Number.isFinite(max) ? Math.max(0, Math.round(max)) : Number.POSITIVE_INFINITY
   return Math.max(0, Math.min(count, limit))
+}
+
+/** Deep copy of the built-in palettes, so callers can edit them freely. */
+function copyBuiltinPalettes(): Palette[] {
+  return BUILTIN_PALETTES.map((p) => ({ ...p, stops: p.stops.map((s) => ({ ...s })) }))
+}
+
+const HEX_COLOR = /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+/**
+ * Validate a profile imported from a file.
+ *
+ * The file comes from outside the app, so nothing in it can be trusted: an
+ * invalid `global`, a NaN LED count or a pattern that no longer exists would
+ * reach the engine and break it. Structurally invalid files are rejected;
+ * single bad values are repaired or dropped.
+ */
+export function validateImportedProfile(value: unknown): Profile {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Arquivo de perfil inválido')
+  }
+  const raw = value as Partial<Profile> & Record<string, unknown>
+  if (raw.version !== 1) throw new Error('Versão de perfil não suportada')
+  if (!Array.isArray(raw.palettes)) throw new Error('Perfil sem paletas')
+  if (!Array.isArray(raw.zones)) throw new Error('Perfil sem zonas')
+  if (!raw.global || typeof raw.global !== 'object') throw new Error('Perfil sem opções globais')
+
+  const palettes = sanitizePalettes(raw.palettes)
+  const paletteIds = new Set(palettes.map((p) => p.id))
+  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Importado'
+
+  return {
+    version: 1,
+    name,
+    zones: sanitizeZones(raw.zones, paletteIds, palettes[0].id),
+    palettes,
+    global: sanitizeGlobal(raw.global)
+  }
+}
+
+function sanitizePalettes(input: unknown[]): Palette[] {
+  const result: Palette[] = []
+  const ids = new Set<string>()
+
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue
+    const palette = item as Partial<Palette>
+    if (typeof palette.id !== 'string' || !palette.id || ids.has(palette.id)) continue
+    if (!Array.isArray(palette.stops)) continue
+
+    const stops = palette.stops
+      .filter((stop): stop is { position: number; color: string } => {
+        if (!stop || typeof stop !== 'object') return false
+        return Number.isFinite(Number(stop.position)) && typeof stop.color === 'string'
+      })
+      .map((stop) => ({
+        position: Math.min(1, Math.max(0, Number(stop.position))),
+        // Repair odd colours (3 digits, missing #) and drop anything that is
+        // not a colour at all instead of handing it to the CSS/engine.
+        color: HEX_COLOR.test(stop.color) ? rgbToHex(hexToRgb(stop.color)) : '#ff00ff'
+      }))
+      .sort((a, b) => a.position - b.position)
+
+    if (stops.length === 0) continue
+
+    result.push({
+      id: palette.id,
+      name:
+        typeof palette.name === 'string' && palette.name.trim()
+          ? palette.name.trim()
+          : palette.id,
+      interpolation: palette.interpolation === 'hsv' ? 'hsv' : 'rgb',
+      stops
+    })
+    ids.add(palette.id)
+  }
+
+  return result.length > 0 ? result : copyBuiltinPalettes()
+}
+
+function sanitizeZones(
+  input: unknown[],
+  paletteIds: Set<string>,
+  fallbackPaletteId: string
+): ZoneConfig[] {
+  const result: ZoneConfig[] = []
+  const ids = new Set<string>()
+
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue
+    const zone = item as Partial<ZoneConfig>
+    if (typeof zone.zoneId !== 'string' || !zone.zoneId || ids.has(zone.zoneId)) continue
+    ids.add(zone.zoneId)
+
+    const name = typeof zone.name === 'string' ? zone.name.trim() : ''
+    result.push({
+      zoneId: zone.zoneId,
+      enabled: typeof zone.enabled === 'boolean' ? zone.enabled : true,
+      ledCount: normalizeLedCount(zone.ledCount),
+      ...(name ? { name } : {}),
+      effect: sanitizeEffect(zone.effect, paletteIds, fallbackPaletteId),
+      followZoneId:
+        typeof zone.followZoneId === 'string' && zone.followZoneId ? zone.followZoneId : null
+    })
+  }
+
+  return result
+}
+
+function sanitizeEffect(
+  value: unknown,
+  paletteIds: Set<string>,
+  fallbackPaletteId: string
+): EffectDefinition | null {
+  if (!value || typeof value !== 'object') return null
+  const effect = value as Partial<EffectDefinition>
+  if (typeof effect.patternId !== 'string' || !getPattern(effect.patternId)) return null
+
+  const params: Record<string, ParamValue> = {}
+  if (effect.params && typeof effect.params === 'object') {
+    for (const [key, param] of Object.entries(effect.params)) {
+      if (typeof param === 'boolean' || typeof param === 'string') {
+        params[key] = param
+      } else if (typeof param === 'number' && Number.isFinite(param)) {
+        params[key] = param
+      }
+    }
+  }
+
+  return {
+    patternId: effect.patternId,
+    paletteId:
+      typeof effect.paletteId === 'string' && paletteIds.has(effect.paletteId)
+        ? effect.paletteId
+        : fallbackPaletteId,
+    params
+  }
+}
+
+function sanitizeGlobal(value: object): GlobalSettings {
+  const global = value as Partial<GlobalSettings>
+  const brightness = Number(global.brightness)
+  const speed = Number(global.speed)
+  const fps = Number(global.fps)
+
+  return {
+    brightness: Number.isFinite(brightness) ? Math.min(1, Math.max(0, brightness)) : 1,
+    speed: Number.isFinite(speed) ? Math.max(0.05, Math.min(10, speed)) : 1,
+    fps: Number.isFinite(fps) ? Math.max(1, Math.min(240, Math.round(fps))) : 30,
+    outputEnabled: typeof global.outputEnabled === 'boolean' ? global.outputEnabled : true,
+    applyToAllZones: global.applyToAllZones === true
+  }
 }
 
 export function defaultProfile(zones: ZoneState[] = []): Profile {
@@ -320,17 +473,38 @@ export class ProfileStore {
   }
 
   /**
+   * First name not used by an existing profile: "X", "X (2)", "X (3)"...
+   * Used when importing a file whose name is already taken.
+   */
+  availableName(base: string): string {
+    const clean = base.trim() || 'Perfil'
+    const names = new Set(this.list())
+    if (!names.has(clean)) return clean
+    for (let i = 2; i < 1000; i++) {
+      const candidate = `${clean} (${i})`
+      if (!names.has(candidate)) return candidate
+    }
+    return `${clean} ${Date.now()}`
+  }
+
+  /**
    * Rename the current profile.
    *
    * The file moves with it, so the profile list does not end up holding a
-   * stale copy under the old name.
+   * stale copy under the old name. An existing profile is never overwritten
+   * unless the caller explicitly says so (the UI asks the user first).
    */
-  renameProfile(newName: string): Profile {
+  renameProfile(newName: string, overwrite = false): Profile {
     const oldName = this.current.name
     const name = newName.trim()
     if (!name || name === oldName) return this.current
 
     const oldPath = this.writtenPath ?? this.resolvePath(oldName)
+    const targetPath = this.pathFor(name)
+    if (!overwrite && targetPath !== oldPath && existsSync(targetPath)) {
+      throw new Error(`Já existe um perfil chamado "${name}".`)
+    }
+
     if (oldPath && existsSync(oldPath)) unlinkSync(oldPath)
     if (this.writtenPath === oldPath) this.writtenPath = null
 

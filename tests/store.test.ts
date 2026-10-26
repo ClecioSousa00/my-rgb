@@ -14,7 +14,8 @@ import {
   DEFAULT_GLOBAL,
   ProfileStore,
   defaultProfile,
-  reconcileProfile
+  reconcileProfile,
+  validateImportedProfile
 } from '@main/store/profileStore'
 import { buildZones } from '@main/zones'
 import { BUILTIN_PALETTES } from '@main/engine/palette'
@@ -160,6 +161,92 @@ describe('reconcileProfile', () => {
   })
 })
 
+describe('validateImportedProfile', () => {
+  it('rejects files that are not profiles', () => {
+    expect(() => validateImportedProfile(null)).toThrow()
+    expect(() => validateImportedProfile('perfil')).toThrow()
+    expect(() => validateImportedProfile({ version: 2, zones: [], palettes: [], global: {} })).toThrow()
+    expect(() => validateImportedProfile({ version: 1, palettes: [], global: {} })).toThrow()
+  })
+
+  it('repairs invalid values instead of handing them to the engine', () => {
+    const profile = validateImportedProfile({
+      version: 1,
+      name: '  Importado  ',
+      zones: [
+        {
+          zoneId: 'argb0',
+          enabled: true,
+          ledCount: 1.5,
+          effect: {
+            patternId: 'wave',
+            paletteId: 'nao-existe',
+            params: { rate: Number.NaN, width: 'largo' }
+          },
+          followZoneId: null
+        },
+        { zoneId: 'argb0', ledCount: 999 },
+        { semZona: true }
+      ],
+      palettes: [
+        {
+          id: 'p1',
+          name: '  ',
+          interpolation: 'invalida',
+          stops: [
+            { position: 2, color: '#abc' },
+            { position: -1, color: 'não-é-cor' }
+          ]
+        }
+      ],
+      global: {
+        brightness: 2,
+        speed: -1,
+        fps: Number.NaN,
+        outputEnabled: 'sim',
+        applyToAllZones: true
+      }
+    })
+
+    expect(profile.name).toBe('Importado')
+    expect(profile.zones).toHaveLength(1)
+    expect(profile.zones[0].ledCount).toBe(2)
+    expect(profile.zones[0].effect?.paletteId).toBe('p1')
+    // NaN is dropped, strings are kept for the pattern to resolve.
+    expect(profile.zones[0].effect?.params).toEqual({ width: 'largo' })
+    expect(profile.palettes[0].name).toBe('p1')
+    expect(profile.palettes[0].interpolation).toBe('rgb')
+    expect(profile.palettes[0].stops).toEqual([
+      { position: 0, color: '#ff00ff' },
+      { position: 1, color: '#aabbcc' }
+    ])
+    expect(profile.global.brightness).toBe(1)
+    expect(profile.global.speed).toBe(0.05)
+    expect(profile.global.fps).toBe(30)
+    expect(profile.global.outputEnabled).toBe(true)
+    expect(profile.global.applyToAllZones).toBe(true)
+  })
+
+  it('drops effects whose pattern no longer exists', () => {
+    const profile = validateImportedProfile({
+      version: 1,
+      name: 'antigo',
+      zones: [
+        {
+          zoneId: 'argb0',
+          ledCount: 30,
+          effect: { patternId: 'efeito-removido', paletteId: 'rainbow', params: {} },
+          followZoneId: null
+        }
+      ],
+      palettes: [{ id: 'rainbow', stops: [{ position: 0, color: '#ff0000' }] }],
+      global: { brightness: 1, speed: 1, fps: 30, outputEnabled: true }
+    })
+
+    expect(profile.zones[0].effect).toBeNull()
+  })
+})
+
 describe('ProfileStore', () => {
   it('saves and reloads a profile', () => {
     const dir = tempDir()
@@ -193,6 +280,35 @@ describe('ProfileStore', () => {
     store.flush()
 
     expect(store.list()).toEqual(['depois'])
+  })
+
+  it('refuses to rename over another profile unless told to', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'perfil a' })
+    store.flush()
+    store.save({ ...store.profile, name: 'perfil b' })
+    store.flush()
+
+    expect(() => store.renameProfile('perfil a')).toThrow()
+    expect(store.list()).toEqual(['perfil a', 'perfil b'])
+
+    const renamed = store.renameProfile('perfil a', true)
+    store.flush()
+    expect(renamed.name).toBe('perfil a')
+    expect(store.list()).toEqual(['perfil a'])
+  })
+
+  it('suggests the first free name for an import', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Gamer (2)' })
+    store.flush()
+
+    expect(store.availableName('Gamer')).toBe('Gamer (3)')
+    expect(store.availableName('Novo')).toBe('Novo')
   })
 
   it('duplicates a profile under a new name', () => {

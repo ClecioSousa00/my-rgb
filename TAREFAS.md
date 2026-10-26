@@ -67,12 +67,12 @@
 
 **Médios**
 
-- [ ] **Importar perfil sobrescreve perfil existente sem confirmação e sem validar o conteúdo** - `profileImport` chama `duplicateProfile(parsed.name)` e `save(full)` sem validar `global`, `palettes`, `zones`, `ledCount` e efeitos. Nome existente perde o perfil anterior; arquivo inválido pode quebrar o motor. Validar e perguntar/gerar sufixo.
-- [ ] **Renomear perfil pode sobrescrever outro sem aviso** - `ProfileStore.renameProfile` apaga o arquivo antigo e grava no novo sem verificar se ele já existe; o botão ✎ chama direto.
-- [ ] **Alternar luzes pela bandeja deixa a interface dessincronizada** - `onToggle` altera perfil e motor, mas não emite `profileGet`; o primeiro clique em "Luzes" na UI parece não fazer nada. O menu da bandeja também fica com o nome antigo após renomear/carregar perfil.
-- [ ] **Erros de hardware e desconexão não chegam ao usuário** - `pushError` envia `EngineState.error`, mas o renderer em `onEngineState` só lê `running`. Não há watcher de hotplug: se o cabo for removido, o motor para no primeiro erro, o preview congela e o status continua "conectado".
-- [ ] **Efeito "Bolhas" desenha bolhas de 1–2 LEDs** - Em `motion.ts`, `halfWidth` é calculado em fração da fita (`size * 0.5 / ledCount`), mas comparado com distância em LEDs (`x - pos`). Com `size=4` o teste encontrou no máximo 2 LEDs acesos; deveria usar `size * 0.5`.
-- [ ] **Efeito "Respiração" usa parâmetro que não existe** - Lê `ctx.params.point`, mas `point` não está declarado na lista de parâmetros; a cor fica sempre na primeira parada do gradiente. Adicionar o slider ou remover a leitura.
+- [x] **Importar perfil sobrescreve perfil existente sem confirmação e sem validar o conteúdo** - `profileImport` chama `duplicateProfile(parsed.name)` e `save(full)` sem validar `global`, `palettes`, `zones`, `ledCount` e efeitos. Nome existente perde o perfil anterior; arquivo inválido pode quebrar o motor. Validar e perguntar/gerar sufixo. **Corrigido:** `validateImportedProfile` valida/repara o JSON antes de qualquer escrita e o import recebe o primeiro nome livre (`Nome (2)`), sem sobrescrever nada.
+- [x] **Renomear perfil pode sobrescrever outro sem aviso** - `ProfileStore.renameProfile` apaga o arquivo antigo e grava no novo sem verificar se ele já existe; o botão ✎ chama direto. **Corrigido:** o store recusa o rename quando o arquivo de destino existe; a interface pergunta antes de sobrescrever e mostra o erro no modal.
+- [x] **Alternar luzes pela bandeja deixa a interface dessincronizada** - `onToggle` altera perfil e motor, mas não emite `profileGet`; o primeiro clique em "Luzes" na UI parece não fazer nada. O menu da bandeja também fica com o nome antigo após renomear/carregar perfil. **Corrigido:** o toggle da bandeja emite o perfil para o renderer e rename/load/import atualizam o menu da bandeja.
+- [x] **Erros de hardware e desconexão não chegam ao usuário** - `pushError` envia `EngineState.error`, mas o renderer em `onEngineState` só lê `running`. Não há watcher de hotplug: se o cabo for removido, o motor para no primeiro erro, o preview congela e o status continua "conectado". **Corrigido:** o renderer mostra `EngineState.error`; um watcher de 3 s detecta desconexão/conexão, atualiza dispositivo e zonas na UI e restaura o perfil ao reconectar.
+- [x] **Efeito "Bolhas" desenha bolhas de 1–2 LEDs** - Em `motion.ts`, `halfWidth` é calculado em fração da fita (`size * 0.5 / ledCount`), mas comparado com distância em LEDs (`x - pos`). Com `size=4` o teste encontrou no máximo 2 LEDs acesos; deveria usar `size * 0.5`. **Corrigido:** `halfWidth` agora está em LEDs, como a distância.
+- [x] **Efeito "Respiração" usa parâmetro que não existe** - Lê `ctx.params.point`, mas `point` não está declarado na lista de parâmetros; a cor fica sempre na primeira parada do gradiente. Adicionar o slider ou remover a leitura. **Corrigido:** o efeito ganhou o slider "Ponto do gradiente" (padrão 0) e a documentação foi regenerada.
 
 **Menores**
 
@@ -105,7 +105,7 @@
 ## 7. Testes e Qualidade
 
 - [ ] **Aumentar cobertura de testes** - Adicionar testes para export/import
-- [ ] **Corrigir CI e typecheck** - O workflow referencia `tests/color.test.ts`, `tests/effects.test.ts` e `tests/zone-apply.test.ts`, que não existem; `npm run typecheck` falha por imports/variáveis não usados em `TopBar.tsx`, `ZoneRail.tsx` e `src/main/index.ts`.
+- [ ] **Corrigir CI** - O workflow referencia `tests/color.test.ts`, `tests/effects.test.ts` e `tests/zone-apply.test.ts`, que não existem. O `npm run typecheck` já passa.
 - [ ] **Testes E2E com Playwright** - Já tem setup, expandir cobertura
 - [ ] **Testar paridade Linux/Windows** - Validar mesmo comportamento
 - [ ] **Testar com diferentes configurações de hardware** - Validar com outras placas ASUS

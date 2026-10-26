@@ -10,7 +10,6 @@ export function TopBar(): React.JSX.Element {
   const toggleEngine = useApp((s) => s.toggleEngine)
   const setGlobal = useApp((s) => s.setGlobal)
   const loadProfile = useApp((s) => s.loadProfile)
-  const duplicateProfile = useApp((s) => s.duplicateProfile)
   const renameProfile = useApp((s) => s.renameProfile)
   const saveProfile = useApp((s) => s.saveProfile)
   const exportProfile = useApp((s) => s.exportProfile)
@@ -19,7 +18,6 @@ export function TopBar(): React.JSX.Element {
   const [profileNames, setProfileNames] = useState<string[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const dirty = useApp((s) => s.dirty)
 
   const [savePromptOpen, setSavePromptOpen] = useState(false)
   const [savePromptValue, setSavePromptValue] = useState('')
@@ -28,6 +26,7 @@ export function TopBar(): React.JSX.Element {
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -40,10 +39,6 @@ export function TopBar(): React.JSX.Element {
   }, [profile?.name])
 
   useEffect(() => {
-    void window.myrgb.listProfiles().then(setProfileNames)
-  }, [])
-
-  useEffect(() => {
     if (savePromptOpen) {
       setSavePromptValue(profile ? profile.name : '')
       setSavePromptError(null)
@@ -54,6 +49,7 @@ export function TopBar(): React.JSX.Element {
   useEffect(() => {
     if (renameOpen && profile) {
       setRenameValue(profile.name)
+      setRenameError(null)
       setTimeout(() => renameInputRef.current?.select(), 0)
     }
   }, [renameOpen, profile])
@@ -90,18 +86,23 @@ export function TopBar(): React.JSX.Element {
       showToast('Perfil salvo')
       return
     }
+    let overwrite = false
     if (profileNames.includes(trimmed)) {
-      const overwrite = window.confirm(`Já existe um perfil "${trimmed}". Sobrescrever?`)
+      overwrite = window.confirm(`Já existe um perfil "${trimmed}". Sobrescrever?`)
       if (!overwrite) {
         setSavePromptError('Já existe um perfil com esse nome.')
         return
       }
     }
-    await renameProfile(trimmed)
-    await saveProfile({ ...profile, name: trimmed })
-    setProfileNames(await window.myrgb.listProfiles())
-    setSavePromptOpen(false)
-    showToast('Perfil salvo')
+    try {
+      await renameProfile(trimmed, overwrite)
+      await saveProfile({ ...profile, name: trimmed })
+      setProfileNames(await window.myrgb.listProfiles())
+      setSavePromptOpen(false)
+      showToast('Perfil salvo')
+    } catch (err) {
+      setSavePromptError(err instanceof Error ? err.message : 'Não foi possível salvar o perfil.')
+    }
   }
 
   const handleRename = async (): Promise<void> => {
@@ -116,10 +117,22 @@ export function TopBar(): React.JSX.Element {
       setRenameOpen(false)
       return
     }
-    await renameProfile(trimmed)
-    setProfileNames(await window.myrgb.listProfiles())
-    setRenameOpen(false)
-    showToast(`Perfil renomeado para “${trimmed}”`)
+    let overwrite = false
+    if (profileNames.includes(trimmed)) {
+      overwrite = window.confirm(`Já existe um perfil "${trimmed}". Sobrescrever?`)
+      if (!overwrite) {
+        setRenameError('Já existe um perfil com esse nome.')
+        return
+      }
+    }
+    try {
+      await renameProfile(trimmed, overwrite)
+      setProfileNames(await window.myrgb.listProfiles())
+      setRenameOpen(false)
+      showToast(`Perfil renomeado para “${trimmed}”`)
+    } catch (err) {
+      setRenameError(err instanceof Error ? err.message : 'Não foi possível renomear o perfil.')
+    }
   }
 
   const handleExport = async (): Promise<void> => {
@@ -140,7 +153,7 @@ export function TopBar(): React.JSX.Element {
         setProfileNames(names)
         await handleProfileChange(imported.name)
         setProfileNames(await window.myrgb.listProfiles())
-        showToast('Perfil importado')
+        showToast(`Perfil importado como “${imported.name}”`)
       }
     } catch (err) {
       showToast('Erro ao importar perfil')
@@ -393,12 +406,16 @@ export function TopBar(): React.JSX.Element {
               ref={renameInputRef}
               className="field"
               value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
+              onChange={(e) => {
+                setRenameValue(e.target.value)
+                setRenameError(null)
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void confirmRename()
                 if (e.key === 'Escape') setRenameOpen(false)
               }}
             />
+            {renameError && <div className="mt-1 text-[11px] text-bad-500">{renameError}</div>}
             <div className="mt-3 flex justify-end gap-2">
               <button className="btn btn-ghost" onClick={() => setRenameOpen(false)}>
                 Cancelar
@@ -434,10 +451,4 @@ function SettingToggle({
       />
     </label>
   )
-}
-
-/** Suggests a free name for a copy of a profile. */
-function suggestProfileName(current: string): string {
-  const base = current.replace(/\s+cópia(\s+\d+)?$/i, '').trim() || current
-  return `${base} cópia`
 }

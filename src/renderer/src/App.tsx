@@ -35,7 +35,7 @@ export default function App(): React.JSX.Element {
 
       {error && (
         <div className="flex items-center gap-3 border-b border-bad-500/30 bg-bad-500/10 px-4 py-2 text-[11.5px] text-bad-500">
-          <span className="font-semibold">Dispositivo indisponível.</span>
+          <span className="font-semibold">Problema no dispositivo.</span>
           <span className="flex-1 text-ink-300">{error}</span>
           <button className="btn h-7 px-3" onClick={() => void reconnect()}>
             Reconectar

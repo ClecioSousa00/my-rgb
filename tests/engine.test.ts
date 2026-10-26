@@ -129,6 +129,32 @@ describe('engine', () => {
     expect(frame.zoneLedCounts).toEqual([1, 2, 0, 120])
   })
 
+  it('draws bubbles with the configured width instead of a single LED', () => {
+    const { profile, zones } = buildProfile()
+    const zoneIndex = 1
+    profile.zones[zoneIndex].ledCount = 30
+    profile.zones[zoneIndex].effect = {
+      patternId: 'bubbles',
+      paletteId: 'mono',
+      params: { ...defaultParams('bubbles'), count: 1, size: 4 }
+    }
+    const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
+
+    let maxLit = 0
+    for (let t = 0; t < 5000; t += 20) {
+      const frame = engine.renderFrame(t)
+      let lit = 0
+      for (let i = 0; i < 30; i++) {
+        const p = (zoneIndex + i) * 3
+        if (frame.pixels[p] + frame.pixels[p + 1] + frame.pixels[p + 2] > 10) lit++
+      }
+      maxLit = Math.max(maxLit, lit)
+    }
+
+    // A 4-LED bubble must cover more than the 1-2 LEDs the old unit bug drew.
+    expect(maxLit).toBeGreaterThanOrEqual(3)
+  })
+
   it('renders every built-in pattern without throwing', () => {
     const { profile, zones } = buildProfile()
     const engine = new EffectEngine(profile, zones, { onFrame: () => {} })

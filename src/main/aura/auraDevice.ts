@@ -80,6 +80,12 @@ export class AuraUsbDevice {
       }))
   }
 
+  /** Record that the controller went away, so the UI can explain it. */
+  markDisconnected(reason = 'AURA LED Controller disconnected.'): void {
+    this.close()
+    this.lastError = reason
+  }
+
   /**
    * Open the device and run the mandatory init sequence.
    *

@@ -56,7 +56,7 @@ interface AppState {
   loadProfile(id: string): Promise<void>
   saveProfile(profile: Profile): Promise<void>
   duplicateProfile(name: string): Promise<void>
-  renameProfile(name: string): Promise<void>
+  renameProfile(name: string, overwrite?: boolean): Promise<void>
   exportProfile(): Promise<string | null>
   importProfile(): Promise<Profile | null>
   toggleEngine(): Promise<void>
@@ -120,10 +120,36 @@ export const useApp = create<AppState>((set, get) => ({
         // Only trust the event when nothing else is being changed right now.
         if (pendingMutations === 0) set({ dirty: false })
       })
-      window.myrgb.onEngineState((state) => set({ engineRunning: state.running }))
+      window.myrgb.onEngineState((state) =>
+        set({
+          engineRunning: state.running,
+          // Engine write errors (unplugged cable, busy device) must reach the
+          // banner; a null error only means "no new error".
+          ...(state.error ? { error: state.error } : {})
+        })
+      )
       // The conflict with another program can start at any time, so the
       // device status has to be pushed rather than only read once.
-      window.myrgb.onDeviceChange((info) => set({ device: info }))
+      window.myrgb.onDeviceChange((info) => {
+        const wasConnected = get().device?.connected ?? false
+        set({ device: info })
+        if (wasConnected === info.connected) return
+
+        // Plugged or unplugged: the zone list and the reconciled profile
+        // changed too, so pull them instead of leaving a stale UI.
+        void Promise.all([window.myrgb.listZones(), window.myrgb.getProfile()])
+          .then(([zones, profile]) => {
+            set((prev) => ({
+              zones,
+              profile,
+              selectedZoneId: zones.some((z) => z.id === prev.selectedZoneId)
+                ? prev.selectedZoneId
+                : (zones[0]?.id ?? ''),
+              error: info.connected ? null : (info.error ?? 'Dispositivo não encontrado')
+            }))
+          })
+          .catch((err) => set({ error: errorMessage(err) }))
+      })
     } catch (err) {
       set({ error: errorMessage(err), ready: true })
       ;(window as unknown as { __myRgbReady?: boolean }).__myRgbReady = true
@@ -187,8 +213,8 @@ export const useApp = create<AppState>((set, get) => ({
     set({ profile })
   },
 
-  async renameProfile(name) {
-    const profile = await mutate(set, () => window.myrgb.renameProfile(name))
+  async renameProfile(name, overwrite = false) {
+    const profile = await mutate(set, () => window.myrgb.renameProfile(name, overwrite))
     set({ profile })
   },
 

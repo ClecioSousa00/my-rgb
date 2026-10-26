@@ -83,6 +83,17 @@ export const basicPatterns: Pattern[] = [
     params: [
       RATE,
       {
+        key: 'point',
+        label: 'Ponto do gradiente',
+        type: 'number',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        default: 0,
+        description:
+          'Qual cor do gradiente respira. 0 é a primeira parada e 1 é a última; no meio fica a cor do meio.'
+      },
+      {
         key: 'floor',
         label: 'Brilho mínimo',
         type: 'number',

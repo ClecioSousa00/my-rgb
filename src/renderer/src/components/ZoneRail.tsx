@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp, zoneDisplayName } from '../store'
 import { HelpTip } from './HelpTip'
-import { showToast } from './Toast'
 import type { ZoneConfig, ZoneState } from '@shared/types'
 
 export function ZoneRail(): React.JSX.Element {

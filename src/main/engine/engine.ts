@@ -238,8 +238,10 @@ export class EffectEngine {
       try {
         this.device.setChannelLeds(zone.directChannel, colors)
       } catch (err) {
-        this.onError?.(`Failed to write zone ${zone.id}: ${errorMessage(err)}`)
+        // Stop first, so the state pushed with the error already says the
+        // engine is no longer producing frames.
         this.stop()
+        this.onError?.(`Failed to write zone ${zone.id}: ${errorMessage(err)}`)
         return
       }
     }

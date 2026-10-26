@@ -41,7 +41,8 @@ const api: MyRgbApi = {
   getProfile: (): Promise<Profile> => ipcRenderer.invoke(IPC.profileGet),
   saveProfile: (profile: Profile): Promise<Profile> => ipcRenderer.invoke(IPC.profileSave, profile),
   duplicateProfile: (name: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileDuplicate, name),
-  renameProfile: (name: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileRename, name),
+  renameProfile: (name: string, overwrite = false): Promise<Profile> =>
+    ipcRenderer.invoke(IPC.profileRename, name, overwrite),
   listProfiles: (): Promise<string[]> => ipcRenderer.invoke(IPC.profileList),
   loadProfile: (id: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileLoad, id),
   deleteProfile: (id: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileDelete, id),

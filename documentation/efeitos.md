@@ -74,6 +74,7 @@ Cor fixa que expande e contrai suavemente.
 **Parâmetros**
 
 - **Velocidade** (`rate`, 0.05 – 4, padrão 1) — Quão rápido o efeito se move. 1.00x é o passo normal; acima disso acelera, abaixo disso desacelerá.
+- **Ponto do gradiente** (`point`, 0 – 1, padrão 0) — Qual cor do gradiente respira. 0 é a primeira parada e 1 é a última; no meio fica a cor do meio.
 - **Brilho mínimo** (`floor`, 0 – 1, padrão 0.08) — O ponto mais apagado do ciclo. 0 apaga de vez; acima de 0 a fita nunca chega a ficar preta.
 
 ### Fade — `fade`
