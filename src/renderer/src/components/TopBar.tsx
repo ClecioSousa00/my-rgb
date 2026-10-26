@@ -148,7 +148,7 @@ export function TopBar(): React.JSX.Element {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900/80 px-4 backdrop-blur">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900/80 px-4 backdrop-blur">
       <div className="flex items-center gap-2.5">
         <div
           className="h-6 w-6 rounded-md"
@@ -283,7 +283,7 @@ export function TopBar(): React.JSX.Element {
         {engineRunning ? 'Pausar' : 'Retomar'}
       </button>
 
-      <div className="relative" style={{ zIndex: 10000 }}>
+      <div className="relative">
         <button
           className="btn btn-ghost px-2 text-[18px] leading-none"
           onClick={() => setShowSettings((v) => !v)}
@@ -293,7 +293,7 @@ export function TopBar(): React.JSX.Element {
         </button>
 
         {showSettings && settings && (
-          <div className="panel absolute right-0 top-9 w-72 p-3 shadow-2xl" style={{ zIndex: 2147483647 }}>
+          <div className="panel absolute right-0 top-9 z-10 w-72 p-3 shadow-2xl">
             <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
               Configurações
             </div>
