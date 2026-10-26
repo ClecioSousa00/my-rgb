@@ -45,7 +45,7 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Iluminação | Efeitos, zonas, gradiente e parâmetros (tela original) |
 | Visão geral | Resumo de hardware, desempenho e saúde |
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
-| Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo |
+| Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
 | Discos | Unidades — **pronta**; saúde S.M.A.R.T. na fase 3 |
 | Rede | Latência, jitter, perda, DNS, velocidade e bufferbloat |
 | Jogos | FPS esperado por jogo, resolução, preset e upscaling |
@@ -53,8 +53,9 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Overlay | Métricas por cima do jogo |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
 
-> **Nota:** Iluminação, Sistema e a aba Unidades de Discos já funcionam. As
-> outras páginas descrevem o que virá; o plano do projeto tem a ordem completa.
+> **Nota:** Iluminação, Sistema, Sensores e a aba Unidades de Discos já
+> funcionam. As outras páginas descrevem o que virá; o plano do projeto tem a
+> ordem completa.
 
 ---
 
@@ -82,6 +83,44 @@ guardada por um minuto e o botão **Atualizar** força uma nova.
   aparece como `Device 2d05`; o cartão avisa por quê. Com ele instalado, o nome
   comercial, a VRAM e a versão do driver são preenchidos.
 - **Observações** reúne o que não pôde ser lido, com o motivo.
+
+---
+
+## A tela de Sensores
+
+A única página que se atualiza sozinha: uma leitura por segundo, enquanto ela
+está aberta. O trabalho acontece no processo principal, que só liga a coleta
+quando a página assina o stream — e a desliga ao sair, ou quando a janela fica
+escondida.
+
+- **Ao vivo · 1 s** no cabeçalho, com um ponto que pulsa. **Pausar** congela a
+  tela sem perder os valores; **Retomar** volta a acompanhar.
+- **Chips por tipo** (Temperatura, Carga, Clock, Consumo, Tensão, Ventoinha,
+  Memória) mostram quantas leituras existem de cada tipo e filtram a tabela.
+  A busca ao lado filtra por hardware, sensor ou tipo.
+- **Um cartão por hardware** — CPU, GPU, SSD, memória, placa-mãe, rede — com
+  uma linha por leitura:
+  - **agora**, **mín** e **máx** da sessão, em fonte monoespaçada;
+  - um **sparkline** com o último minuto;
+  - quando a leitura passa do limite do próprio sensor (ex.: a temperatura
+    crítica do NVMe), o valor **inverte** para branco sobre preto. Nenhuma cor
+    é usada para dizer "ruim".
+- **O mínimo, o máximo e o histórico vivem no processo principal**, não na
+  página: fechar e reabrir Sensores continua a sessão em vez de recomeçar.
+- **De onde vêm os números:**
+  - Linux — `/sys/class/hwmon` para temperaturas, ventoinhas, tensões, consumo
+    e clocks; o kernel já entrega cada leitura com a unidade do driver, que é
+    convertida aqui;
+  - Windows — carga, clocks e memória pelo `systeminformation`; os sensores de
+    temperatura e ventoinha da placa-mãe chegam com o helper da fase 7;
+  - NVIDIA — `nvidia-smi` nos dois sistemas, quando instalado. Campos que o
+    driver não responde (`[N/A]`) simplesmente não aparecem.
+- **Sanidade antes de exibir:** um valor absurdo (a leitura de 65 261 850 °C
+  que um NVMe pode devolver quando o arquivo falha) é descartado, e um sensor
+  que não puder ser lido vira **—**, nunca zero.
+- **Observações** no rodapé explicam o que faltou e por quê — por exemplo, que
+  o driver `asus` não expôs ventoinhas ou que o helper do Windows ainda não
+  existe.
 
 ---
 

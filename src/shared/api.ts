@@ -20,6 +20,7 @@ import type {
   ZoneState
 } from './types'
 import type { DriveInfo, SystemSnapshot } from './features/system'
+import type { SensorsSnapshot } from './features/sensors'
 
 export type Unsubscribe = () => void
 
@@ -80,6 +81,15 @@ export interface MyRgbApi {
   /** Static hardware snapshot. Cached in the main process for a minute. */
   getSystem(force?: boolean): Promise<SystemSnapshot>
   listDrives(): Promise<DriveInfo[]>
+
+  // sensors
+  /**
+   * Subscribe to the live stream. Returns the last batch (or null on the
+   * first call) so the page can paint before the next poll arrives.
+   */
+  startSensors(): Promise<SensorsSnapshot | null>
+  stopSensors(): Promise<void>
+  onSensors(callback: (snapshot: SensorsSnapshot) => void): Unsubscribe
 
   // events
   onFrame(callback: (frame: Frame) => void): Unsubscribe

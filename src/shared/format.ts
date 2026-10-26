@@ -46,6 +46,21 @@ export function formatGhz(ghz?: number | null): string {
   return `${ghz.toFixed(2).replace('.', ',')} GHz`
 }
 
+/**
+ * One live sensor value.
+ *
+ * The precision follows the unit, not the number: a temperature keeps one
+ * decimal, a voltage keeps three (1,31 V reads as 1,31 V, not 1,3 V) and a
+ * clock, fan speed or percentage is a whole number.
+ */
+export function formatSensor(value?: number | null, unit?: string): string {
+  if (!isNumber(value)) return EM_DASH
+  const digits = !unit ? 1 : unit === 'V' ? 3 : unit === '°C' || unit === 'W' ? 1 : 0
+  const text = value.toFixed(digits).replace('.', ',')
+  if (!unit) return text
+  return unit === '%' ? `${text}%` : `${text} ${unit}`
+}
+
 /** Memory speeds are MT/s, not MHz - the label is always explicit. */
 export function formatMts(mts?: number | null): string {
   if (!isNumber(mts) || mts <= 0) return EM_DASH

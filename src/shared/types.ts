@@ -250,5 +250,10 @@ export const IPC = {
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   systemGet: 'system:get',
-  drivesList: 'drives:list'
+  drivesList: 'drives:list',
+  /** Subscribe to the live sensor stream (starts the poll in the main). */
+  sensorsStart: 'sensors:start',
+  sensorsStop: 'sensors:stop',
+  /** Pushed once per collection, with session min/max/history attached. */
+  sensorsBatch: 'sensors:batch'
 } as const

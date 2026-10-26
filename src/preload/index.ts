@@ -21,6 +21,7 @@ import type {
   ZoneState
 } from '@shared/types'
 import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
+import type { SensorsSnapshot } from '@shared/features/sensors'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -76,6 +77,12 @@ const api: MyRgbApi = {
   // system & drives
   getSystem: (force = false): Promise<SystemSnapshot> => ipcRenderer.invoke(IPC.systemGet, force),
   listDrives: (): Promise<DriveInfo[]> => ipcRenderer.invoke(IPC.drivesList),
+
+  // sensors
+  startSensors: (): Promise<SensorsSnapshot | null> => ipcRenderer.invoke(IPC.sensorsStart),
+  stopSensors: (): Promise<void> => ipcRenderer.invoke(IPC.sensorsStop),
+  onSensors: (callback: (snapshot: SensorsSnapshot) => void) =>
+    subscribe(IPC.sensorsBatch, callback),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

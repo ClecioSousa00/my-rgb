@@ -312,6 +312,107 @@
     background: var(--color-ink-100);
     color: #000000;
   }
+
+  /*
+   * Filter chips behave like buttons; the active one inverts, the same rule
+   * the verdict badge uses. No accent colour is introduced.
+   */
+  .chip[data-active='true'] {
+    background: var(--color-ink-100);
+    border-color: var(--color-ink-100);
+    color: #000000;
+  }
+  .chip[data-active='true'] span {
+    color: rgb(0 0 0 / 55%);
+  }
+  button.chip {
+    cursor: pointer;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+  button.chip:hover {
+    border-color: var(--color-ink-400);
+    color: var(--color-ink-100);
+  }
+  button.chip:hover[data-active='true'] {
+    color: #000000;
+  }
+
+  .live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-ink-600);
+  }
+  .live-dot[data-live='true'] {
+    background: var(--color-ink-100);
+  }
+
+  /*
+   * One reading per row. The five columns are shared by the header and the
+   * rows through the same grid template, so the numbers line up.
+   */
+  .sensor-head,
+  .sensor-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 92px 82px 82px 76px;
+    align-items: center;
+    gap: 8px;
+  }
+  .sensor-head {
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--color-ink-700);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-500);
+  }
+  .sensor-head span:not(:first-child) {
+    text-align: right;
+  }
+  .sensor-row {
+    padding: 6px 0;
+  }
+  .sensor-row + .sensor-row {
+    border-top: 1px solid var(--color-ink-800);
+  }
+  .sensor-value {
+    justify-self: end;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    text-align: right;
+    color: var(--color-ink-100);
+  }
+  .sensor-value[data-alert='true'] {
+    background: var(--color-ink-100);
+    color: #000000;
+  }
+  .sensor-minmax {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    text-align: right;
+    color: var(--color-ink-500);
+  }
+  .sparkline {
+    display: block;
+    justify-self: end;
+  }
+  .sparkline polyline {
+    stroke: var(--color-ink-500);
+  }
+  .sparkline[data-alert='true'] polyline {
+    stroke: var(--color-ink-100);
+  }
+  .sparkline-spacer {
+    display: block;
+    justify-self: end;
+  }
 }
 
 /* Range inputs, themed consistently across engines. */

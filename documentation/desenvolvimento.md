@@ -57,7 +57,7 @@ experimento, ele fica na `dev` (ou na branch `feat/...`).
 | Testes | vitest 5 |
 | Empacotamento | electron-builder 26 |
 | Hardware | node-hid 3.4 |
-| Diagnóstico | systeminformation 5 (SO, CPU, RAM, GPU e discos) |
+| Diagnóstico | systeminformation 5 (SO, CPU, RAM, GPU e discos) + hwmon/nvidia-smi (sensores) |
 
 Uma coisa que economiza muito trabalho: **não existe código específico de
 sistema operacional**. O node-hid fala HID puro, que se comporta igual no
@@ -127,9 +127,31 @@ npm run docs       # regera documentation/efeitos.md
 
 ---
 
+## Como os sensores são lidos
+
+A página Sensores é a única que se atualiza sozinha, e o caminho é curto:
+
+- `src/main/features/sensors/hwmon.ts` — lê `/sys/class/hwmon` (só Linux),
+  converte a unidade do driver e descarta valores implausíveis;
+- `src/main/features/sensors/nvidia.ts` — `nvidia-smi` nos dois sistemas,
+  com cache de falha para não abrir um processo por segundo à toa;
+- `src/main/features/sensors/system.ts` — carga, clocks e memória pelo
+  `systeminformation`;
+- `src/main/features/sensors/index.ts` — junta as três fontes, ordena e
+  transforma cada falha em uma nota;
+- `src/main/features/sensors/store.ts` — `SensorsStore`: poll de 1 s,
+  contador de assinantes, mínimo/máximo/histórico (60 amostras) e pausa
+  quando a janela está escondida.
+
+O renderer não coleta nada: chama `startSensors` ao abrir a página, recebe os
+lotes por `onSensors` e chama `stopSensors` ao sair. Como o histórico fica no
+processo principal, fechar e reabrir a página continua a sessão.
+
+---
+
 ## Os testes
 
-122 testes em 10 arquivos, todos rodando em menos de um segundo.
+138 testes em 11 arquivos, todos rodando em menos de um segundo.
 
 | Arquivo | O que garante |
 |---|---|
@@ -142,7 +164,8 @@ npm run docs       # regera documentation/efeitos.md
 | `tests/patterns.test.ts` | Todo padrão tem nome, categoria, descrição e todos os parâmetros descritos |
 | `tests/documentation.test.ts` | A documentação está em dia e não tem link quebrado |
 | `tests/system.test.ts` | As unidades filtram pseudo-filesystems e acham o disco físico da partição |
-| `tests/format.test.ts` | Bytes, clocks, datas de BIOS e tempo relativo são formatados sem inventar valor |
+| `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, o parser do nvidia-smi e as estatísticas da sessão |
+| `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 
 ```bash
 npm test                  # tudo

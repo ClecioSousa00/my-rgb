@@ -5,7 +5,8 @@ import {
   formatBytes,
   formatGhz,
   formatMts,
-  formatPercent
+  formatPercent,
+  formatSensor
 } from '@shared/format'
 
 describe('formatBytes', () => {
@@ -47,6 +48,16 @@ describe('other formatters', () => {
   it('formats memory speed as MT/s', () => {
     expect(formatMts(4800)).toBe('4800 MT/s')
     expect(formatMts(undefined)).toBe('—')
+  })
+
+  it('gives each sensor unit the precision it deserves', () => {
+    expect(formatSensor(57.875, '°C')).toBe('57,9 °C')
+    expect(formatSensor(1.31, 'V')).toBe('1,310 V')
+    expect(formatSensor(78.54, 'W')).toBe('78,5 W')
+    expect(formatSensor(2100, 'MHz')).toBe('2100 MHz')
+    expect(formatSensor(1240, 'RPM')).toBe('1240 RPM')
+    expect(formatSensor(13, '%')).toBe('13%')
+    expect(formatSensor(undefined, '°C')).toBe('—')
   })
 
   it('normalises the BIOS date regardless of the firmware order', () => {

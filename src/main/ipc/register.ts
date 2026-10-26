@@ -23,6 +23,7 @@ import { reconcileProfile, validateImportedProfile } from '../store/profileStore
 import type { SettingsStore } from '../store/settings'
 import { getSystem } from '../features/system/info'
 import { listDrives } from '../features/system/drives'
+import type { SensorsStore } from '../features/sensors/store'
 
 /** What a handler needs from the application. */
 export interface IpcHost {
@@ -33,6 +34,8 @@ export interface IpcHost {
   engine: EffectEngine
   profileStore: ProfileStore
   settings: SettingsStore
+  /** Live sensor poll and its session buffer. */
+  sensors: SensorsStore
   /** Device state with the conflict flag already merged in. */
   readonly deviceInfo: DeviceInfo
   readonly engineState: EngineState
@@ -235,4 +238,15 @@ export function registerIpc(host: IpcHost): void {
 
   ipcMain.handle(IPC.systemGet, (_e, force = false) => getSystem(force === true))
   ipcMain.handle(IPC.drivesList, () => listDrives())
+
+  // --- sensors ------------------------------------------------------------
+
+  ipcMain.handle(IPC.sensorsStart, () => {
+    host.sensors.start()
+    return host.sensors.snapshot()
+  })
+
+  ipcMain.handle(IPC.sensorsStop, () => {
+    host.sensors.stop()
+  })
 }

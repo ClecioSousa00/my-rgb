@@ -39,6 +39,7 @@ jobs:
           tests/output.test.ts
           tests/format.test.ts
           tests/system.test.ts
+          tests/sensors.test.ts
 
       - name: Build
         run: npm run build

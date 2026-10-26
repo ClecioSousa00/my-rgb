@@ -20,10 +20,12 @@ import { runFrameDump } from './dumpFrames'
 import { buildEffectsDoc } from './docs/effectsDoc'
 import { initAutoUpdater } from './updater'
 import { registerIpc } from './ipc/register'
+import { SensorsStore } from './features/sensors/store'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
 import type { EngineState } from '@shared/api'
+import type { SensorsSnapshot } from '@shared/features/sensors'
 
 const isDev = !app.isPackaged
 
@@ -38,6 +40,8 @@ class MyRgbApp {
   engine!: EffectEngine
   profileStore!: ProfileStore
   settings!: SettingsStore
+  /** Live sensor stream, started by the Sensores page and stopped on quit. */
+  sensors!: SensorsStore
   window: BrowserWindow | null = null
   private trayHandle: TrayHandle | null = null
   private conflicts: ConflictReport = { conflicting: false, processes: [], hint: '' }
@@ -86,6 +90,15 @@ class MyRgbApp {
     this.engine = new EffectEngine(this.profileStore.profile, this.zones, {
       onFrame: (frame) => this.pushFrame(frame),
       onError: (message) => this.pushError(message)
+    })
+
+    // The sensor poll runs only while a page is subscribed (and the window is
+    // visible), so creating it here costs nothing.
+    this.sensors = new SensorsStore({
+      onBatch: (snapshot) => this.pushSensors(snapshot),
+      canPoll: () =>
+        this.window !== null && !this.window.isDestroyed() && this.window.isVisible(),
+      onError: (message) => this.emitAppError(`Sensores: ${message}`)
     })
 
     await this.openDevice()
@@ -335,6 +348,12 @@ class MyRgbApp {
     }
   }
 
+  private pushSensors(snapshot: SensorsSnapshot): void {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send(IPC.sensorsBatch, snapshot)
+    }
+  }
+
   private pushDeviceInfo(): void {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.deviceInfo, this.deviceInfo)
@@ -447,6 +466,7 @@ class MyRgbApp {
   /** Release everything before the app quits. */
   shutdown(): void {
     this.engine?.stop()
+    this.sensors?.dispose()
     if (this.conflictTimer) {
       clearInterval(this.conflictTimer)
       this.conflictTimer = null
@@ -635,6 +655,29 @@ async function runSelfTest(): Promise<void> {
         /processador/i.test(text()) &&
         !/lendo o hardware/i.test(text())
 
+      // Sensores: the stream arrives from the main process, so this proves
+      // the poll -> IPC -> bridge -> table path. Pausing and resuming has to
+      // work too, otherwise the stream would keep running after leaving.
+      window.__myRgbNavigate && window.__myRgbNavigate('sensors')
+      await waitFor(
+        () => document.querySelectorAll('.sensor-row').length > 0 && /ao vivo/.test(text()),
+        12000
+      )
+      const sensorRows = document.querySelectorAll('.sensor-row').length
+      const pauseButton = Array.from(document.querySelectorAll('button')).find((button) =>
+        /Pausar/.test(button.textContent ?? '')
+      )
+      if (pauseButton instanceof HTMLElement) pauseButton.click()
+      await waitFor(() => /pausado/.test(text()), 3000)
+      const paused = /pausado/.test(text())
+      if (pauseButton instanceof HTMLElement) pauseButton.click()
+      await waitFor(() => /ao vivo/.test(text()), 5000)
+      window.__myRgbSensorsReady =
+        sensorRows > 0 &&
+        paused &&
+        /ao vivo/.test(text()) &&
+        document.querySelector('.page-title')?.textContent === 'Sensores'
+
       window.__myRgbNavigate && window.__myRgbNavigate('disks')
       await waitFor(() => document.querySelectorAll('svg circle').length >= 2)
       window.__myRgbDrivesReady =
@@ -697,6 +740,7 @@ async function runSelfTest(): Promise<void> {
         systemReady: window.__myRgbSystemReady === true,
         drivesReady: window.__myRgbDrivesReady === true,
         healthTab: window.__myRgbHealthTab === true,
+        sensorsReady: window.__myRgbSensorsReady === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
         gradient: /gradiente/i.test(document.body.innerText),
@@ -718,7 +762,8 @@ async function runSelfTest(): Promise<void> {
     report.profileVisible === true &&
     report.systemReady === true &&
     report.drivesReady === true &&
-    report.healthTab === true
+    report.healthTab === true &&
+    report.sensorsReady === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
 }
