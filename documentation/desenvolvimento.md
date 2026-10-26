@@ -57,6 +57,7 @@ experimento, ele fica na `dev` (ou na branch `feat/...`).
 | Testes | vitest 5 |
 | Empacotamento | electron-builder 26 |
 | Hardware | node-hid 3.4 |
+| Diagnóstico | systeminformation 5 (SO, CPU, RAM, GPU e discos) |
 
 Uma coisa que economiza muito trabalho: **não existe código específico de
 sistema operacional**. O node-hid fala HID puro, que se comporta igual no
@@ -128,7 +129,7 @@ npm run docs       # regera documentation/efeitos.md
 
 ## Os testes
 
-79 testes em 7 arquivos, todos rodando em menos de um segundo.
+122 testes em 10 arquivos, todos rodando em menos de um segundo.
 
 | Arquivo | O que garante |
 |---|---|
@@ -140,6 +141,8 @@ npm run docs       # regera documentation/efeitos.md
 | `tests/store.test.ts` | Os perfis: salvar, recarregar, renomear, reconciliar, aplicar a todas |
 | `tests/patterns.test.ts` | Todo padrão tem nome, categoria, descrição e todos os parâmetros descritos |
 | `tests/documentation.test.ts` | A documentação está em dia e não tem link quebrado |
+| `tests/system.test.ts` | As unidades filtram pseudo-filesystems e acham o disco físico da partição |
+| `tests/format.test.ts` | Bytes, clocks, datas de BIOS e tempo relativo são formatados sem inventar valor |
 
 ```bash
 npm test                  # tudo

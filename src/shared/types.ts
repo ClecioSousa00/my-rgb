@@ -248,5 +248,7 @@ export const IPC = {
   /** Pushed when something outside the engine fails (disk write, ...). */
   appError: 'app:error',
   settingsGet: 'settings:get',
-  settingsSet: 'settings:set'
+  settingsSet: 'settings:set',
+  systemGet: 'system:get',
+  drivesList: 'drives:list'
 } as const

@@ -21,6 +21,8 @@ import { patternMetadata } from '../engine/patterns'
 import type { ProfileStore } from '../store/profileStore'
 import { reconcileProfile, validateImportedProfile } from '../store/profileStore'
 import type { SettingsStore } from '../store/settings'
+import { getSystem } from '../features/system/info'
+import { listDrives } from '../features/system/drives'
 
 /** What a handler needs from the application. */
 export interface IpcHost {
@@ -228,4 +230,9 @@ export function registerIpc(host: IpcHost): void {
     }
     return next
   })
+
+  // --- system & drives ----------------------------------------------------
+
+  ipcMain.handle(IPC.systemGet, (_e, force = false) => getSystem(force === true))
+  ipcMain.handle(IPC.drivesList, () => listDrives())
 }

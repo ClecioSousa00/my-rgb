@@ -20,6 +20,7 @@ import type {
   ZoneConfig,
   ZoneState
 } from '@shared/types'
+import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -71,6 +72,10 @@ const api: MyRgbApi = {
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settingsGet),
   setSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IPC.settingsSet, patch),
+
+  // system & drives
+  getSystem: (force = false): Promise<SystemSnapshot> => ipcRenderer.invoke(IPC.systemGet, force),
+  listDrives: (): Promise<DriveInfo[]> => ipcRenderer.invoke(IPC.drivesList),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

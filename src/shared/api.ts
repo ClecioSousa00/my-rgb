@@ -19,6 +19,7 @@ import type {
   ZoneConfig,
   ZoneState
 } from './types'
+import type { DriveInfo, SystemSnapshot } from './features/system'
 
 export type Unsubscribe = () => void
 
@@ -74,6 +75,11 @@ export interface MyRgbApi {
   // settings
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+
+  // system & drives
+  /** Static hardware snapshot. Cached in the main process for a minute. */
+  getSystem(force?: boolean): Promise<SystemSnapshot>
+  listDrives(): Promise<DriveInfo[]>
 
   // events
   onFrame(callback: (frame: Frame) => void): Unsubscribe

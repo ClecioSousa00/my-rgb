@@ -37,6 +37,8 @@ jobs:
           tests/documentation.test.ts
           tests/engine.test.ts
           tests/output.test.ts
+          tests/format.test.ts
+          tests/system.test.ts
 
       - name: Build
         run: npm run build

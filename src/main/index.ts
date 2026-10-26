@@ -604,17 +604,51 @@ async function runSelfTest(): Promise<void> {
   // The app may have been left on another page on the previous run. Every
   // check below is about the lighting screen, so open it explicitly - and use
   // the round trip to prove the sidebar really swaps pages.
+  //
+  // The diagnostic pages are visited too: their data arrives from the main
+  // process, so this is the only place that proves the whole path (collector
+  // -> IPC -> bridge -> card) works in a packaged app.
   await window.webContents.executeJavaScript(`
     (async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const waitFor = async (check, timeout = 8000) => {
+        const end = Date.now() + timeout
+        while (Date.now() < end) {
+          if (check()) return true
+          await sleep(150)
+        }
+        return check()
+      }
+      const text = () => document.body.innerText
+
       window.__myRgbNavigate && window.__myRgbNavigate('system')
-      await new Promise((r) => setTimeout(r, 250))
+      await waitFor(
+        () => /Sistema operacional/.test(text()) && document.querySelectorAll('section.card').length >= 4
+      )
       const systemHeader = document.querySelector('header')
       window.__myRgbPageSwitch =
         document.querySelector('.page-title')?.textContent === 'Sistema' &&
         systemHeader?.querySelector('select') === null &&
         !/Salvar/.test(systemHeader?.textContent ?? '')
+      window.__myRgbSystemReady =
+        document.querySelectorAll('section.card').length >= 5 &&
+        /processador/i.test(text()) &&
+        !/lendo o hardware/i.test(text())
+
+      window.__myRgbNavigate && window.__myRgbNavigate('disks')
+      await waitFor(() => document.querySelectorAll('svg circle').length >= 2)
+      window.__myRgbDrivesReady =
+        document.querySelectorAll('svg circle').length >= 2 && /Unidades/.test(text())
+
+      const healthTab = Array.from(document.querySelectorAll('[role="tab"]')).find((tab) =>
+        /Saúde/.test(tab.textContent ?? '')
+      )
+      if (healthTab instanceof HTMLElement) healthTab.click()
+      await sleep(250)
+      window.__myRgbHealthTab = /Fase 3/.test(text())
+
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
-      await new Promise((r) => setTimeout(r, 400))
+      await sleep(400)
       // The profile controls only make sense on the lighting screen, and they
       // have to be back when it is open again.
       window.__myRgbProfileVisible = /Salvar/.test(
@@ -628,7 +662,16 @@ async function runSelfTest(): Promise<void> {
       // Probe every call the renderer makes on startup. One of them hanging
       // is what leaves the UI empty, and this says which one.
       const probe = {}
-      for (const key of ['getDeviceInfo', 'listZones', 'listPatterns', 'getProfile', 'getEngineState']) {
+      const calls = [
+        'getDeviceInfo',
+        'listZones',
+        'listPatterns',
+        'getProfile',
+        'getEngineState',
+        'getSystem',
+        'listDrives'
+      ]
+      for (const key of calls) {
         try {
           const value = await window.myrgb[key]()
           probe[key] = Array.isArray(value)
@@ -651,6 +694,9 @@ async function runSelfTest(): Promise<void> {
         nav: document.querySelectorAll('.nav-item').length,
         pageSwitch: window.__myRgbPageSwitch === true,
         profileVisible: window.__myRgbProfileVisible === true,
+        systemReady: window.__myRgbSystemReady === true,
+        drivesReady: window.__myRgbDrivesReady === true,
+        healthTab: window.__myRgbHealthTab === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
         gradient: /gradiente/i.test(document.body.innerText),
@@ -669,7 +715,10 @@ async function runSelfTest(): Promise<void> {
     report.frames > 0 &&
     report.nav > 0 &&
     report.pageSwitch === true &&
-    report.profileVisible === true
+    report.profileVisible === true &&
+    report.systemReady === true &&
+    report.drivesReady === true &&
+    report.healthTab === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
 }

@@ -44,17 +44,60 @@ depois detalha a tela de iluminação, que é a que já está completa.
 |---|---|
 | Iluminação | Efeitos, zonas, gradiente e parâmetros (tela original) |
 | Visão geral | Resumo de hardware, desempenho e saúde |
-| Sistema | SO, placa-mãe/BIOS, CPU, RAM por módulo, GPU e discos |
+| Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo |
-| Discos | Unidades e saúde S.M.A.R.T. |
+| Discos | Unidades — **pronta**; saúde S.M.A.R.T. na fase 3 |
 | Rede | Latência, jitter, perda, DNS, velocidade e bufferbloat |
 | Jogos | FPS esperado por jogo, resolução, preset e upscaling |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão |
 | Overlay | Métricas por cima do jogo |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
 
-> **Nota:** só a página de Iluminação está funcional nesta fase. As demais
-> descrevem o que virá; o plano do projeto tem a ordem completa.
+> **Nota:** Iluminação, Sistema e a aba Unidades de Discos já funcionam. As
+> outras páginas descrevem o que virá; o plano do projeto tem a ordem completa.
+
+---
+
+## A tela de Sistema
+
+Mostra o que está dentro da máquina sem abrir o gabinete. Os dados vêm do
+`systeminformation`, que lê WMI no Windows e o kernel/DMI no Linux; a leitura é
+guardada por um minuto e o botão **Atualizar** força uma nova.
+
+- Um cartão por categoria, e todos recolhem ao clicar no título:
+  - **Sistema** — SO, kernel (ou build), arquitetura, nome do computador, UEFI;
+  - **Placa-mãe e BIOS** — fabricante, modelo, revisão, versão/data da BIOS;
+  - **Processador** — modelo, núcleos físicos, threads, clock na hora da
+    leitura, clock máximo, cache L3 e socket;
+  - **Memória** — total, disponível, tipo, velocidade, canais estimados e, por
+    pente, slot, tamanho, fabricante e part number;
+  - **Placa de vídeo** — nome, VRAM, driver, barramento e se é integrada;
+  - **Discos** — modelo, tipo, interface, tamanho, firmware e número de série.
+- Cada valor é um par **rótulo / campo** em fonte monoespaçada. Um campo que o
+  sistema não respondeu aparece como **—**, nunca como zero.
+- **Memória sem detalhes:** no Linux o `dmidecode` exige root e no Windows o
+  WMI pode estar bloqueado. Nesse caso o cartão mostra o total e uma nota
+  explicando o que falta, em vez de inventar um slot.
+- **Placa NVIDIA sem nome:** quando o `nvidia-smi` não está instalado, a GPU
+  aparece como `Device 2d05`; o cartão avisa por quê. Com ele instalado, o nome
+  comercial, a VRAM e a versão do driver são preenchidos.
+- **Observações** reúne o que não pôde ser lido, com o motivo.
+
+---
+
+## A tela de Discos
+
+Duas abas.
+
+**Unidades** — um cartão por volume, com anel de ocupação (branco = usado,
+cinza = livre), o ponto de montagem (`/`, `/home`, `C:`), o tipo (SSD, HDD, USB,
+Rede, Óptico), o sistema de arquivos e o disco físico correspondente. O rodapé
+soma o espaço de todas as unidades. Partições de sistema (EFI, snap) ficam de
+fora, como no gerenciador de arquivos.
+
+**Saúde** — chega na fase 3: horas ligado, ciclos de energia, desgaste, setores
+realocados, temperatura e veredito com os motivos. Quando o S.M.A.R.T. não pode
+ser lido, a página prefere dizer "sem dados" a chamar o disco de saudável.
 
 ---
 

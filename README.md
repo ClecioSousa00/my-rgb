@@ -36,17 +36,20 @@ operacionais.
 - **Detecção de conflito contínua**: avisa quando outro programa (Armoury Crate,
   OpenRGB) também está controlando o mesmo controlador — inclusive se ele
   começou a rodar depois do app.
-- **Dashboard de diagnóstico** (em construção): navegação lateral com Sistema,
-  Sensores, Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual
-  monocromático do Reset Explode. As páginas entram fase por fase; a de
-  Iluminação é a mesma de sempre.
+- **Dashboard de diagnóstico**: navegação lateral com Sistema, Sensores,
+  Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual monocromático
+  do Reset Explode. Sistema e as Unidades já leem o hardware de verdade; as
+  demais páginas entram fase por fase, sempre dizendo o que falta em vez de
+  mostrar um número inventado.
 
 ### Estado do dashboard
 
 | Página | Estado |
 |---|---|
 | Iluminação | pronta (tela original) |
-| Visão geral, Sistema, Sensores, Discos, Rede, Jogos, Gargalo, Overlay, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
+| Sistema | pronto: SO, placa-mãe/BIOS, CPU, memória, GPU e discos físicos |
+| Discos | aba Unidades pronta; aba Saúde (S.M.A.R.T.) na fase 3 |
+| Visão geral, Sensores, Rede, Jogos, Gargalo, Overlay, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
 
 O plano completo, com arquitetura, fases e critérios de aceite, fica no
 arquivo de planejamento do projeto.
