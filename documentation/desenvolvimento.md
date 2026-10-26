@@ -6,20 +6,31 @@ Como o MyRGB é construído, testado e publicado.
 
 ## A regra das branches
 
-O projeto tem duas branches:
+O projeto tem três tipos de branch:
 
 | Branch | Para quê |
 |---|---|
-| `dev` | **todo o trabalho acontece aqui** |
+| `dev` | **o trabalho do dia a dia acontece aqui** |
+| `feat/...` | trabalho grande, criado a partir da `dev` (ex.: o dashboard) |
 | `main` | só recebe o que já está pronto e testado |
 
-O fluxo é:
+O fluxo normal é:
 
 ```bash
 git checkout dev
 # ... trabalha, commita, testa ...
 git push origin dev
 ```
+
+Mudanças grandes vão para uma branch própria, criada a partir da `dev`:
+
+```bash
+git checkout dev
+git checkout -b feat/nome-da-mudanca
+# ... fases, commits pequenos, tudo verde ...
+```
+
+Ela volta para a `dev` **só quando aprovada**. Nada de merge direto na `main`.
 
 E, **só quando o trabalho estiver pronto e testado**:
 
@@ -30,7 +41,7 @@ git push origin main
 ```
 
 `main` nunca recebe um commit de trabalho pela metade. Se algo ainda está em
-experimento, ele fica na `dev`.
+experimento, ele fica na `dev` (ou na branch `feat/...`).
 
 ---
 
