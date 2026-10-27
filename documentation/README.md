@@ -15,6 +15,7 @@ comportam, e como desenvolver.
 | [zonas-e-perfis.md](zonas-e-perfis.md) | Zonas, quantidade de LEDs, nomes, o botão "aplicar a todas" e o workings de perfis |
 | [windows.md](windows.md) | O passo a passo no Windows, o Armoury Crate e o diagnóstico de cintilação |
 | [desenvolvimento.md](desenvolvimento.md) | A stack, os scripts, os testes, as ferramentas e como adicionar um efeito novo |
+| [planejamento-iluminacao-externa.md](planejamento-iluminacao-externa.md) | **Planejamento, não implementado:** por que OpenRGB, Razer e Corsair ficaram para depois, o que já está pronto e como retomar |
 
 ## Em uma página
 
