@@ -3,6 +3,8 @@
  * Kept dependency-free so it can be imported from any of the three.
  */
 
+import type { OverlayConfig } from './features/overlay'
+
 export interface RGB {
   r: number
   g: number
@@ -196,6 +198,8 @@ export interface AppSettings {
   startupProfile?: string | null
   /** Window state that is not a preference but should be remembered. */
   ui?: UiSettings
+  /** On-screen display: switch, metrics, position and shortcut. */
+  overlay?: OverlayConfig
 }
 
 // ---------------------------------------------------------------------------
@@ -287,5 +291,19 @@ export const IPC = {
   /** Last finished report, kept in memory. */
   bottleneckReport: 'bottleneck:report',
   /** Pushed once per sensor batch, plus once when a session finishes. */
-  bottleneckSample: 'bottleneck:sample'
+  bottleneckSample: 'bottleneck:sample',
+  /** Current overlay configuration and capabilities. */
+  overlayGet: 'overlay:get',
+  /** Apply a partial change and return the new state. */
+  overlayUpdate: 'overlay:update',
+  /** Flip the switch (used by the page and by the global shortcut path). */
+  overlayToggle: 'overlay:toggle',
+  /** Try the FPS helper again after a failure. */
+  overlayRetryFps: 'overlay:retryFps',
+  /** Content size reported by the overlay bundle, for the window bounds. */
+  overlayResize: 'overlay:resize',
+  /** Pushed when the configuration or the FPS capability changes. */
+  overlayState: 'overlay:state',
+  /** Pushed every 500 ms while the overlay is open. */
+  overlayFrame: 'overlay:frame'
 } as const

@@ -288,25 +288,50 @@ function fakeSensors(): { start: () => void; stop: () => void; starts: number; s
   }
 }
 
+function fakeFps(): {
+  start: () => void
+  stop: () => void
+  latest: () => { fps: number } | null
+  starts: number
+  stops: number
+} {
+  return {
+    starts: 0,
+    stops: 0,
+    start() {
+      this.starts++
+    },
+    stop() {
+      this.stops++
+    },
+    latest() {
+      return null
+    }
+  }
+}
+
 const system = {
   cpu: { brand: 'AMD Ryzen 7 7700X 8-Core Processor' },
   gpus: [{ name: 'NVIDIA GeForce RTX 4070' }]
 } as unknown as SystemSnapshot
 
-function setup(options: { now?: () => number } = {}): {
+function setup(options: { now?: () => number; fps?: ReturnType<typeof fakeFps> } = {}): {
   service: BottleneckService
   sensors: ReturnType<typeof fakeSensors>
+  fps: ReturnType<typeof fakeFps>
   updates: BottleneckUpdate[]
 } {
   const sensors = fakeSensors()
+  const fps = options.fps ?? fakeFps()
   const updates: BottleneckUpdate[] = []
   const service = new BottleneckService({
     sensors,
+    fps,
     onUpdate: (update) => updates.push(update),
     now: options.now,
     loadSystem: async () => system
   })
-  return { service, sensors, updates }
+  return { service, sensors, fps, updates }
 }
 
 afterEach(() => {
@@ -343,6 +368,41 @@ describe('BottleneckService', () => {
 
     service.stopSession()
     expect(sensors.stops).toBe(1)
+  })
+
+  it('holds the FPS helper only while a session runs', async () => {
+    const fps = fakeFps()
+    const { service } = setup({ fps })
+    await service.start()
+    expect(fps.starts).toBe(0)
+
+    service.startSession(1)
+    expect(fps.starts).toBe(1)
+
+    service.stopSession()
+    expect(fps.stops).toBe(1)
+    service.stop()
+  })
+
+  it('puts the FPS sample into the session average', async () => {
+    let now = 1_000_000
+    const { service } = setup({ now: () => now })
+    await service.start()
+    service.startSession(1)
+
+    service.ingest(
+      batch([gpu('nvidia:0:load', 'load', 'Uso da GPU', 95)], now),
+      144
+    )
+    now += 60_000
+    service.ingest(
+      batch([gpu('nvidia:0:load', 'load', 'Uso da GPU', 95)], now),
+      140
+    )
+
+    // A zero or negative reading is not a valid frame rate and is ignored.
+    expect(service.report()?.avgFps).toBe(142)
+    service.stop()
   })
 
   it('classifies every batch and pushes it to the page', async () => {

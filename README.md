@@ -38,9 +38,12 @@ operacionais.
   começou a rodar depois do app.
 - **Dashboard de diagnóstico**: navegação lateral com Sistema, Sensores,
   Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual monocromático
-  do Reset Explode. Sistema, Sensores, Discos, Rede, Jogos e Gargalo já
-  funcionam; as demais páginas entram fase por fase, sempre dizendo o que falta
-  em vez de mostrar um número inventado.
+  do Reset Explode. Sistema, Sensores, Discos, Rede, Jogos, Gargalo e Overlay
+  já funcionam; as demais páginas entram fase por fase, sempre dizendo o que
+  falta em vez de mostrar um número inventado.
+- **Overlay sobre o jogo**: janela transparente, sempre no topo, que ignora o
+  mouse e não aparece na barra de tarefas. Mostra FPS, frametime, 1% low e os
+  sensores que você escolher; liga e desliga com um atalho global.
 
 ### Estado do dashboard
 
@@ -53,7 +56,8 @@ operacionais.
 | Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
 | Jogos | pronta: estimativa local dos 32 jogos e FPS medido por API (opcional) |
 | Gargalo | pronto: equilíbrio GPU × CPU, limitador ao vivo e sessão de 1/3/5 min |
-| Visão geral, Overlay, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
+| Overlay | pronto: métricas sobre o jogo, atalho global e escolha do que mostrar; FPS real no Windows, "indisponível" no Linux |
+| Visão geral, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
 
 O plano completo, com arquitetura, fases e critérios de aceite, fica no
 arquivo de planejamento do projeto.
@@ -121,6 +125,24 @@ npm run build:linux  # AppImage + .deb em release/
 
 O instalador NSIS registra a entrada de autostart do Windows quando a opção
 "Iniciar com o sistema" está ligada nas configurações do MyRGB.
+
+### FPS no overlay
+
+O FPS real do jogo vem de um helper (.NET, ETW) que precisa de permissão de
+administrador. Ele é iniciado sob demanda: a primeira vez que você liga o
+overlay (ou o FPS) o Windows mostra **um** pedido de UAC; recusar não quebra
+nada, o overlay continua mostrando os sensores e a página Overlay diz o que
+faltou.
+
+O instalador só inclui o helper se ele tiver sido gerado antes:
+
+```bash
+npm run build:helper     # precisa do .NET 8 SDK, no Windows
+npm run build:win
+```
+
+Sem o helper, a página Overlay mostra "indisponível" e oferece **Tentar
+novamente** — nenhum FPS é inventado.
 
 ---
 
@@ -204,6 +226,7 @@ npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
 npm test             # vitest
 npm run build        # build de produção em out/
+npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 ```
 
 ### Ferramentas

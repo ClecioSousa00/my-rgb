@@ -6,3 +6,9 @@ release/
 *.log
 *.tsbuildinfo
 .DS_Store
+
+# .NET helper (Windows only): build output and the published executable.
+helper/**/bin/
+helper/**/obj/
+helper/publish/win-x64/*
+!helper/publish/win-x64/.gitkeep

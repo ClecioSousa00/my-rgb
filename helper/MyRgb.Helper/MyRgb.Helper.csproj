@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MyRgb.Helper</AssemblyName>
+    <RootNamespace>MyRgb.Helper</RootNamespace>
+    <Version>0.1.0</Version>
+    <!-- One process per session, no shared state: trimming and AOT would only
+         make the TraceEvent dependency fragile. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ETW reader used by the FPS monitor. The version is pinned so a restore
+         on another machine resolves the same assembly. -->
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.8" />
+  </ItemGroup>
+
+</Project>

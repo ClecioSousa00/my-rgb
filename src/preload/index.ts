@@ -36,6 +36,11 @@ import type {
   BottleneckSnapshot,
   BottleneckUpdate
 } from '@shared/features/bottleneck'
+import type {
+  OverlayConfig,
+  OverlayFrame,
+  OverlayState
+} from '@shared/features/overlay'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -131,6 +136,19 @@ const api: MyRgbApi = {
     ipcRenderer.invoke(IPC.bottleneckReport),
   onBottleneck: (callback: (update: BottleneckUpdate) => void) =>
     subscribe(IPC.bottleneckSample, callback),
+
+  // overlay
+  getOverlayState: (): Promise<OverlayState> => ipcRenderer.invoke(IPC.overlayGet),
+  updateOverlay: (patch: Partial<OverlayConfig>): Promise<OverlayState> =>
+    ipcRenderer.invoke(IPC.overlayUpdate, patch),
+  toggleOverlay: (): Promise<OverlayState> => ipcRenderer.invoke(IPC.overlayToggle),
+  retryOverlayFps: (): Promise<OverlayState> => ipcRenderer.invoke(IPC.overlayRetryFps),
+  resizeOverlay: (width: number, height: number): Promise<void> =>
+    ipcRenderer.invoke(IPC.overlayResize, width, height),
+  onOverlayState: (callback: (state: OverlayState) => void) =>
+    subscribe(IPC.overlayState, callback),
+  onOverlayFrame: (callback: (frame: OverlayFrame) => void) =>
+    subscribe(IPC.overlayFrame, callback),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

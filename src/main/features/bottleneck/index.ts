@@ -46,8 +46,17 @@ export interface SensorSource {
   stop(): void
 }
 
+/** The two calls a bottleneck session needs from the FPS service. */
+export interface FpsSource {
+  start(): void
+  stop(): void
+  latest(): { fps: number } | null
+}
+
 export interface BottleneckServiceOptions {
   sensors: SensorSource
+  /** Started while a session runs, so the report has a real average FPS. */
+  fps?: FpsSource
   onUpdate: (update: BottleneckUpdate) => void
   onError?: (message: string) => void
   /** Injected by the tests. */
@@ -101,6 +110,9 @@ export class BottleneckService {
     if (!this.session) {
       // A second reference: the page may unmount while the analysis runs.
       this.options.sensors.start()
+      // The FPS helper is started only for the session (or earlier, by the
+      // overlay) and released when it ends.
+      this.options.fps?.start()
       this.sessionHold = true
     }
 
@@ -141,10 +153,11 @@ export class BottleneckService {
    * One sensor batch. Called by the main process for every collection,
    * including when only the session is holding the poll.
    */
-  ingest(snapshot: SensorsSnapshot): void {
+  ingest(snapshot: SensorsSnapshot, fps?: number): void {
     if (this.subscribers === 0 && !this.session) return
 
     const { sample, notes } = sampleFromReadings(snapshot.readings)
+    if (fps !== undefined && Number.isFinite(fps) && fps > 0) sample.fps = fps
     const limiter = classify(sample)
     this.live = {
       at: snapshot.at,
@@ -208,6 +221,7 @@ export class BottleneckService {
   private releaseSessionHold(): void {
     if (!this.sessionHold) return
     this.sessionHold = false
+    this.options.fps?.stop()
     this.options.sensors.stop()
   }
 

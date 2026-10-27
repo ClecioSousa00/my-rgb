@@ -50,12 +50,12 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
 | Jogos | FPS estimado por jogo, com resolução, preset e upscaling — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
-| Overlay | Métricas por cima do jogo |
+| Overlay | Métricas por cima do jogo — **pronta** |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
 
-> **Nota:** Iluminação, Sistema, Sensores, Discos, Rede, Jogos e Gargalo já
-> funcionam. As outras páginas descrevem o que virá; o plano do projeto tem a
-> ordem completa.
+> **Nota:** Iluminação, Sistema, Sensores, Discos, Rede, Jogos, Gargalo e
+> Overlay já funcionam. As outras páginas descrevem o que virá; o plano do
+> projeto tem a ordem completa.
 
 ---
 
@@ -290,8 +290,43 @@ distribuição, as médias e os máximos.
 - A sessão mantém a coleta viva mesmo se você sair da página; fechar o app
   encerra tudo. O resultado fica só na memória do processo principal — nada é
   gravado em disco.
-- O **FPS real** ainda aparece como **—**: ele chega com o overlay (Fase 7).
-  Até lá, a sessão olha para carga, memória e temperatura.
+- O **FPS real** vem do mesmo helper do overlay, no Windows. No Linux a
+  sessão roda sem FPS — o campo fica **—** e a página não inventa um número.
+
+---
+
+## A tela de Overlay
+
+Uma janela transparente por cima do jogo, no estilo RTSS/Afterburner: sem
+moldura, sempre no topo, que **ignora o mouse** e **não aparece na barra de
+tarefas**. Ela aparece em jogos em tela cheia "sem bordas" e na maioria dos
+jogos DX11/DX12 em tela cheia; em tela cheia exclusiva antiga o Windows não
+deixa nenhuma janela aparecer.
+
+- **Ligar e desligar** pelo interruptor da página ou pelo atalho global
+  **Ctrl + Shift + O**. O atalho é configurável (clique nele e pressione a
+  combinação) e exige pelo menos um modificador — Ctrl, Alt ou Shift.
+- **Monitor**: o overlay fica na tela escolhida, mesmo que o jogo abra em
+  outra.
+- **Aparência**: tamanho (Pequeno, Médio ou Grande), opacidade só do fundo (o
+  texto é sempre opaco) e canto.
+- **Métricas**: presets **Padrão**, **Tudo** e **Nada**, mais uma caixa por
+  métrica, agrupadas em FPS, GPU, VRAM, CPU, RAM e Outros (nome do jogo e
+  hora). A ordem no overlay é a do catálogo, não a ordem em que você marcou.
+- Nenhum valor é arredondado para zero: o sensor que não responde aparece como
+  **—**. Hotspot, tensão, clock da memória e limitador da NVIDIA só aparecem se
+  o driver expuser o dado.
+- O overlay usa a **mesma coleta** da página Sensores e o **mesmo serviço de
+  FPS** do Gargalo; abrir o overlay não inicia uma segunda leitura de hardware.
+- O FPS é o do **jogo em primeiro plano**, lido por ETW (o mesmo método do
+  PresentMon): nada é injetado no jogo. Frametime, 1% low (percentil 99 do
+  frametime nos últimos 10 s) e o gráfico saem da mesma amostra.
+- No Windows, a primeira leitura de FPS pede **um** UAC, porque a sessão de
+  ETW é do sistema inteiro. Recusar não quebra nada: o overlay continua com os
+  sensores e a página explica o que faltou, com **Tentar novamente**.
+- **No Linux** o overlay funciona normalmente com os sensores; o FPS fica
+  **—** e a página diz que a leitura de frames do Windows não existe aqui,
+  apontando o MangoHud/gamescope.
 
 ---
 

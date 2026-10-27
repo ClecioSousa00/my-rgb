@@ -127,6 +127,22 @@ describe('parseNvidiaSmi', () => {
     expect(second.vramPct).toBeUndefined()
   })
 
+  it('reads the optional memory clock and memory temperature when present', () => {
+    const stdout = 'NVIDIA GeForce RTX 4070, 52, 13, 2100, 78.5, 31, 6144, 12288, 10501, 78'
+
+    const [sample] = parseNvidiaSmi(stdout)
+    expect(sample.memoryClockMhz).toBe(10501)
+    expect(sample.memoryTemperature).toBe(78)
+  })
+
+  it('still parses an older driver that does not return the optional columns', () => {
+    const [sample] = parseNvidiaSmi('NVIDIA GeForce RTX 4070, 52, 13, 2100, 78.5, 31, 6144, 12288')
+
+    expect(sample.memoryClockMhz).toBeUndefined()
+    expect(sample.memoryTemperature).toBeUndefined()
+    expect(sample.vramPct).toBe(50)
+  })
+
   it('builds only the readings the card actually reported', () => {
     const readings = buildNvidiaReadings([
       { name: 'RTX 4070', temperature: 52, utilization: 13, clockMhz: 2100, powerW: 78.5 }

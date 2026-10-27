@@ -16,7 +16,7 @@ import type { SensorReading } from '@shared/features/sensors'
 
 const run = promisify(execFile)
 
-const FIELDS = [
+const FIELDS_REQUIRED = [
   'name',
   'temperature.gpu',
   'utilization.gpu',
@@ -25,7 +25,14 @@ const FIELDS = [
   'fan.speed',
   'memory.used',
   'memory.total'
-].join(',')
+]
+
+/**
+ * Not every driver knows these; the query is retried without them once, and
+ * then stays without them for the rest of the run. They are last in the list
+ * so the required columns keep their positions.
+ */
+const FIELDS_OPTIONAL = ['clocks.mem', 'temperature.memory']
 
 /** How long to wait before trying nvidia-smi again after a failure. */
 const RETRY_AFTER_MS = 60_000
@@ -39,6 +46,9 @@ export interface NvidiaSample {
   fanPct?: number
   /** Share of the card's memory in use, 0–100. */
   vramPct?: number
+  memoryClockMhz?: number
+  /** Memory junction temperature; not every driver reports it. */
+  memoryTemperature?: number
 }
 
 function numberOrUndefined(text: string | undefined): number | undefined {
@@ -55,7 +65,18 @@ export function parseNvidiaSmi(stdout: string): NvidiaSample[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [name, temperature, utilization, clock, power, fan, memoryUsed, memoryTotal] = line
+      const [
+        name,
+        temperature,
+        utilization,
+        clock,
+        power,
+        fan,
+        memoryUsed,
+        memoryTotal,
+        memoryClock,
+        memoryTemperature
+      ] = line
         .split(',')
         .map((part) => part.trim())
 
@@ -72,7 +93,9 @@ export function parseNvidiaSmi(stdout: string): NvidiaSample[] {
         vramPct:
           used !== undefined && total !== undefined && total > 0
             ? Math.round(((used / total) * 100) * 10) / 10
-            : undefined
+            : undefined,
+        memoryClockMhz: numberOrUndefined(memoryClock),
+        memoryTemperature: numberOrUndefined(memoryTemperature)
       }
     })
 }
@@ -125,6 +148,30 @@ export function buildNvidiaReadings(samples: NvidiaSample[]): SensorReading[] {
       })
     }
 
+    if (sample.memoryClockMhz !== undefined) {
+      readings.push({
+        ...base,
+        id: `nvidia:${index}:memclock`,
+        kind: 'clock',
+        label: 'Clock da memória',
+        value: sample.memoryClockMhz,
+        unit: 'MHz',
+        order: 1
+      })
+    }
+
+    if (sample.memoryTemperature !== undefined) {
+      readings.push({
+        ...base,
+        id: `nvidia:${index}:temp-mem`,
+        kind: 'temperature',
+        label: 'Temperatura da memória',
+        value: sample.memoryTemperature,
+        unit: '°C',
+        order: 1
+      })
+    }
+
     if (sample.powerW !== undefined) {
       readings.push({
         ...base,
@@ -166,6 +213,12 @@ export function buildNvidiaReadings(samples: NvidiaSample[]): SensorReading[] {
 }
 
 let unavailableUntil = 0
+/** Flipped off when the driver rejects the extra query fields. */
+let optionalFields = true
+
+function fields(withOptional: boolean): string {
+  return [...FIELDS_REQUIRED, ...(withOptional ? FIELDS_OPTIONAL : [])].join(',')
+}
 
 /**
  * Read the NVIDIA sensors, or an empty list when nvidia-smi is not usable.
@@ -180,12 +233,23 @@ export async function readNvidiaSensors(): Promise<{
 }> {
   if (Date.now() < unavailableUntil) return { readings: [], available: false }
 
+  const query = (withOptional: boolean): Promise<{ stdout: string }> =>
+    run('nvidia-smi', [
+      `--query-gpu=${fields(withOptional)}`,
+      '--format=csv,noheader,nounits'
+    ], { timeout: 4000 })
+
   try {
-    const { stdout } = await run(
-      'nvidia-smi',
-      [`--query-gpu=${FIELDS}`, '--format=csv,noheader,nounits'],
-      { timeout: 4000 }
-    )
+    let stdout: string
+    try {
+      stdout = (await query(optionalFields)).stdout
+    } catch (error) {
+      if (!optionalFields) throw error
+      // Old driver: the whole query is refused because of the optional fields.
+      // Fall back once and remember it, so only the first poll pays for this.
+      optionalFields = false
+      stdout = (await query(false)).stdout
+    }
     return { readings: buildNvidiaReadings(parseNvidiaSmi(stdout)), available: true }
   } catch {
     unavailableUntil = Date.now() + RETRY_AFTER_MS

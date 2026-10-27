@@ -5,7 +5,7 @@
  * the renderer over a narrow IPC surface. The renderer never touches HID.
  */
 
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, shell } from 'electron'
 import { mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
@@ -22,6 +22,10 @@ import { initAutoUpdater } from './updater'
 import { registerIpc } from './ipc/register'
 import { SensorsStore } from './features/sensors/store'
 import { BottleneckService } from './features/bottleneck'
+import { FpsService } from './features/overlay/fps'
+import { OverlayService } from './features/overlay/manager'
+import { findHelperPath, helperCandidates, HelperBridge } from './features/overlay/helper'
+import type { OverlayState } from '@shared/features/overlay'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
@@ -46,6 +50,10 @@ class MyRgbApp {
   sensors!: SensorsStore
   /** Live limiter and session report, fed by the sensor stream. */
   bottleneck!: BottleneckService
+  /** FPS from the ETW helper (Windows) or an unavailable capability. */
+  fps!: FpsService
+  /** Transparent overlay over the game. */
+  overlay!: OverlayService
   window: BrowserWindow | null = null
   private trayHandle: TrayHandle | null = null
   private conflicts: ConflictReport = { conflicting: false, processes: [], hint: '' }
@@ -98,18 +106,50 @@ class MyRgbApp {
 
     // The sensor poll runs only while a page is subscribed (and the window is
     // visible), so creating it here costs nothing.
+    this.fps = new FpsService({
+      createBridge: () => {
+        // Absent helper is a capability, not an error: no FPS, overlay still on.
+        const executable = findHelperPath(
+          helperCandidates(app.getAppPath(), process.resourcesPath)
+        )
+        return executable ? new HelperBridge({ executable }) : null
+      },
+      onStatus: () => this.pushOverlayState()
+    })
+
     this.sensors = new SensorsStore({
       onBatch: (snapshot) => this.pushSensors(snapshot),
+      // The overlay must keep collecting while the main window is hidden over
+      // a game, so it counts as a reason to poll.
       canPoll: () =>
-        this.window !== null && !this.window.isDestroyed() && this.window.isVisible(),
+        this.overlay?.needsSensors() === true ||
+        (this.window !== null && !this.window.isDestroyed() && this.window.isVisible()),
       onError: (message) => this.emitAppError(`Sensores: ${message}`)
     })
 
     // The bottleneck reads the same batches; it never collects on its own.
     this.bottleneck = new BottleneckService({
       sensors: this.sensors,
+      fps: this.fps,
       onUpdate: (update) => this.pushBottleneck(update),
       onError: (message) => this.emitAppError(`Gargalo: ${message}`)
+    })
+
+    this.overlay = new OverlayService({
+      settings: this.settings,
+      sensors: this.sensors,
+      fps: this.fps,
+      preload: join(app.getAppPath(), 'out', 'preload', 'index.js'),
+      load: (window) => {
+        const devUrl = process.env.ELECTRON_RENDERER_URL
+        if (isDev && devUrl) {
+          void window.loadURL(`${devUrl}/overlay.html`)
+        } else {
+          void window.loadFile(join(app.getAppPath(), 'out', 'renderer', 'overlay.html'))
+        }
+      },
+      onState: (state) => this.pushOverlayState(state),
+      onError: (message) => this.emitAppError(`Overlay: ${message}`)
     })
 
     await this.openDevice()
@@ -120,6 +160,7 @@ class MyRgbApp {
     this.createWindow()
     this.createTray()
     this.installIpc()
+    await this.overlay.start()
 
     if (this.settings.settings.autoStart) {
       this.engine.start()
@@ -361,8 +402,9 @@ class MyRgbApp {
 
   private pushSensors(snapshot: SensorsSnapshot): void {
     // Even when the Sensores page is closed, a bottleneck session may be
-    // running on this batch; it keeps its own reference on the poll.
-    this.bottleneck.ingest(snapshot)
+    // running on this batch; it keeps its own reference on the poll. The FPS
+    // sample comes from the same 500 ms poll the overlay uses.
+    this.bottleneck.ingest(snapshot, this.fps?.latest()?.fps)
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.sensorsBatch, snapshot)
     }
@@ -371,6 +413,15 @@ class MyRgbApp {
   private pushBottleneck(update: BottleneckUpdate): void {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.bottleneckSample, update)
+    }
+  }
+
+  /** Overlay state to the settings page (never to the overlay itself). */
+  private pushOverlayState(state?: OverlayState): void {
+    const current = state ?? this.overlay?.state()
+    if (!current) return
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send(IPC.overlayState, current)
     }
   }
 
@@ -486,7 +537,9 @@ class MyRgbApp {
   /** Release everything before the app quits. */
   shutdown(): void {
     this.engine?.stop()
+    this.overlay?.dispose()
     this.bottleneck?.dispose()
+    this.fps?.dispose()
     this.sensors?.dispose()
     if (this.conflictTimer) {
       clearInterval(this.conflictTimer)
@@ -790,6 +843,48 @@ async function runSelfTest(): Promise<void> {
         /Análise cancelada/.test(text()) &&
         document.querySelector('.page-title')?.textContent === 'Gargalo'
 
+      // Overlay: the switch has to create the real transparent window in the
+      // main process (state.open), reflect it on the page, and close it again.
+      // Creating a BrowserWindow is exactly what the shortcut does, so this
+      // covers the path that runs over a game.
+      window.__myRgbNavigate && window.__myRgbNavigate('overlay')
+      await waitFor(
+        () => /Mostrar por cima do jogo/.test(text()) && /Atalho global/.test(text()),
+        10000
+      )
+      const overlayTitle = document.querySelector('.page-title')?.textContent === 'Overlay'
+      const overlaySwitch = document.querySelector('input[aria-label="Ligar o overlay"]')
+
+      const overlayState = async (open) => {
+        const end = Date.now() + 10000
+        for (;;) {
+          const state = await window.myrgb.getOverlayState()
+          if (state.open === open || Date.now() > end) return state
+          await sleep(200)
+        }
+      }
+
+      let overlayOpened = false
+      let overlayClosed = false
+      if (overlaySwitch instanceof HTMLInputElement) {
+        if (!overlaySwitch.checked) overlaySwitch.click()
+        overlayOpened = (await overlayState(true)).open === true
+        await waitFor(() => document.querySelector('.verdict')?.textContent === 'Ligado', 5000)
+        const shownOnPage = document.querySelector('.verdict')?.textContent === 'Ligado'
+
+        if (overlaySwitch instanceof HTMLInputElement && overlaySwitch.checked) {
+          overlaySwitch.click()
+        }
+        overlayClosed = (await overlayState(false)).open === false
+        await waitFor(() => document.querySelector('.verdict')?.textContent === 'Desligado', 5000)
+        window.__myRgbOverlayReady =
+          overlayTitle &&
+          overlayOpened &&
+          shownOnPage &&
+          overlayClosed &&
+          document.querySelector('.verdict')?.textContent === 'Desligado'
+      }
+
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await sleep(400)
       // The profile controls only make sense on the lighting screen, and they
@@ -843,6 +938,7 @@ async function runSelfTest(): Promise<void> {
         networkReady: window.__myRgbNetworkReady === true,
         gamesReady: window.__myRgbGamesReady === true,
         bottleneckReady: window.__myRgbBottleneckReady === true,
+        overlayReady: window.__myRgbOverlayReady === true,
         sensorsReady: window.__myRgbSensorsReady === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
@@ -852,6 +948,12 @@ async function runSelfTest(): Promise<void> {
       }
     })()
   `)
+
+  // The global shortcut is what toggles the overlay over a game; registering
+  // it is the part that can silently fail when another app owns the combo.
+  report.shortcutRegistered = globalShortcut.isRegistered(
+    instance.overlay.state().config.shortcut
+  )
 
   console.log('SELFTEST ' + JSON.stringify(report, null, 2))
   const ok =
@@ -869,6 +971,8 @@ async function runSelfTest(): Promise<void> {
     report.networkReady === true &&
     report.gamesReady === true &&
     report.bottleneckReady === true &&
+    report.overlayReady === true &&
+    report.shortcutRegistered === true &&
     report.sensorsReady === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
@@ -927,7 +1031,8 @@ if (!app.requestSingleInstanceLock()) {
     await instance.start()
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) instance.createWindow()
+      // The overlay window is also a BrowserWindow; count only the dashboard.
+      if (!instance.mainWindow) instance.createWindow()
     })
   })
 

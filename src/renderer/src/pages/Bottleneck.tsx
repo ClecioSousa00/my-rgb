@@ -363,7 +363,7 @@ function ReportCard({ report }: { report: BottleneckSessionReport }): React.JSX.
           <Metric
             label="FPS médio"
             value={report.avgFps === undefined ? '—' : Math.round(report.avgFps)}
-            hint={report.avgFps === undefined ? 'chega com o overlay (Fase 7)' : undefined}
+            hint={report.avgFps === undefined ? 'sem FPS nesta sessão' : undefined}
           />
           <Metric label="GPU média" value={percent(report.avgGpuLoad)} />
           <Metric label="CPU média" value={percent(report.avgCpuLoad)} />
@@ -649,8 +649,8 @@ export function BottleneckPage(): React.JSX.Element {
             Regras, na ordem: VRAM ≥ 97 % → temperatura (CPU ≥ 95 °C ou GPU em queda térmica) →
             GPU ≥ 90 % → CPU ou núcleo ≥ 85 % → RAM ≥ 92 % → nada no limite (trava, V-Sync ou menu).
             A queda térmica da GPU é aproximada pela temperatura ≥ 90 °C; o Reset Explode lê os
-            bits de throttle da NVML, que o nvidia-smi não expõe. O FPS real chega com o overlay
-            (Fase 7).
+            bits de throttle da NVML, que o nvidia-smi não expõe. O FPS real vem do helper do
+            Windows, o mesmo do overlay; no Linux a sessão roda sem FPS.
           </p>
         </div>
       )}

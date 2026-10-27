@@ -66,6 +66,14 @@ win:
     - target: nsis
       arch: [x64]
   artifactName: ${productName}-${version}-setup.${ext}
+  extraResources:
+    # FPS helper (ETW). Built separately with `npm run build:helper` because it
+    # needs the .NET SDK on Windows; the folder always exists so a build
+    # without it still produces a working installer, just without FPS.
+    - from: helper/publish/win-x64
+      to: helper
+      filter:
+        - MyRgb.Helper.exe
 
 deb:
   # Runs as root during `dpkg -i`: puts the udev rule in place so the app

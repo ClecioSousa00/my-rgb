@@ -44,6 +44,7 @@ jobs:
           tests/network.test.ts
           tests/games.test.ts
           tests/bottleneck.test.ts
+          tests/overlay.test.ts
 
       - name: Build
         run: npm run build

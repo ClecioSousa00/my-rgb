@@ -44,7 +44,12 @@ export default defineConfig({
     plugins: [react(), tailwindcss()],
     build: {
       rollupOptions: {
-        input: { index: resolve(root, 'src/renderer/index.html') }
+        input: {
+          index: resolve(root, 'src/renderer/index.html'),
+          // Separate bundle for the transparent overlay window; it never loads
+          // the dashboard CSS or the app store.
+          overlay: resolve(root, 'src/renderer/overlay.html')
+        }
       }
     }
   }

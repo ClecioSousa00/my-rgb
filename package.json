@@ -29,6 +29,7 @@
     "test:watch": "vitest",
     "postinstall": "node tools/check-hid-binary.mjs",
     "build:linux": "npm run build && electron-builder --linux --publish never",
+    "build:helper": "dotnet publish helper/MyRgb.Helper -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o helper/publish/win-x64",
     "build:win": "npm run build && electron-builder --win --publish never",
     "build:win:dir": "npm run build && electron-builder --win dir --publish never --config.win.signAndEditExecutable=false",
     "build:dir": "npm run build && electron-builder --dir --publish never",

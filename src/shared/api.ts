@@ -35,6 +35,11 @@ import type {
   BottleneckSnapshot,
   BottleneckUpdate
 } from './features/bottleneck'
+import type {
+  OverlayConfig,
+  OverlayFrame,
+  OverlayState
+} from './features/overlay'
 
 export type Unsubscribe = () => void
 
@@ -144,6 +149,22 @@ export interface MyRgbApi {
   getBottleneckReport(): Promise<BottleneckSessionReport | null>
   /** One update per second while the page is open. */
   onBottleneck(callback: (update: BottleneckUpdate) => void): Unsubscribe
+
+  // overlay
+  /** Current configuration, open state and FPS capabilities. */
+  getOverlayState(): Promise<OverlayState>
+  /** Apply a partial change and persist it. */
+  updateOverlay(patch: Partial<OverlayConfig>): Promise<OverlayState>
+  /** Flip the overlay switch. */
+  toggleOverlay(): Promise<OverlayState>
+  /** Try the FPS helper again after a refusal or a crash. */
+  retryOverlayFps(): Promise<OverlayState>
+  /** Content size reported by the overlay bundle. */
+  resizeOverlay(width: number, height: number): Promise<void>
+  /** Pushed when the configuration or the FPS capability changes. */
+  onOverlayState(callback: (state: OverlayState) => void): Unsubscribe
+  /** Pushed every 500 ms while the overlay is open. */
+  onOverlayFrame(callback: (frame: OverlayFrame) => void): Unsubscribe
 
   // events
   onFrame(callback: (frame: Frame) => void): Unsubscribe

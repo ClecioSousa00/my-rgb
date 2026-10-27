@@ -58,11 +58,13 @@ experimento, ele fica na `dev` (ou na branch `feat/...`).
 | Empacotamento | electron-builder 26 |
 | Hardware | node-hid 3.4 |
 | Diagnóstico | systeminformation 5 (SO, CPU, RAM, GPU e discos) + hwmon/nvidia-smi (sensores) |
+| FPS (Windows) | helper .NET 8 + ETW (`Microsoft.Diagnostics.Tracing.TraceEvent`) |
 
-Uma coisa que economiza muito trabalho: **não existe código específico de
-sistema operacional**. O node-hid fala HID puro, que se comporta igual no
-Linux (`hidraw`) e no Windows (`hid.dll`). Não há caminho de código para
-"apenas no Windows" — o mesmo binário funciona nos dois.
+Uma coisa que economiza muito trabalho: **o caminho da iluminação não tem
+código específico de sistema operacional**. O node-hid fala HID puro, que se
+comporta igual no Linux (`hidraw`) e no Windows (`hid.dll`). O mesmo binário
+funciona nos dois. A única exceção é a leitura de FPS, que depende do ETW do
+Windows e fica isolada em `src/main/features/overlay/` e no helper .NET.
 
 ---
 
@@ -74,6 +76,7 @@ npm run dev          # electron-vite dev, com hot reload
 npm run typecheck    # tsc nos dois projetos (node + web)
 npm test             # vitest
 npm run build        # build de produção em out/
+npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 ```
 
 ### Empacotamento
@@ -83,6 +86,10 @@ npm run build:linux      # AppImage + .deb em release/
 npm run build:win        # instalador NSIS (precisa do Windows ou do wine)
 npm run build:win:dir    # release/win-unpacked/ — funciona em qualquer sistema
 ```
+
+Rode `npm run build:helper` **antes** do `build:win` para incluir o helper de
+FPS no instalador. Sem ele, o instalador continua válido: o overlay abre, só o
+FPS fica "indisponível" e a página oferece **Tentar novamente**.
 
 ### Modos de linha de comando
 
@@ -280,13 +287,68 @@ temperatura da GPU ≥ 90 °C. A classificação continua recebendo o campo
 sinal muda. A página diz isso em uma linha no rodapé.
 
 O relatório fica só na memória do processo principal; não é um documento. O FPS
-real entra na Fase 7, com o overlay.
+real vem do helper do Windows (o mesmo do overlay); no Linux a sessão roda sem
+FPS, e o campo fica **—**.
+
+---
+
+## Como o overlay e o FPS funcionam
+
+O overlay é uma **janela separada**, não um componente da janela principal. O
+processo principal formata cada linha e envia um quadro pronto a cada 500 ms; o
+bundle do overlay (`src/renderer/src/overlay/`) só desenha o que recebe, sem
+acessar hardware.
+
+- `src/shared/features/overlay.ts` — catálogo das 26 métricas (mesma ordem e
+  mesmos padrões do Reset Explode), `OverlayConfig`, normalização e o formato do
+  quadro. É a única fonte para a página e para o overlay.
+- `src/main/features/overlay/manager.ts` — `OverlayService`: cria a janela
+  (`transparent`, `frame: false`, `alwaysOnTop` em `screen-saver`,
+  `skipTaskbar`, `focusable: false`, `setIgnoreMouseEvents(true)` e
+  `showInactive()`), registra o atalho global, grava a configuração em
+  `settings.json` e mantém uma referência no `SensorsStore` e no `FpsService`
+  enquanto a janela existe — por isso a coleta continua com a janela principal
+  escondida atrás do jogo.
+- `src/main/features/overlay/position.ts` — só a matemática dos quatro cantos,
+  com margem de 12 px e limite na borda; testável sem Electron.
+- `src/main/features/overlay/frame.ts` — transforma o lote de sensores e a
+  amostra de FPS em textos. Ausente é **—**, nunca 0; RAM e VRAM em GB usam o
+  total do `SystemSnapshot`.
+- `src/main/features/overlay/fps.ts` — `FpsService`, contado como referência
+  (overlay e sessão do Gargalo). Começa sob demanda, desiste depois de três
+  falhas e considera a amostra velha depois de 3 s (jogo fechado ou menu).
+- `src/main/features/overlay/helper.ts` — ponte com o helper: servidor de named
+  pipe, `Start-Process -Verb RunAs`, uma linha JSON por comando e um `ping`
+  antes de pedir frames.
+
+### O helper do Windows
+
+`helper/MyRgb.Helper` é um executável .NET 8 (`net8.0-windows`) que lê os
+eventos "Present" do DXGI (evento 42) e do D3D9 (evento 1) via ETW — a mesma
+técnica do PresentMon, sem injetar nada no jogo. Ele responde com o processo em
+primeiro plano:
+
+```json
+{"pid":4242,"process":"Cyberpunk2077","fps":143.8,"frameTimeMs":6.94,"low1Fps":121.2,"recent":[6.9,7.1]}
+```
+
+- O app **não** roda elevado: o helper é iniciado sob demanda com UAC. Como um
+  processo elevado não herda o stdout do pai, o protocolo usa um named pipe
+  (`\\.\pipe\myrgb-helper-<aleatório>`) em que o Electron é o servidor e o
+  helper o cliente. Sem `--pipe`, ele também aceita stdio, para depuração.
+- O FPS é calculado pelo relógio dos eventos (imune ao atraso de entrega do
+  ETW); o 1% low é o percentil 99 do frametime dos últimos 10 s.
+- Esta versão lê **só FPS**. Temperaturas, ventoinhas e tensões no Windows
+  continuam pendentes (a página Sensores diz isso).
+- `npm run build:helper` publica um executável único e autossuficiente em
+  `helper/publish/win-x64/`; o electron-builder copia para `resources/helper/`.
+  Sem ele, nada quebra: só o FPS fica indisponível.
 
 ---
 
 ## Os testes
 
-224 testes em 15 arquivos, todos rodando em alguns segundos.
+255 testes em 16 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -304,6 +366,7 @@ real entra na Fase 7, com o overlay.
 | `tests/network.test.ts` | O parser do `ping` (Linux e Windows pt-BR), jitter e perda, e os limites do veredito de rede |
 | `tests/games.test.ts` | O casamento CPU/GPU pelo nome mais longo, a fórmula do FPS, os nomes curtos da API, o cache de 7 dias e os erros 401/403/404/429 |
 | `tests/bottleneck.test.ts` | A ordem e os limites das regras, os textos do equilíbrio, a amostragem, o relatório, a contagem de referência e o timer da sessão |
+| `tests/overlay.test.ts` | O catálogo e a normalização do overlay, os quatro cantos, o formatador de métricas, o protocolo do helper e a contagem de referência/falhas do serviço de FPS |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 
 ```bash
@@ -418,6 +481,11 @@ npm run build:win        # release/MyRGB-0.1.0-setup.exe
 O `build:win:dir` funciona em qualquer sistema e serve para conferir o
 empacotamento (estrutura do asar, binário nativo, ícones) antes de ir para o
 Windows.
+
+O helper de FPS entra como recurso extra (`resources/helper/MyRgb.Helper.exe`)
+quando `helper/publish/win-x64/MyRgb.Helper.exe` existir. Ele é publicado à
+parte com `npm run build:helper`, porque precisa do .NET 8 SDK no Windows; o
+instalador gerado sem ele continua válido, apenas sem FPS.
 
 ---
 

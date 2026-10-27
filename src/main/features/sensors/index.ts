@@ -95,8 +95,9 @@ export async function collectSensors(now = Date.now()): Promise<SensorsSnapshot>
   if (process.platform === 'win32') {
     const hasNvidia = nvidia.readings.length > 0
     notes.push(
-      'Temperaturas do processador, ventoinhas, tensões e consumo da placa-mãe dependem do ' +
-        'helper do Windows (Fase 7). Por enquanto só carga, clocks e memória são lidos' +
+      'Temperaturas do processador, ventoinhas, tensões e consumo da placa-mãe ainda não são ' +
+        'lidos no Windows: o helper existe, mas por enquanto só mede FPS. Só carga, clocks e ' +
+        'memória são lidos' +
         (hasNvidia ? ', além dos sensores da GPU NVIDIA.' : '.')
     )
     if (!hasNvidia && system && system.gpus.some((gpu) => /nvidia/i.test(gpu.name))) {

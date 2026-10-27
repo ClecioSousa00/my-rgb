@@ -32,6 +32,8 @@ import {
 } from '../features/network'
 import { GamesService } from '../features/games'
 import type { BottleneckService } from '../features/bottleneck'
+import type { OverlayService } from '../features/overlay/manager'
+import type { OverlayConfig } from '@shared/features/overlay'
 
 /** What a handler needs from the application. */
 export interface IpcHost {
@@ -46,6 +48,8 @@ export interface IpcHost {
   sensors: SensorsStore
   /** Live limiter and session reports, fed by the same sensor poll. */
   bottleneck: BottleneckService
+  /** Transparent overlay window and its settings. */
+  overlay: OverlayService
   /** Device state with the conflict flag already merged in. */
   readonly deviceInfo: DeviceInfo
   readonly engineState: EngineState
@@ -296,4 +300,16 @@ export function registerIpc(host: IpcHost): void {
   )
   ipcMain.handle(IPC.bottleneckSessionStop, () => host.bottleneck.stopSession())
   ipcMain.handle(IPC.bottleneckReport, () => host.bottleneck.report())
+
+  // --- overlay ------------------------------------------------------------
+
+  ipcMain.handle(IPC.overlayGet, () => host.overlay.state())
+  ipcMain.handle(IPC.overlayUpdate, (_e, patch: Partial<OverlayConfig>) =>
+    host.overlay.update(patch)
+  )
+  ipcMain.handle(IPC.overlayToggle, () => host.overlay.toggle())
+  ipcMain.handle(IPC.overlayRetryFps, () => host.overlay.retryFps())
+  ipcMain.handle(IPC.overlayResize, (_e, width: number, height: number) => {
+    host.overlay.resize(width, height)
+  })
 }
