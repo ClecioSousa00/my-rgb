@@ -57,10 +57,12 @@ operacionais.
 | Jogos | pronta: estimativa local dos 32 jogos e FPS medido por API (opcional) |
 | Gargalo | pronto: equilíbrio GPU × CPU, limitador ao vivo e sessão de 1/3/5 min |
 | Overlay | pronto: métricas sobre o jogo, atalho global e escolha do que mostrar; FPS real no Windows, "indisponível" no Linux |
-| Visão geral, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
+| Visão geral | esqueleto de navegação |
+| Integrações | **não implementada**: o motivo e o plano estão em [documentation/planejamento-iluminacao-externa.md](documentation/planejamento-iluminacao-externa.md) |
 
-O plano completo, com arquitetura, fases e critérios de aceite, fica no
-arquivo de planejamento do projeto.
+O roteador de iluminação já existe e aceita outros backends sem tocar no motor;
+OpenRGB, Razer e Corsair ficaram para depois, e a página Integrações é a única
+que ainda não tem conteúdo.
 
 
 ## Requisitos
@@ -86,7 +88,7 @@ root consegue abri-lo.
 O `.deb` instala a regra sozinho durante o `dpkg -i`:
 
 ```bash
-sudo dpkg -i release/my-rgb_0.1.0_amd64.deb
+sudo dpkg -i release/my-rgb_0.2.0_amd64.deb
 ```
 
 Depois, **desligue e religue o cabo do controlador** (ou reinicie) para que a
@@ -224,9 +226,10 @@ garantir que as duas execuções usaram a mesma configuração.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest
+npm test             # vitest (276 testes, 17 arquivos)
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
+npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
 ```
 
 ### Ferramentas
@@ -265,7 +268,7 @@ desinstalador, e isso exige o `wine` no Linux.
 
 ```bash
 # no Windows
-npm run build:win        # release/MyRGB-0.1.0-setup.exe
+npm run build:win        # release/MyRGB-0.2.0-setup.exe
 ```
 
 O `build:win:dir` funciona em qualquer sistema e serve para conferir o
@@ -278,16 +281,23 @@ o Windows.
 
 ```
 src/
-  shared/          tipos + matemática de cor (usados pelos dois lados)
+  shared/          tipos, matemática de cor e contratos das páginas de diagnóstico
   main/            processo principal
     aura/          protocolo (puro) + transporte HID
+    light/         roteador de saída + backend AURA (o lugar dos futuros backends)
     engine/        motor de efeitos + os 50 padrões
     store/         perfis e configurações em JSON
     platform/      detecção de conflito com Armoury Crate / OpenRGB
+    features/      coletores: sistema, sensores, saúde, rede, jogos, gargalo, overlay
+    ipc/           todos os canais (`register.ts`)
   preload/         ponte contextBridge (única ponte renderer ↔ main)
-  renderer/        React: barra superior, zonas, preview, editor de gradiente
+  renderer/
+    src/           React: barra superior, zonas, preview, editor de gradiente e páginas
+    overlay.html   bundle separado da janela do overlay
+helper/            helper .NET 8 do Windows (FPS por ETW)
 tests/             vitest
 tools/             scripts de linha de comando
+documentation/     a referência do projeto
 ```
 
 O renderer **nunca** fala com o HID. Ele só chama a API exposta pelo preload,
@@ -326,4 +336,6 @@ que compara os dois, pacote a pacote.
 
 ## Licença
 
-MIT
+MIT — o texto está em [LICENSE](LICENSE). O que veio de fora (a lógica derivada
+do Reset Explode, as dependências de runtime e suas licenças) está em
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

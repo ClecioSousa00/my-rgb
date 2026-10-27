@@ -51,11 +51,12 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Jogos | FPS estimado por jogo, com resolução, preset e upscaling — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
 | Overlay | Métricas por cima do jogo — **pronta** |
-| Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
+| Integrações | OpenRGB, Razer Chroma e Corsair iCUE — **não implementada** |
 
 > **Nota:** Iluminação, Sistema, Sensores, Discos, Rede, Jogos, Gargalo e
-> Overlay já funcionam. As outras páginas descrevem o que virá; o plano do
-> projeto tem a ordem completa.
+> Overlay já funcionam. Visão geral e Integrações ainda mostram o que vão
+> conter: a segunda está explicada, com motivo e plano, em
+> [planejamento-iluminacao-externa.md](planejamento-iluminacao-externa.md).
 
 ---
 

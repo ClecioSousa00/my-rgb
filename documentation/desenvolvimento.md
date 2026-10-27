@@ -74,9 +74,10 @@ Windows e fica isolada em `src/main/features/overlay/` e no helper .NET.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev, com hot reload
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest
+npm test             # vitest — 276 testes em 17 arquivos
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
+npm run selftest     # build + UI real, conferindo páginas, IPC e quadros
 ```
 
 ### Empacotamento
@@ -90,6 +91,13 @@ npm run build:win:dir    # release/win-unpacked/ — funciona em qualquer sistem
 Rode `npm run build:helper` **antes** do `build:win` para incluir o helper de
 FPS no instalador. Sem ele, o instalador continua válido: o overlay abre, só o
 FPS fica "indisponível" e a página oferece **Tentar novamente**.
+
+Os recursos extras são declarados **por plataforma** no `electron-builder.yml`,
+não no topo: um bloco de plataforma (`linux:`, `win:`) substitui a lista
+global em vez de somar. Por isso cada um repete os ícones e acrescenta o que é
+seu — a regra udev no Linux, o helper no Windows. Deixar os ícones só no topo
+faz o pacote do Windows sair sem eles (bandeja e notificações sem imagem), e
+foi o que aconteceu até o CI passar a conferir o conteúdo do pacote.
 
 ### Modos de linha de comando
 
@@ -517,7 +525,7 @@ desinstalador, e isso exige o `wine` no Linux.
 
 ```bash
 # no Windows
-npm run build:win        # release/MyRGB-0.1.0-setup.exe
+npm run build:win        # release/MyRGB-0.2.0-setup.exe
 ```
 
 O `build:win:dir` funciona em qualquer sistema e serve para conferir o
@@ -528,6 +536,34 @@ O helper de FPS entra como recurso extra (`resources/helper/MyRgb.Helper.exe`)
 quando `helper/publish/win-x64/MyRgb.Helper.exe` existir. Ele é publicado à
 parte com `npm run build:helper`, porque precisa do .NET 8 SDK no Windows; o
 instalador gerado sem ele continua válido, apenas sem FPS.
+
+---
+
+## Integração contínua
+
+`.github/workflows/ci.yml` roda em dois sistemas:
+
+- **Linux**: `npm run typecheck`, a suíte de testes (menos `conflict.test.ts`,
+  que lê processos reais e é instável num runner compartilhado) e
+  `npm run build`.
+- **Windows**: `npm install`, `npm run build:helper` com o .NET 8 e
+  `npm run build:win:dir`. No fim, confere que o pacote gerado tem o
+  `MyRGB.exe`, o helper em `resources/helper/`, o `icon.png` e o `tray.png`.
+  É essa checagem que impede o pacote de sair sem os ícones de novo.
+
+O instalador NSIS em si não é gerado no CI: ele precisa do Windows (ou do
+`wine`) para extrair o desinstalador.
+
+---
+
+## Licença e atribuição
+
+- [LICENSE](../LICENSE): MIT © 2026 ClecioSousa00.
+- [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md): o texto MIT do Reset
+  Explode, a frase de atribuição, a tabela de arquivos derivados, as
+  dependências de runtime e a nota sobre o protocolo do AURA (reimplementado a
+  partir do comportamento, sem código do OpenRGB).
+- Todo arquivo derivado do Reset carrega o aviso no cabeçalho.
 
 ---
 
