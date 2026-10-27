@@ -716,6 +716,31 @@ async function runSelfTest(): Promise<void> {
         /Teste cancelado/.test(text()) &&
         document.querySelector('.page-title')?.textContent === 'Rede'
 
+      // Jogos: the local estimate needs no key and no network, so the table
+      // must fill with 32 rows. Changing the resolution has to recompute the
+      // numbers, which proves the options reach the main process.
+      window.__myRgbNavigate && window.__myRgbNavigate('games')
+      await waitFor(
+        () => document.querySelectorAll('tbody tr').length >= 30 && /estimativa local/i.test(text()),
+        15000
+      )
+      const gameRows = document.querySelectorAll('tbody tr').length
+      const firstFps = () =>
+        document.querySelector('tbody tr td:nth-child(2) .font-mono')?.textContent?.trim()
+      const fpsBefore = firstFps()
+      const chip4k = Array.from(document.querySelectorAll('button.chip')).find(
+        (button) => button.textContent?.trim() === '4K'
+      )
+      if (chip4k instanceof HTMLElement) chip4k.click()
+      await waitFor(() => firstFps() !== fpsBefore, 8000)
+      window.__myRgbGamesReady =
+        gameRows >= 30 &&
+        fpsBefore !== undefined &&
+        fpsBefore.length > 0 &&
+        firstFps() !== fpsBefore &&
+        /estimativa local/i.test(text()) &&
+        document.querySelector('.page-title')?.textContent === 'Jogos'
+
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await sleep(400)
       // The profile controls only make sense on the lighting screen, and they
@@ -767,6 +792,7 @@ async function runSelfTest(): Promise<void> {
         drivesReady: window.__myRgbDrivesReady === true,
         healthTab: window.__myRgbHealthTab === true,
         networkReady: window.__myRgbNetworkReady === true,
+        gamesReady: window.__myRgbGamesReady === true,
         sensorsReady: window.__myRgbSensorsReady === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
@@ -791,6 +817,7 @@ async function runSelfTest(): Promise<void> {
     report.drivesReady === true &&
     report.healthTab === true &&
     report.networkReady === true &&
+    report.gamesReady === true &&
     report.sensorsReady === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)

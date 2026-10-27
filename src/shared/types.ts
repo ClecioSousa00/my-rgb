@@ -267,5 +267,13 @@ export const IPC = {
   /** Last completed report, without running the test again. */
   netLast: 'net:last',
   /** Pushed while the diagnostic runs. */
-  netProgress: 'net:progress'
+  netProgress: 'net:progress',
+  /** Local FPS estimate for the whole catalog. */
+  gamesList: 'games:list',
+  /** Measured FPS from HowManyFPS for the games it knows. */
+  gamesFps: 'games:fps',
+  /** Store or erase the HowManyFPS key (never returned to the renderer). */
+  gamesSetApiKey: 'games:setApiKey',
+  /** Whether a key is stored, and whether it is encrypted. */
+  gamesHasApiKey: 'games:hasApiKey'
 } as const

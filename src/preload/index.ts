@@ -24,6 +24,12 @@ import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
 import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { DiskHealthSnapshot } from '@shared/features/health'
 import type { NetworkProgress, NetworkReport } from '@shared/features/network'
+import type {
+  ApiKeyState,
+  GamesApiResult,
+  GamesReport,
+  GameOptions
+} from '@shared/features/games'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -98,6 +104,15 @@ const api: MyRgbApi = {
   getNetworkReport: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netLast),
   onNetworkProgress: (callback: (progress: NetworkProgress) => void) =>
     subscribe(IPC.netProgress, callback),
+
+  // games
+  listGames: (options?: Partial<GameOptions>): Promise<GamesReport> =>
+    ipcRenderer.invoke(IPC.gamesList, options),
+  fetchGameFps: (options?: Partial<GameOptions>): Promise<GamesApiResult> =>
+    ipcRenderer.invoke(IPC.gamesFps, options),
+  setGamesApiKey: (key: string | null): Promise<ApiKeyState> =>
+    ipcRenderer.invoke(IPC.gamesSetApiKey, key),
+  getGamesApiKeyState: (): Promise<ApiKeyState> => ipcRenderer.invoke(IPC.gamesHasApiKey),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

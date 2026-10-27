@@ -213,9 +213,40 @@ anterior continua intacto. Os destinos e as durações são constantes em
 
 ---
 
+## Como o FPS por jogo é calculado
+
+O catálogo é uma cópia do Reset Explode, números incluídos, e a fórmula também:
+
+- `src/main/features/games/catalog.ts` — os 32 jogos, as tabelas `GPU_INDEX` e
+  `CPU_INDEX` (RTX 4070 e Ryzen 7 7700X = 100), o casamento por **chave mais
+  longa contida no nome** ("RTX 5070 Ti" antes de "RTX 5070") e a conta
+  `min(teto da GPU, teto da CPU, trava do jogo)`, com o 1% low em 75% da média.
+  Os fatores de resolução/preset/upscaling e os nomes curtos para a API
+  (`shortGpuName`/`shortCpuName`) vivem aqui, longe de I/O, para serem testados.
+- `src/main/features/games/howManyFps.ts` — `POST https://howmanyfps.com/api`,
+  cache em `userData/fps-cache.json` por 7 dias com a chave
+  `cpu|gpu|game|resolução|upscaling`. 401/403/429 são `fatal` e param a rodada;
+  404 é um erro só daquele jogo. Quando a resposta é uma página HTML do
+  Cloudflare, a mensagem fala do bloqueio em vez de culpar a chave.
+- `src/main/features/games/secrets.ts` — `safeStorage.encryptString` em
+  `userData/secrets.bin`. O arquivo registra se o conteúdo está criptografado,
+  então uma máquina sem chaveiro ainda guarda a chave (em texto puro) e a
+  página avisa. O renderer nunca recebe a chave, só `{ configured, encrypted,
+  available }`.
+- `src/main/features/games/index.ts` — `GamesService`: o relatório local lê o
+  mesmo `getSystem()` da página Sistema (GPU dedicada primeiro) e devolve as 32
+  linhas sem tocar na rede; `fetchApi` consulta jogo por jogo, para na primeira
+  recusa fatal e devolve as linhas medidas + as que falharam.
+
+A página pede o relatório local ao abrir e só chama a API quando existe chave.
+Assim a tabela nunca fica vazia por causa de rede, e cada linha carrega o selo
+`API` ou `estimativa` para não misturar medido com calculado.
+
+---
+
 ## Os testes
 
-177 testes em 13 arquivos, todos rodando em alguns segundos.
+198 testes em 14 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -231,6 +262,7 @@ anterior continua intacto. Os destinos e as durações são constantes em
 | `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, o parser do nvidia-smi e as estatísticas da sessão |
 | `tests/health.test.ts` | O parser do `smartctl` (NVMe e ATA), a divisão da leitura privilegiada, os limites do veredito e a junção do CIM no Windows |
 | `tests/network.test.ts` | O parser do `ping` (Linux e Windows pt-BR), jitter e perda, e os limites do veredito de rede |
+| `tests/games.test.ts` | O casamento CPU/GPU pelo nome mais longo, a fórmula do FPS, os nomes curtos da API, o cache de 7 dias e os erros 401/403/404/429 |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 
 ```bash

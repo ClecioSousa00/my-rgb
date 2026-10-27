@@ -48,13 +48,14 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
 | Discos | Unidades e Saúde — **pronta** |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
-| Jogos | FPS esperado por jogo, resolução, preset e upscaling |
+| Jogos | FPS estimado por jogo, com resolução, preset e upscaling — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão |
 | Overlay | Métricas por cima do jogo |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
 
-> **Nota:** Iluminação, Sistema, Sensores, Discos e Rede já funcionam. As
-> outras páginas descrevem o que virá; o plano do projeto tem a ordem completa.
+> **Nota:** Iluminação, Sistema, Sensores, Discos, Rede e Jogos já funcionam.
+> As outras páginas descrevem o que virá; o plano do projeto tem a ordem
+> completa.
 
 ---
 
@@ -200,6 +201,40 @@ o teste o botão vira **Cancelar**; recusar mantém o último resultado na tela.
 - Quando o Cloudflare recusa a medição (HTTP 429, por excesso de testes), o
   download aparece como **—** e uma observação explica o motivo, em vez de um
   zero falso.
+
+---
+
+## A tela de Jogos
+
+Responde "quantos FPS eu faço neste jogo?" com o hardware que está na máquina,
+para 32 jogos. A tabela abre preenchida na hora e diz, em cada linha, de onde
+veio o número.
+
+- **Opções** no topo: resolução (1080p, 1440p, 4K), gráficos (Baixo a Ultra) e
+  upscaling (Nativo, Qualidade, Desempenho). Mudar qualquer uma recalcula a
+  tabela inteira.
+- **Estimativa local** (sempre disponível, sem internet): usa as mesmas tabelas
+  do Reset Explode, com uma RTX 4070 e um Ryzen 7 7700X valendo 100. O FPS é o
+  **menor** entre o teto da GPU, o teto da CPU e a trava do próprio jogo; o
+  1% low estimado é 75% da média.
+- **Selo do limitador**: `GPU`, `CPU` ou `Trava` (com o FPS da trava, como os
+  60 de Elden Ring), para saber o que está segurando o número.
+- **Fonte por linha**: `estimativa` ou `API`. Com uma chave da HowManyFPS
+  (pedida em info@howmanyfps.com), a página consulta FPS médio e 1% low
+  medidos em sessões reais; as respostas ficam em cache por 7 dias e vêm de lá
+  mesmo depois de reiniciar o app.
+- A API usa a resolução e o upscaling da consulta; o preset gráfico vale só
+  para a estimativa local.
+- **A chave fica no processo principal**, criptografada pelo chaveiro do
+  sistema (DPAPI no Windows, libsecret/KWallet no Linux). A interface só sabe
+  se existe uma chave. Sem chaveiro, a página avisa que o arquivo ficou sem
+  criptografia e oferece o botão **Remover**.
+- Uma chave recusada, a cota esgotada ou o Cloudflare bloqueando a conexão
+  aparecem como uma frase na página, e a estimativa local continua na tabela —
+  nada quebra e nenhum número é inventado.
+- Quando o processador ou a placa de vídeo não estão nas tabelas, a página diz
+  isso em **Observações** e usa o índice padrão do Reset Explode (GPU 50,
+  CPU 80), em vez de fingir precisão.
 
 ---
 

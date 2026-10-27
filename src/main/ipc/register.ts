@@ -10,7 +10,7 @@
  * are registered here as they arrive, keeping one place to audit the surface.
  */
 
-import { dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { readFileSync, writeFileSync } from 'fs'
 import type { EngineState } from '@shared/api'
@@ -30,6 +30,7 @@ import {
   diagnoseNetwork,
   lastNetworkReport
 } from '../features/network'
+import { GamesService } from '../features/games'
 
 /** What a handler needs from the application. */
 export interface IpcHost {
@@ -270,4 +271,16 @@ export function registerIpc(host: IpcHost): void {
     cancelNetworkDiagnosis()
   })
   ipcMain.handle(IPC.netLast, () => lastNetworkReport())
+
+  // --- games --------------------------------------------------------------
+
+  // The service owns the key store and the FPS cache, both under userData.
+  const games = new GamesService(app.getPath('userData'))
+
+  ipcMain.handle(IPC.gamesList, (_e, options) => games.report(options))
+  ipcMain.handle(IPC.gamesFps, (_e, options) => games.fetchApi(options))
+  ipcMain.handle(IPC.gamesSetApiKey, (_e, key) =>
+    games.setApiKey(typeof key === 'string' ? key : null)
+  )
+  ipcMain.handle(IPC.gamesHasApiKey, () => games.keyState())
 }

@@ -38,9 +38,9 @@ operacionais.
   começou a rodar depois do app.
 - **Dashboard de diagnóstico**: navegação lateral com Sistema, Sensores,
   Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual monocromático
-  do Reset Explode. Sistema, Sensores, Discos e Rede já leem o hardware de
-  verdade; as demais páginas entram fase por fase, sempre dizendo o que falta em
-  vez de mostrar um número inventado.
+  do Reset Explode. Sistema, Sensores, Discos, Rede e Jogos já funcionam; as
+  demais páginas entram fase por fase, sempre dizendo o que falta em vez de
+  mostrar um número inventado.
 
 ### Estado do dashboard
 
@@ -51,7 +51,8 @@ operacionais.
 | Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx e histórico |
 | Discos | pronta: abas Unidades e Saúde (S.M.A.R.T. / CIM) |
 | Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
-| Visão geral, Jogos, Gargalo, Overlay, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
+| Jogos | pronta: estimativa local dos 32 jogos e FPS medido por API (opcional) |
+| Visão geral, Gargalo, Overlay, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
 
 O plano completo, com arquitetura, fases e critérios de aceite, fica no
 arquivo de planejamento do projeto.
