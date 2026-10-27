@@ -60,6 +60,31 @@ depois detalha a tela de iluminação, que é a que já está completa.
 
 ---
 
+## Acessibilidade
+
+- **Contraste:** os cinzas usados como texto ficam acima do mínimo AA da WCAG
+  sobre o fundo dos cartões (`#0e0e0e`) — cerca de 4,9:1 no tom mais fraco e
+  7,3:1 no seguinte. O cinza mais escuro que restou serve só para traços,
+  trilhos e ícones decorativos.
+- **Foco visível:** todo elemento acionável ganha um anel branco quando
+  alcançado pelo teclado. Campos, itens da navegação e o slider de brilho
+  mantêm o anel próprio, desenhado para caber na forma deles, em vez de dois
+  anéis sobrepostos.
+- **Nada de cor como informação:** os estados aparecem por inversão do selo,
+  não por verde/vermelho — o que também resolve o daltonismo. A única cor fora
+  da paleta que existia (o anel índigo da parada ativa do gradiente) virou
+  branco.
+- **Movimento reduzido:** com `prefers-reduced-motion`, os pontos "ao vivo"
+  param de pulsar e as transições são desligadas. A pré-visualização da fita
+  continua rodando de propósito: ela é a imagem do que sai no hardware, não
+  decoração da interface.
+- **Teclado:** as abas (Discos, Sensores) respondem às setas, o **?** abre no
+  clique e fecha com Esc, e o overlay tem atalho global.
+- **Lacuna conhecida:** as paradas do gradiente só se movem com o ponteiro —
+  ainda não há setas do teclado para posicioná-las.
+
+---
+
 ## A tela de Sistema
 
 Mostra o que está dentro da máquina sem abrir o gabinete. Os dados vêm do

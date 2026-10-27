@@ -143,13 +143,15 @@ export function StripPreview(): React.JSX.Element {
       ctx.font = layout.selected
         ? '600 12px Inter, "Segoe UI", system-ui, sans-serif'
         : '500 10.5px Inter, "Segoe UI", system-ui, sans-serif'
-      ctx.fillStyle = layout.selected ? '#e8ecf5' : '#6b748c'
+      // Greys from the theme: ink-100 / ink-400, so the labels stay legible
+      // and no hue leaks into the monochrome interface.
+      ctx.fillStyle = layout.selected ? '#f5f5f5' : '#a0a0a0'
       ctx.fillText(name, 2, layout.labelY + labelH - 4)
 
       if (zone.kind === 'addressable') {
         const count = `${config?.ledCount ?? 0} LEDs`
         ctx.font = '500 10px JetBrains Mono, ui-monospace, monospace'
-        ctx.fillStyle = '#3d4457'
+        ctx.fillStyle = '#828282'
         ctx.textAlign = 'right'
         ctx.fillText(count, width - 2, layout.labelY + labelH - 4)
         ctx.textAlign = 'left'

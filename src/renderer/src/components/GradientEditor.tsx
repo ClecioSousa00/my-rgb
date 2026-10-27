@@ -238,7 +238,7 @@ export function GradientEditor(): React.JSX.Element {
                 borderColor: activeStop === index ? '#fff' : 'rgba(0,0,0,0.7)',
                 boxShadow:
                   activeStop === index
-                    ? '0 0 0 2px rgba(99, 102, 241, 0.6), 0 2px 6px rgba(0,0,0,0.6)'
+                    ? '0 0 0 2px rgba(255, 255, 255, 0.65), 0 2px 6px rgba(0,0,0,0.6)'
                     : '0 2px 6px rgba(0,0,0,0.6)',
                 transform: `translate(-50%, -50%) scale(${activeStop === index ? 1.22 : 1})`
               }}
