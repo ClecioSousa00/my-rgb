@@ -46,14 +46,14 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Visão geral | Resumo de hardware, desempenho e saúde |
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
-| Discos | Unidades — **pronta**; saúde S.M.A.R.T. na fase 3 |
+| Discos | Unidades e Saúde — **pronta** |
 | Rede | Latência, jitter, perda, DNS, velocidade e bufferbloat |
 | Jogos | FPS esperado por jogo, resolução, preset e upscaling |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão |
 | Overlay | Métricas por cima do jogo |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
 
-> **Nota:** Iluminação, Sistema, Sensores e a aba Unidades de Discos já
+> **Nota:** Iluminação, Sistema, Sensores e as duas abas de Discos já
 > funcionam. As outras páginas descrevem o que virá; o plano do projeto tem a
 > ordem completa.
 
@@ -134,9 +134,38 @@ Rede, Óptico), o sistema de arquivos e o disco físico correspondente. O rodap�
 soma o espaço de todas as unidades. Partições de sistema (EFI, snap) ficam de
 fora, como no gerenciador de arquivos.
 
-**Saúde** — chega na fase 3: horas ligado, ciclos de energia, desgaste, setores
-realocados, temperatura e veredito com os motivos. Quando o S.M.A.R.T. não pode
-ser lido, a página prefere dizer "sem dados" a chamar o disco de saudável.
+**Saúde** — um cartão por disco físico, com o veredito (**Saudável**,
+**Atenção**, **Crítico** ou **Sem dados**) e os motivos logo abaixo: é o motivo
+que explica o selo, não o contrário. Só aparecem as métricas que o disco
+realmente informou — temperatura, desgaste e vida restante, horas ligado e em
+dias, ciclos liga/desliga, setores realocados/pendentes/não corrigíveis, erros
+de mídia do NVMe, reserva (spare), autoteste, total lido e gravado. O veredito
+sai das mesmas regras nos dois sistemas:
+
+- o disco reprovar no autoteste, um atributo no limite de falha, um aviso
+  crítico do NVMe ou o Windows dizer "não saudável": **crítico**;
+- desgaste a partir de 80% (planeje a troca) e 95% (fim da vida); temperatura
+  acima de 70 °C em SSD/NVMe (85 °C crítico) e 55 °C em HDD (65 °C crítico);
+- qualquer setor realocado, pendente ou não corrigível: no mínimo **atenção**.
+
+De onde vêm os números:
+
+- **Linux** — `smartctl -a -j` do `smartmontools`, a mesma leitura para NVMe e
+  SATA. Ele normalmente precisa de root: a página tenta a leitura normal e, se
+  faltar permissão, oferece **Ler com privilégio**, que pede a senha uma única
+  vez (`pkexec`) e lê todos os discos de uma vez; recusar mantém o que já foi
+  lido. Sem `smartctl`, a página mostra os discos com **sem dados** e a nota
+  `sudo apt install smartmontools`.
+- **Windows** — a API de armazenamento (CIM): `MSFT_PhysicalDisk` para mídia,
+  barramento e saúde geral, `MSFT_StorageReliabilityCounter` para temperatura,
+  desgaste, horas e contadores de erro, e `MSStorageDriver_FailurePredictStatus`
+  para o aviso de falha do próprio disco. É a mesma leitura do Reset Explode,
+  sem esperar o helper da fase 7 — quando ele chegar, o cartão não muda.
+- A leitura fica em cache por 60 s (um HDD adormecido acorda com o `smartctl`);
+  **Atualizar** força uma nova.
+- Um disco que não responde (pendrive com bridge USB sem suporte, disco sem
+  permissão) fica como **sem dados** — nunca como saudável. No Windows o
+  "Healthy" que ele dá para qualquer pendrive não conta como métrica.
 
 ---
 

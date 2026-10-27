@@ -24,6 +24,7 @@ import type { SettingsStore } from '../store/settings'
 import { getSystem } from '../features/system/info'
 import { listDrives } from '../features/system/drives'
 import type { SensorsStore } from '../features/sensors/store'
+import { listDiskHealth } from '../features/health'
 
 /** What a handler needs from the application. */
 export interface IpcHost {
@@ -249,4 +250,9 @@ export function registerIpc(host: IpcHost): void {
   ipcMain.handle(IPC.sensorsStop, () => {
     host.sensors.stop()
   })
+
+  // --- disk health --------------------------------------------------------
+
+  ipcMain.handle(IPC.healthList, (_e, force = false) => listDiskHealth({ force: force === true }))
+  ipcMain.handle(IPC.healthElevated, () => listDiskHealth({ elevated: true }))
 }

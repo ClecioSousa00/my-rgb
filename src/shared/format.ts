@@ -67,6 +67,12 @@ export function formatMts(mts?: number | null): string {
   return `${Math.round(mts)} MT/s`
 }
 
+/** Counters (hours, cycles, sectors) with the Brazilian thousands separator. */
+export function formatCount(value?: number | null): string {
+  if (!isNumber(value) || value < 0) return EM_DASH
+  return Math.round(value).toLocaleString('pt-BR')
+}
+
 /** "2025-13-11" (AMI's odd order) or "11/13/2025" -> "13/11/2025". */
 export function formatBiosDate(raw?: string | null): string {
   if (!raw) return EM_DASH

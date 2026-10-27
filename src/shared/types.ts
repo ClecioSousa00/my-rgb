@@ -255,5 +255,9 @@ export const IPC = {
   sensorsStart: 'sensors:start',
   sensorsStop: 'sensors:stop',
   /** Pushed once per collection, with session min/max/history attached. */
-  sensorsBatch: 'sensors:batch'
+  sensorsBatch: 'sensors:batch',
+  /** S.M.A.R.T. health of the physical disks. */
+  healthList: 'health:list',
+  /** One privileged read (pkexec) for disks smartctl cannot open. */
+  healthElevated: 'health:elevated'
 } as const

@@ -22,6 +22,7 @@ import type {
 } from '@shared/types'
 import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
 import type { SensorsSnapshot } from '@shared/features/sensors'
+import type { DiskHealthSnapshot } from '@shared/features/health'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -83,6 +84,12 @@ const api: MyRgbApi = {
   stopSensors: (): Promise<void> => ipcRenderer.invoke(IPC.sensorsStop),
   onSensors: (callback: (snapshot: SensorsSnapshot) => void) =>
     subscribe(IPC.sensorsBatch, callback),
+
+  // disk health
+  listDiskHealth: (force = false): Promise<DiskHealthSnapshot> =>
+    ipcRenderer.invoke(IPC.healthList, force),
+  readDiskHealthElevated: (): Promise<DiskHealthSnapshot> =>
+    ipcRenderer.invoke(IPC.healthElevated),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

@@ -687,8 +687,11 @@ async function runSelfTest(): Promise<void> {
         /Saúde/.test(tab.textContent ?? '')
       )
       if (healthTab instanceof HTMLElement) healthTab.click()
-      await sleep(250)
-      window.__myRgbHealthTab = /Fase 3/.test(text())
+      // The health read crosses smartctl / CIM; 15 s covers a slow disk or a
+      // first-time PowerShell start.
+      await waitFor(() => document.querySelectorAll('.disk-health').length >= 1, 15000)
+      window.__myRgbHealthTab =
+        document.querySelectorAll('.disk-health').length >= 1 && /Saúde/.test(text())
 
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await sleep(400)

@@ -149,9 +149,40 @@ processo principal, fechar e reabrir a página continua a sessão.
 
 ---
 
+## Como a saúde dos discos é lida
+
+A coleta é sob demanda (a página pede, o main responde), sem poll:
+
+- `src/main/features/health/smartctl.ts` — executa `smartctl -a -j` e lê o
+  JSON; entende NVMe (`nvme_smart_health_information_log`) e ATA
+  (`ata_smart_attributes`), traduz os atributos 5/9/12/187/194/197/198 e a
+  vida restante dos 177/202/231/232/233. O código de saída do `smartctl` é
+  ignorado de propósito: ele é uma máscara de problemas (disco reprovado,
+  atributo no limite) e o JSON continua válido. `smartctlDevice` converte
+  `/dev/nvme0n1` em `/dev/nvme0`, que é o endereço que o `smartctl` aceita.
+- `src/main/features/health/verdict.ts` — o único lugar que decide o veredito,
+  usado pelo Linux e pelo Windows. Um disco sem métrica nenhuma é `unknown`,
+  nunca `good`.
+- `src/main/features/health/windows.ts` — script PowerShell único que consulta
+  `MSFT_PhysicalDisk`, `MSFT_StorageReliabilityCounter`,
+  `MSStorageDriver_FailurePredictStatus` e `Win32_DiskDrive` (para casar a
+  previsão de falha com o disco certo). O parser é separado do `execFile` para
+  poder ser testado fora do Windows.
+- `src/main/features/health/index.ts` — monta os cartões a partir do
+  `si.diskLayout()` + `listDrives()`, chama a leitura normal e, quando falta
+  permissão, deixa `needsElevation` para a página oferecer o botão. O lote
+  privilegiado é um script fixo (`pkexec sh -c ... sh <devices>`), com os
+  dispositivos passados como argumentos e um marcador entre as saídas.
+
+A leitura é cacheada por 60 s: `smartctl -a` acorda um HDD adormecido, e um
+refresh a cada abertura de página atrapalharia o disco. O botão **Atualizar**
+passa `force` e ignora o cache.
+
+---
+
 ## Os testes
 
-138 testes em 11 arquivos, todos rodando em menos de um segundo.
+159 testes em 12 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -165,6 +196,7 @@ processo principal, fechar e reabrir a página continua a sessão.
 | `tests/documentation.test.ts` | A documentação está em dia e não tem link quebrado |
 | `tests/system.test.ts` | As unidades filtram pseudo-filesystems e acham o disco físico da partição |
 | `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, o parser do nvidia-smi e as estatísticas da sessão |
+| `tests/health.test.ts` | O parser do `smartctl` (NVMe e ATA), a divisão da leitura privilegiada, os limites do veredito e a junção do CIM no Windows |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 
 ```bash

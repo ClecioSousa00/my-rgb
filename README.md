@@ -38,9 +38,9 @@ operacionais.
   começou a rodar depois do app.
 - **Dashboard de diagnóstico**: navegação lateral com Sistema, Sensores,
   Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual monocromático
-  do Reset Explode. Sistema, Sensores e as Unidades já leem o hardware de
-  verdade; as demais páginas entram fase por fase, sempre dizendo o que falta
-  em vez de mostrar um número inventado.
+  do Reset Explode. Sistema, Sensores, as Unidades e a Saúde dos Discos já leem
+  o hardware de verdade; as demais páginas entram fase por fase, sempre dizendo
+  o que falta em vez de mostrar um número inventado.
 
 ### Estado do dashboard
 
@@ -49,7 +49,7 @@ operacionais.
 | Iluminação | pronta (tela original) |
 | Sistema | pronto: SO, placa-mãe/BIOS, CPU, memória, GPU e discos físicos |
 | Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx e histórico |
-| Discos | aba Unidades pronta; aba Saúde (S.M.A.R.T.) na fase 3 |
+| Discos | pronta: abas Unidades e Saúde (S.M.A.R.T. / CIM) |
 | Visão geral, Rede, Jogos, Gargalo, Overlay, Integrações | esqueleto de navegação, conteúdo nas próximas fases |
 
 O plano completo, com arquitetura, fases e critérios de aceite, fica no

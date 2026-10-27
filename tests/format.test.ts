@@ -3,6 +3,7 @@ import {
   formatAgo,
   formatBiosDate,
   formatBytes,
+  formatCount,
   formatGhz,
   formatMts,
   formatPercent,
@@ -48,6 +49,13 @@ describe('other formatters', () => {
   it('formats memory speed as MT/s', () => {
     expect(formatMts(4800)).toBe('4800 MT/s')
     expect(formatMts(undefined)).toBe('—')
+  })
+
+  it('separates thousands in counters', () => {
+    expect(formatCount(1234)).toBe('1.234')
+    expect(formatCount(25000)).toBe('25.000')
+    expect(formatCount(0)).toBe('0')
+    expect(formatCount(undefined)).toBe('—')
   })
 
   it('gives each sensor unit the precision it deserves', () => {

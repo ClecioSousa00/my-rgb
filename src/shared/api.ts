@@ -21,6 +21,7 @@ import type {
 } from './types'
 import type { DriveInfo, SystemSnapshot } from './features/system'
 import type { SensorsSnapshot } from './features/sensors'
+import type { DiskHealthSnapshot } from './features/health'
 
 export type Unsubscribe = () => void
 
@@ -90,6 +91,12 @@ export interface MyRgbApi {
   startSensors(): Promise<SensorsSnapshot | null>
   stopSensors(): Promise<void>
   onSensors(callback: (snapshot: SensorsSnapshot) => void): Unsubscribe
+
+  // disk health
+  /** S.M.A.R.T. snapshot for every physical disk. Cached for a minute. */
+  listDiskHealth(force?: boolean): Promise<DiskHealthSnapshot>
+  /** Read the disks that need root through one pkexec prompt. */
+  readDiskHealthElevated(): Promise<DiskHealthSnapshot>
 
   // events
   onFrame(callback: (frame: Frame) => void): Unsubscribe
