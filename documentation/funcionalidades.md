@@ -43,7 +43,7 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Página | O que é |
 |---|---|
 | Iluminação | Efeitos, zonas, gradiente e parâmetros (tela original) |
-| Visão geral | Resumo de hardware, desempenho e saúde |
+| Visão geral | Hardware, limitador ao vivo, discos, saúde, rede e atalhos — **pronta** |
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
 | Discos | Unidades e Saúde — **pronta** |
@@ -53,9 +53,8 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Overlay | Métricas por cima do jogo — **pronta** |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE — **não implementada** |
 
-> **Nota:** Iluminação, Sistema, Sensores, Discos, Rede, Jogos, Gargalo e
-> Overlay já funcionam. Visão geral e Integrações ainda mostram o que vão
-> conter: a segunda está explicada, com motivo e plano, em
+> **Nota:** todas as páginas funcionam, menos **Integrações**, que ainda mostra
+> o que vai conter — com motivo e plano em
 > [planejamento-iluminacao-externa.md](planejamento-iluminacao-externa.md).
 
 ---
@@ -82,6 +81,40 @@ depois detalha a tela de iluminação, que é a que já está completa.
   clique e fecha com Esc, e o overlay tem atalho global.
 - **Lacuna conhecida:** as paradas do gradiente só se movem com o ponteiro —
   ainda não há setas do teclado para posicioná-las.
+
+---
+
+## A tela de Visão geral
+
+É a primeira página da lista e resume as outras em cinco blocos:
+
+- **A máquina** — processador, placa de vídeo e VRAM, memória (tipo e
+  velocidade), placa-mãe e BIOS, sistema operacional, quantidade de discos
+  físicos, driver da GPU, slots de memória e UEFI/Legacy. É a mesma leitura da
+  página Sistema, só que em nove valores.
+- **Iluminação** — perfil ativo, motor rodando ou pausado, luzes ligadas ou
+  desligadas, zonas ativas, brilho, velocidade e o controlador com o firmware.
+  O botão **Abrir** leva para a tela de iluminação.
+- **Agora** — o mesmo limitador da página Gargalo: carga da GPU e da CPU, o
+  núcleo mais ocupado, VRAM, RAM e as temperaturas, atualizados a cada segundo.
+  Vem da mesma coleta (não há um segundo leitor de sensores). O botão
+  **Gargalo** abre a análise completa.
+- **Precisa de atenção** — a lista do que está errado ou vale uma olhada:
+  controlador desconectado, conflito com outro programa, motor pausado, luzes
+  desligadas, alterações não salvas, disco com problema, unidade acima de 90 %
+  de uso, veredito da rede e limitador de GPU/CPU/VRAM/temperatura. Cada item é
+  um botão que abre a página que explica ou resolve. Sem nada na lista, o cartão
+  mostra o que foi verificado — e não um espaço vazio.
+- **Armazenamento** — cada unidade com o anel de ocupação, usado, total e
+  livre; o selo mostra o pior veredito de saúde entre os discos.
+- **Rede** — o último diagnóstico (adaptador, latência, download, upload,
+  latência sob carga e o primeiro motivo do veredito). Nenhum teste roda ao
+  abrir a página: o diagnóstico satura a conexão por 30 segundos e só acontece
+  quando você pede, na página Rede.
+
+Nada aqui é inventado: um sensor que não respondeu vira "—", e os discos que não
+entregaram S.M.A.R.T. dizem "sem dados" com o motivo — nunca "saudável" por
+suposição.
 
 ---
 

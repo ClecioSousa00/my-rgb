@@ -36,11 +36,11 @@ operacionais.
 - **Detecção de conflito contínua**: avisa quando outro programa (Armoury Crate,
   OpenRGB) também está controlando o mesmo controlador — inclusive se ele
   começou a rodar depois do app.
-- **Dashboard de diagnóstico**: navegação lateral com Sistema, Sensores,
-  Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual monocromático
-  do Reset Explode. Sistema, Sensores, Discos, Rede, Jogos, Gargalo e Overlay
-  já funcionam; as demais páginas entram fase por fase, sempre dizendo o que
-  falta em vez de mostrar um número inventado.
+- **Dashboard de diagnóstico**: navegação lateral com Visão geral, Sistema,
+  Sensores, Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual
+  monocromático do Reset Explode. A Visão geral junta hardware, limitador ao
+  vivo, discos, rede e o que precisa de atenção em uma tela; Integrações é a
+  única que ainda diz o que vai conter, em vez de mostrar um número inventado.
 - **Overlay sobre o jogo**: janela transparente, sempre no topo, que ignora o
   mouse e não aparece na barra de tarefas. Mostra FPS, frametime, 1% low e os
   sensores que você escolher; liga e desliga com um atalho global.
@@ -57,7 +57,7 @@ operacionais.
 | Jogos | pronta: estimativa local dos 32 jogos e FPS medido por API (opcional) |
 | Gargalo | pronto: equilíbrio GPU × CPU, limitador ao vivo e sessão de 1/3/5 min |
 | Overlay | pronto: métricas sobre o jogo, atalho global e escolha do que mostrar; FPS real no Windows, "indisponível" no Linux |
-| Visão geral | esqueleto de navegação |
+| Visão geral | pronta: hardware resumido, limitador ao vivo, discos, saúde, rede e atalhos para o que precisa de atenção |
 | Integrações | **não implementada**: o motivo e o plano estão em [documentation/planejamento-iluminacao-externa.md](documentation/planejamento-iluminacao-externa.md) |
 
 O roteador de iluminação já existe e aceita outros backends sem tocar no motor;

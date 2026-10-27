@@ -732,6 +732,31 @@ async function runSelfTest(): Promise<void> {
       }
       const text = () => document.body.innerText
 
+      // Visão geral: the landing page pulls the hardware, the live sample and
+      // the shortcuts together. Proving the cards exist is not enough - the
+      // meters only appear when startBottleneck really delivered a sample,
+      // and the shortcut has to land on the page it names.
+      window.__myRgbNavigate && window.__myRgbNavigate('overview')
+      await waitFor(
+        () =>
+          document.querySelector('.page-title')?.textContent === 'Visão geral' &&
+          document.querySelectorAll('section.card').length >= 5 &&
+          /A máquina/.test(text())
+      )
+      await waitFor(() => document.querySelectorAll('[data-meter]').length >= 3, 15000)
+      const overviewCards = document.querySelectorAll('section.card').length
+      const overviewMeters = document.querySelectorAll('[data-meter]').length
+      const overviewShortcut = Array.from(document.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Gargalo'
+      )
+      if (overviewShortcut instanceof HTMLElement) overviewShortcut.click()
+      await waitFor(() => document.querySelector('.page-title')?.textContent === 'Gargalo', 8000)
+      window.__myRgbOverviewReady =
+        overviewCards >= 5 &&
+        overviewMeters >= 3 &&
+        document.querySelector('.page-title')?.textContent === 'Gargalo' &&
+        !/Salvar/.test(document.querySelector('header')?.textContent ?? '')
+
       window.__myRgbNavigate && window.__myRgbNavigate('system')
       await waitFor(
         () => /Sistema operacional/.test(text()) && document.querySelectorAll('section.card').length >= 4
@@ -934,13 +959,15 @@ async function runSelfTest(): Promise<void> {
       // forgot both.
       window.__myRgbPagesScroll = true
       for (const page of [
+        'overview',
         'system',
         'sensors',
         'disks',
         'network',
         'games',
         'bottleneck',
-        'overlay'
+        'overlay',
+        'integrations'
       ]) {
         window.__myRgbNavigate && window.__myRgbNavigate(page)
         await sleep(250)
@@ -1001,6 +1028,7 @@ async function runSelfTest(): Promise<void> {
         nav: document.querySelectorAll('.nav-item').length,
         pageSwitch: window.__myRgbPageSwitch === true,
         profileVisible: window.__myRgbProfileVisible === true,
+        overviewReady: window.__myRgbOverviewReady === true,
         systemReady: window.__myRgbSystemReady === true,
         drivesReady: window.__myRgbDrivesReady === true,
         healthTab: window.__myRgbHealthTab === true,
@@ -1037,6 +1065,7 @@ async function runSelfTest(): Promise<void> {
     report.nav > 0 &&
     report.pageSwitch === true &&
     report.profileVisible === true &&
+    report.overviewReady === true &&
     report.systemReady === true &&
     report.drivesReady === true &&
     report.healthTab === true &&

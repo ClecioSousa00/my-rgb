@@ -27,6 +27,7 @@ import {
   BOTTLENECK_SESSION_MINUTES
 } from '@shared/features/bottleneck'
 import { Card } from '../components/ui/Card'
+import { Meter } from '../components/ui/Meter'
 import { Metric, MetricGrid } from '../components/ui/Metric'
 import { PageHeader } from '../components/ui/PageHeader'
 
@@ -171,36 +172,6 @@ function BalanceCard({ balance }: { balance: BottleneckBalance }): React.JSX.Ele
 // ---------------------------------------------------------------------------
 // Live sample
 // ---------------------------------------------------------------------------
-
-function Meter({
-  label,
-  text,
-  hint,
-  value,
-  max = 100
-}: {
-  label: string
-  text: string
-  /** Small line under the value, e.g. which core is the busiest. */
-  hint?: string
-  value?: number
-  max?: number
-}): React.JSX.Element {
-  const width = value === undefined ? undefined : clamp((value / max) * 100, 0, 100)
-
-  return (
-    <div data-meter className="min-w-0">
-      <div className="metric-label truncate" title={label}>
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-[15px] leading-none text-ink-100">{text}</div>
-      {hint && <div className="mt-0.5 truncate text-[10px] text-ink-500">{hint}</div>}
-      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-ink-700">
-        {width !== undefined && <div className="h-full bg-ink-100" style={{ width: `${width}%` }} />}
-      </div>
-    </div>
-  )
-}
 
 function LiveCard({ live }: { live: BottleneckLive }): React.JSX.Element {
   const alert = alertOf(live.limiter)

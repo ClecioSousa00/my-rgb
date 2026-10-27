@@ -36,12 +36,8 @@ export const PAGE_META: Record<PageId, PageMeta> = {
   overview: {
     title: 'Visão geral',
     subtitle: 'Hardware, desempenho e iluminação em uma tela só.',
-    planned: [
-      'Resumo do processador, da placa de vídeo e da memória',
-      'Saúde dos discos e diagnóstico de rede em destaque',
-      'Atalhos para o que precisa de atenção'
-    ],
-    phase: 'Fase 9'
+    planned: [],
+    phase: ''
   },
   lighting: {
     title: 'Iluminação',
