@@ -927,6 +927,33 @@ async function runSelfTest(): Promise<void> {
           document.querySelector('.verdict')?.textContent === 'Desligado'
       }
 
+      // Every diagnostic page has to scroll inside the window and keep the
+      // page padding: the Overlay page shipped without either, so the metrics
+      // panel could not be reached at all on a short window. Checking the
+      // computed style, not the class list, is what catches a page that
+      // forgot both.
+      window.__myRgbPagesScroll = true
+      for (const page of [
+        'system',
+        'sensors',
+        'disks',
+        'network',
+        'games',
+        'bottleneck',
+        'overlay'
+      ]) {
+        window.__myRgbNavigate && window.__myRgbNavigate(page)
+        await sleep(250)
+        const root = document.querySelector('.page-title')?.closest('.overflow-y-auto')
+        if (!(root instanceof HTMLElement)) {
+          window.__myRgbPagesScroll = false
+          continue
+        }
+        const style = getComputedStyle(root)
+        const padded = parseFloat(style.paddingLeft) >= 16 && parseFloat(style.paddingTop) >= 16
+        if (style.overflowY !== 'auto' || !padded) window.__myRgbPagesScroll = false
+      }
+
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await sleep(400)
       // The profile controls only make sense on the lighting screen, and they
@@ -984,6 +1011,7 @@ async function runSelfTest(): Promise<void> {
         sensorsReady: window.__myRgbSensorsReady === true,
         cardsAligned: window.__myRgbCardsAligned === true,
         sensorsScroll: window.__myRgbSensorsScroll === true,
+        pagesScroll: window.__myRgbPagesScroll === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
         gradient: /gradiente/i.test(document.body.innerText),
@@ -1019,7 +1047,8 @@ async function runSelfTest(): Promise<void> {
     report.shortcutRegistered === true &&
     report.sensorsReady === true &&
     report.cardsAligned === true &&
-    report.sensorsScroll === true
+    report.sensorsScroll === true &&
+    report.pagesScroll === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
 }

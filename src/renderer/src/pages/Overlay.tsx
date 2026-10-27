@@ -185,7 +185,7 @@ export function OverlayPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-8 py-7">
       <PageHeader page="overlay">
         <span className="verdict" data-alert={state.open}>
           {state.open ? 'Ligado' : 'Desligado'}
