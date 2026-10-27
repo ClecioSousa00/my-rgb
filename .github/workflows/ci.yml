@@ -49,3 +49,50 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Proves the Windows side still packages: the .NET helper compiles, the
+  # native HID prebuild lands in the right place and the app directory is
+  # produced. The NSIS installer itself needs a Windows machine (or wine) and
+  # is left to `npm run build:win`.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the FPS helper
+        run: npm run build:helper
+
+      - name: Build the Windows app directory
+        run: npm run build:win:dir
+
+      - name: Check the packaged layout
+        shell: pwsh
+        run: |
+          $root = 'release/win-unpacked'
+          $required = @(
+            "$root/MyRGB.exe",
+            "$root/resources/helper/MyRgb.Helper.exe",
+            "$root/resources/build/icon.png",
+            "$root/resources/build/tray.png"
+          )
+          $missing = $required | Where-Object { -not (Test-Path $_) }
+          if ($missing) {
+            Write-Error "Missing from the package:`n$($missing -join "`n")"
+            exit 1
+          }
+          Write-Host 'Windows package layout OK'

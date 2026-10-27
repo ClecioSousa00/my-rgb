@@ -24,17 +24,18 @@ files:
   - '!node_modules/node-hid/hidapi/**'
   - '!node_modules/node-hid/src/**'
 
+# Runtime assets.
+#
+# A platform block (linux:, win:) *replaces* the top-level `extraResources`
+# instead of merging with it, so anything a platform needs is repeated inside
+# its own block. The top-level list stays as the default for the targets that
+# do not declare one (and for `--dir` builds).
 extraResources:
+  # App and tray icons, resolved at runtime by `src/main/resources.ts`.
   - from: build
     to: build
     filter:
       - '*.png'
-  # The udev rule ships inside the package so that the deb can install it
-  # by itself; otherwise the app installs but cannot open the controller.
-  - from: packaging/linux/udev
-    to: build
-    filter:
-      - '*.rules'
 
 asar: true
 compression: maximum
@@ -60,6 +61,17 @@ linux:
   # matches StartupWMClass and Electron's app_id, letting the desktop
   # environment link the running window to the launcher entry.
   syncDesktopName: true
+  extraResources:
+    - from: build
+      to: build
+      filter:
+        - '*.png'
+    # The udev rule ships inside the package so that the deb can install it
+    # by itself; otherwise the app installs but cannot open the controller.
+    - from: packaging/linux/udev
+      to: build
+      filter:
+        - '*.rules'
 
 win:
   target:
@@ -67,6 +79,10 @@ win:
       arch: [x64]
   artifactName: ${productName}-${version}-setup.${ext}
   extraResources:
+    - from: build
+      to: build
+      filter:
+        - '*.png'
     # FPS helper (ETW). Built separately with `npm run build:helper` because it
     # needs the .NET SDK on Windows; the folder always exists so a build
     # without it still produces a working installer, just without FPS.
