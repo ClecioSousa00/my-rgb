@@ -5,6 +5,8 @@ import {
   formatBytes,
   formatCount,
   formatGhz,
+  formatMbps,
+  formatMs,
   formatMts,
   formatPercent,
   formatSensor
@@ -56,6 +58,14 @@ describe('other formatters', () => {
     expect(formatCount(25000)).toBe('25.000')
     expect(formatCount(0)).toBe('0')
     expect(formatCount(undefined)).toBe('—')
+  })
+
+  it('formats network latency and throughput', () => {
+    expect(formatMs(12.345)).toBe('12,3 ms')
+    expect(formatMs(0)).toBe('0,0 ms')
+    expect(formatMs(undefined)).toBe('—')
+    expect(formatMbps(300.44)).toBe('300,4 Mbps')
+    expect(formatMbps(undefined)).toBe('—')
   })
 
   it('gives each sensor unit the precision it deserves', () => {

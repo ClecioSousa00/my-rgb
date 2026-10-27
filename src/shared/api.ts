@@ -22,6 +22,7 @@ import type {
 import type { DriveInfo, SystemSnapshot } from './features/system'
 import type { SensorsSnapshot } from './features/sensors'
 import type { DiskHealthSnapshot } from './features/health'
+import type { NetworkProgress, NetworkReport } from './features/network'
 
 export type Unsubscribe = () => void
 
@@ -97,6 +98,16 @@ export interface MyRgbApi {
   listDiskHealth(force?: boolean): Promise<DiskHealthSnapshot>
   /** Read the disks that need root through one pkexec prompt. */
   readDiskHealthElevated(): Promise<DiskHealthSnapshot>
+
+  // network
+  /** Run the full diagnostic. Resolves to null when it is cancelled. */
+  runNetworkDiagnosis(): Promise<NetworkReport | null>
+  /** Stop the running diagnostic. */
+  cancelNetworkDiagnosis(): Promise<void>
+  /** The last completed report, or null when none has run yet. */
+  getNetworkReport(): Promise<NetworkReport | null>
+  /** Step-by-step progress of the running diagnostic. */
+  onNetworkProgress(callback: (progress: NetworkProgress) => void): Unsubscribe
 
   // events
   onFrame(callback: (frame: Frame) => void): Unsubscribe

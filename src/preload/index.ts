@@ -23,6 +23,7 @@ import type {
 import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
 import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { DiskHealthSnapshot } from '@shared/features/health'
+import type { NetworkProgress, NetworkReport } from '@shared/features/network'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -90,6 +91,13 @@ const api: MyRgbApi = {
     ipcRenderer.invoke(IPC.healthList, force),
   readDiskHealthElevated: (): Promise<DiskHealthSnapshot> =>
     ipcRenderer.invoke(IPC.healthElevated),
+
+  // network
+  runNetworkDiagnosis: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netDiagnose),
+  cancelNetworkDiagnosis: (): Promise<void> => ipcRenderer.invoke(IPC.netCancel),
+  getNetworkReport: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netLast),
+  onNetworkProgress: (callback: (progress: NetworkProgress) => void) =>
+    subscribe(IPC.netProgress, callback),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

@@ -41,6 +41,7 @@ jobs:
           tests/system.test.ts
           tests/sensors.test.ts
           tests/health.test.ts
+          tests/network.test.ts
 
       - name: Build
         run: npm run build

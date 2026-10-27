@@ -693,6 +693,29 @@ async function runSelfTest(): Promise<void> {
       window.__myRgbHealthTab =
         document.querySelectorAll('.disk-health').length >= 1 && /Saúde/.test(text())
 
+      // Rede: the full test saturates the link for ~30 s, too long for the
+      // self test. Starting it and cancelling proves the IPC, the progress
+      // push and the cancellation path without holding the network.
+      window.__myRgbNavigate && window.__myRgbNavigate('network')
+      await waitFor(() => /o que o teste mede/i.test(text()), 8000)
+      const intro = /o que o teste mede/i.test(text())
+      const diagnose = Array.from(document.querySelectorAll('button')).find((button) =>
+        /Diagnosticar/.test(button.textContent ?? '')
+      )
+      if (diagnose instanceof HTMLElement) diagnose.click()
+      await waitFor(() => /Medindo latência e perda/.test(text()), 8000)
+      const started = /Medindo latência e perda/.test(text())
+      const cancelNet = Array.from(document.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Cancelar'
+      )
+      if (cancelNet instanceof HTMLElement) cancelNet.click()
+      await waitFor(() => /Teste cancelado/.test(text()), 10000)
+      window.__myRgbNetworkReady =
+        intro &&
+        started &&
+        /Teste cancelado/.test(text()) &&
+        document.querySelector('.page-title')?.textContent === 'Rede'
+
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await sleep(400)
       // The profile controls only make sense on the lighting screen, and they
@@ -743,6 +766,7 @@ async function runSelfTest(): Promise<void> {
         systemReady: window.__myRgbSystemReady === true,
         drivesReady: window.__myRgbDrivesReady === true,
         healthTab: window.__myRgbHealthTab === true,
+        networkReady: window.__myRgbNetworkReady === true,
         sensorsReady: window.__myRgbSensorsReady === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
@@ -766,6 +790,7 @@ async function runSelfTest(): Promise<void> {
     report.systemReady === true &&
     report.drivesReady === true &&
     report.healthTab === true &&
+    report.networkReady === true &&
     report.sensorsReady === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)

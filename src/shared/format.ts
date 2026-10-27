@@ -67,6 +67,18 @@ export function formatMts(mts?: number | null): string {
   return `${Math.round(mts)} MT/s`
 }
 
+/** Network latency, always in milliseconds. */
+export function formatMs(ms?: number | null): string {
+  if (!isNumber(ms) || ms < 0) return EM_DASH
+  return `${ms.toFixed(1).replace('.', ',')} ms`
+}
+
+/** Network throughput, always in Mbps. */
+export function formatMbps(mbps?: number | null): string {
+  if (!isNumber(mbps) || mbps < 0) return EM_DASH
+  return `${mbps.toFixed(1).replace('.', ',')} Mbps`
+}
+
 /** Counters (hours, cycles, sectors) with the Brazilian thousands separator. */
 export function formatCount(value?: number | null): string {
   if (!isNumber(value) || value < 0) return EM_DASH

@@ -180,9 +180,42 @@ passa `force` e ignora o cache.
 
 ---
 
+## Como a rede é medida
+
+O diagnóstico é uma execução só, sob demanda, e o resultado inteiro volta em um
+objeto. A divisão existe para testar as partes sem depender de rede:
+
+- `src/main/features/network/ping.ts` — o Node não manda ICMP sem root, então
+  o teste usa o `ping` do sistema, um processo por alvo. `parsePingTimes` lê o
+  tempo só em linhas que também têm `TTL`: é a única palavra que o Windows não
+  traduz, e as linhas de resumo ("Mínimo = 12ms") não têm TTL, então não viram
+  amostra. `time<1ms` vira 1. `summarizePing` fecha mín/média/máx, jitter (média
+  da diferença entre pacotes consecutivos) e perda.
+- `src/main/features/network/speed.ts` — download e upload pelo
+  `speed.cloudflare.com`, com streams paralelos por tempo fixo (4 e 3, 8 s e
+  6 s) e `bytes * 8 / segundos`. Um stream que falha é descartado, os outros
+  seguem. Quando o servidor responde 429 (limite de testes) nasce um
+  `SpeedTestError`, que a página transforma em observação em vez de "0 Mbps".
+- `src/main/features/network/verdict.ts` — o veredito, separado em rede local ×
+  provedor. Todo caso crítico tem o seu motivo: o original podia mostrar "RUIM"
+  ao lado de uma frase elogiando a latência.
+- `src/main/features/network/index.ts` — descobre o adaptador padrão pelo
+  `systeminformation`, pinga roteador e dois resolvedores em paralelo, resolve
+  três domínios, mede o download com um ping concorrente (bufferbloat -
+  `loadedMs` só existe se o download foi medido) e depois o upload. Emite
+  `NetworkProgress` a cada etapa e guarda o último relatório no processo
+  principal, para sair e voltar à página não jogar fora um teste de 30 s.
+
+Nada precisa de privilégio, nada é gravado em disco, e o cancelamento aborta os
+pings e os `fetch` de uma vez — a promessa pendente resolve `null` e o relatório
+anterior continua intacto. Os destinos e as durações são constantes em
+`src/shared/features/network.ts`, importadas pelo main e pela página.
+
+---
+
 ## Os testes
 
-159 testes em 12 arquivos, todos rodando em alguns segundos.
+177 testes em 13 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -197,6 +230,7 @@ passa `force` e ignora o cache.
 | `tests/system.test.ts` | As unidades filtram pseudo-filesystems e acham o disco físico da partição |
 | `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, o parser do nvidia-smi e as estatísticas da sessão |
 | `tests/health.test.ts` | O parser do `smartctl` (NVMe e ATA), a divisão da leitura privilegiada, os limites do veredito e a junção do CIM no Windows |
+| `tests/network.test.ts` | O parser do `ping` (Linux e Windows pt-BR), jitter e perda, e os limites do veredito de rede |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 
 ```bash

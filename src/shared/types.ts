@@ -259,5 +259,13 @@ export const IPC = {
   /** S.M.A.R.T. health of the physical disks. */
   healthList: 'health:list',
   /** One privileged read (pkexec) for disks smartctl cannot open. */
-  healthElevated: 'health:elevated'
+  healthElevated: 'health:elevated',
+  /** Runs the full network diagnostic and resolves with the report. */
+  netDiagnose: 'net:diagnose',
+  /** Aborts the diagnostic; the pending call resolves to null. */
+  netCancel: 'net:cancel',
+  /** Last completed report, without running the test again. */
+  netLast: 'net:last',
+  /** Pushed while the diagnostic runs. */
+  netProgress: 'net:progress'
 } as const

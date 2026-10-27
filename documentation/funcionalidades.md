@@ -47,15 +47,14 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
 | Discos | Unidades e Saúde — **pronta** |
-| Rede | Latência, jitter, perda, DNS, velocidade e bufferbloat |
+| Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
 | Jogos | FPS esperado por jogo, resolução, preset e upscaling |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão |
 | Overlay | Métricas por cima do jogo |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
 
-> **Nota:** Iluminação, Sistema, Sensores e as duas abas de Discos já
-> funcionam. As outras páginas descrevem o que virá; o plano do projeto tem a
-> ordem completa.
+> **Nota:** Iluminação, Sistema, Sensores, Discos e Rede já funcionam. As
+> outras páginas descrevem o que virá; o plano do projeto tem a ordem completa.
 
 ---
 
@@ -166,6 +165,41 @@ De onde vêm os números:
 - Um disco que não responde (pendrive com bridge USB sem suporte, disco sem
   permissão) fica como **sem dados** — nunca como saudável. No Windows o
   "Healthy" que ele dá para qualquer pendrive não conta como métrica.
+
+---
+
+## A tela de Rede
+
+Um teste sob demanda de cerca de 30 segundos: ele só roda quando você clica,
+porque satura a conexão e não faria sentido disparar ao abrir a página. Durante
+o teste o botão vira **Cancelar**; recusar mantém o último resultado na tela.
+
+- **Progresso por etapa** no topo: procurar a conexão, medir latência, DNS,
+  download e upload, com a fração concluída.
+- **Latência, jitter e perda** de três alvos em paralelo: o **roteador**
+  (gateway do sistema) e dois servidores públicos (1.1.1.1 e 8.8.8.8). São 20
+  pacotes no Linux e 12 no Windows, onde o ping é de um em um segundo.
+- **DNS** — tempo de resolução de três domínios. A média entra no veredito; um
+  domínio que não resolve aparece como "falhou".
+- **Velocidade** — download e upload pelo speed.cloudflare.com, com 4 e 3
+  conexões em paralelo por 8 s e 6 s. Durante o download um ping roda junto,
+  medindo a **latência sob carga** (bufferbloat).
+- **O veredito compara a rede local com a internet**, para dizer onde está o
+  atraso:
+  - perda acima de 5% ou latência média acima de 150 ms: **ruim**;
+  - perda acima de 1%, média acima de 80 ms, jitter acima de 20 ms, latência
+    sob carga mais de 100 ms acima da ociosa, DNS acima de 150 ms ou download
+    abaixo de 10 Mbps: **atenção**;
+  - um roteador que bloqueia ping, sozinho, não é problema: a página diz isso e
+    o resultado segue **estável**;
+  - sem conexão ativa o cartão diz **sem rede**; se o comando `ping` não
+    existir, **sem dados** — a página explica em vez de culpar a internet.
+- **De onde vêm os números:** o `ping` do sistema (Node não manda ICMP sem
+  root), o resolvedor do próprio sistema e o Cloudflare. Nada precisa de
+  privilégio e nada é gravado em disco.
+- Quando o Cloudflare recusa a medição (HTTP 429, por excesso de testes), o
+  download aparece como **—** e uma observação explica o motivo, em vez de um
+  zero falso.
 
 ---
 
