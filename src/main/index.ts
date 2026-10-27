@@ -769,6 +769,31 @@ async function runSelfTest(): Promise<void> {
         /ao vivo/.test(text()) &&
         document.querySelector('.page-title')?.textContent === 'Sensores'
 
+      // Cards that share a grid row must end on the same line: a long list
+      // used to stretch its own row and leave a hole under the shorter card.
+      // The sensor groups are bounded, so a machine with 40 readings scrolls
+      // inside the card instead of pushing the rest of the page down.
+      const rowHeight = new Map()
+      let cardsAligned = true
+      for (const card of document.querySelectorAll('section.card')) {
+        const rect = card.getBoundingClientRect()
+        const key = Math.round(rect.top)
+        const height = Math.round(rect.height)
+        const seen = rowHeight.get(key)
+        if (seen === undefined) rowHeight.set(key, height)
+        else if (Math.abs(seen - height) > 1) cardsAligned = false
+      }
+      window.__myRgbCardsAligned = cardsAligned
+      const bounded = Array.from(document.querySelectorAll('section.card.card-scroll'))
+      const cap = Math.min(window.innerHeight * 0.62, 620)
+      window.__myRgbSensorsScroll =
+        bounded.length >= 2 &&
+        bounded.every(
+          (card) =>
+            card.scrollHeight <= card.clientHeight + 1 &&
+            card.getBoundingClientRect().height <= cap + 1
+        )
+
       window.__myRgbNavigate && window.__myRgbNavigate('disks')
       await waitFor(() => document.querySelectorAll('svg circle').length >= 2)
       window.__myRgbDrivesReady =
@@ -957,6 +982,8 @@ async function runSelfTest(): Promise<void> {
         bottleneckReady: window.__myRgbBottleneckReady === true,
         overlayReady: window.__myRgbOverlayReady === true,
         sensorsReady: window.__myRgbSensorsReady === true,
+        cardsAligned: window.__myRgbCardsAligned === true,
+        sensorsScroll: window.__myRgbSensorsScroll === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
         gradient: /gradiente/i.test(document.body.innerText),
@@ -990,7 +1017,9 @@ async function runSelfTest(): Promise<void> {
     report.bottleneckReady === true &&
     report.overlayReady === true &&
     report.shortcutRegistered === true &&
-    report.sensorsReady === true
+    report.sensorsReady === true &&
+    report.cardsAligned === true &&
+    report.sensorsScroll === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
 }

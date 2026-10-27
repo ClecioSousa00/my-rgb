@@ -371,7 +371,7 @@ export function NetworkPage(): React.JSX.Element {
 
             {report.internet.length > 0 && (
               <Section title="Latência e perda">
-                <div className="grid items-start gap-4 xl:grid-cols-3">
+                <div className="grid gap-4 xl:grid-cols-3">
                   {report.gateway && <PingCard stat={report.gateway} />}
                   {report.internet.map((stat) => (
                     <PingCard key={stat.address} stat={stat} />
@@ -380,7 +380,7 @@ export function NetworkPage(): React.JSX.Element {
               </Section>
             )}
 
-            <div className="grid items-start gap-4 xl:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-2">
               <SpeedCard report={report} />
               <DnsCard report={report} />
             </div>

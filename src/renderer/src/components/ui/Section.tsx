@@ -7,6 +7,10 @@
  *
  * A section marked `collapsible` folds to a single title bar, which lets a
  * long page (Sistema) fit on a small window without hiding anything for good.
+ *
+ * A section marked `scroll` bounds its own height and scrolls the content
+ * inside, so a list of unknown length (the sensor groups) cannot stretch the
+ * whole grid row and push the rest of the page down.
  */
 
 import { useState } from 'react'
@@ -17,6 +21,7 @@ export function Section({
   chip,
   action,
   collapsible = false,
+  scroll = false,
   className = '',
   children
 }: {
@@ -27,14 +32,26 @@ export function Section({
   action?: React.ReactNode
   /** Adds a chevron and lets the content fold away. */
   collapsible?: boolean
+  /** Caps the card height and scrolls its content instead. */
+  scroll?: boolean
   className?: string
   children: React.ReactNode
 }): React.JSX.Element {
   const [open, setOpen] = useState(true)
 
   return (
-    <Card className={className}>
-      <div className="flex items-start justify-between gap-3">
+    <Card
+      className={[
+        // Folded away, the card keeps its own height instead of being
+        // stretched to the neighbour's: folding it is a request for less space.
+        collapsible && !open ? 'self-start' : '',
+        scroll ? 'card-scroll' : '',
+        className
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <div className="flex shrink-0 items-start justify-between gap-3">
         <h2 className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-300">
           {collapsible ? (
             <button
@@ -58,7 +75,9 @@ export function Section({
           {action}
         </div>
       </div>
-      {open && <div className="mt-4">{children}</div>}
+      {open && (
+        <div className={scroll ? 'card-scroll-body mt-4 pr-1' : 'mt-4'}>{children}</div>
+      )}
     </Card>
   )
 }

@@ -196,9 +196,9 @@ export function SensorsPage(): React.JSX.Element {
             </div>
           </div>
 
-          <div className="mt-4 grid items-start gap-4 xl:grid-cols-2">
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
             {groups.map(([chip, list]) => (
-              <Section key={chip} title={chip} chip={`${list.length}`}>
+              <Section key={chip} title={chip} chip={`${list.length}`} scroll>
                 <div className="sensor-head">
                   <span>Sensor</span>
                   <span>agora</span>

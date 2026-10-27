@@ -105,6 +105,10 @@ escondida.
   - quando a leitura passa do limite do próprio sensor (ex.: a temperatura
     crítica do NVMe), o valor **inverte** para branco sobre preto. Nenhuma cor
     é usada para dizer "ruim".
+- **Os cartões da mesma linha terminam na mesma altura**, e um hardware com
+  muitas leituras não estica a linha inteira: o cartão para em cerca de uma
+  tela e rola por dentro, então o resto da página não desce junto. O cabeçalho
+  (Sensor · agora · mín · máx) fica preso no topo enquanto as leituras rolam.
 - **O mínimo, o máximo e o histórico vivem no processo principal**, não na
   página: fechar e reabrir Sensores continua a sessão em vez de recomeçar.
 - **De onde vêm os números:**

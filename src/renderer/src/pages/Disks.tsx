@@ -287,7 +287,7 @@ function HealthTab({
       )}
 
       {snapshot.cards.length > 0 && (
-        <div className="grid items-start gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
           {snapshot.cards.map((card) => (
             <HealthCard key={card.device} card={card} />
           ))}
@@ -441,7 +441,7 @@ export function DisksPage(): React.JSX.Element {
             )}
 
             {drives && drives.length > 0 && (
-              <div className="grid items-start gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 xl:grid-cols-2">
                 {drives.map((drive) => (
                   <DriveCard key={drive.id} drive={drive} />
                 ))}

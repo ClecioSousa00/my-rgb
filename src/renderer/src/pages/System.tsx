@@ -79,7 +79,7 @@ export function SystemPage(): React.JSX.Element {
       )}
 
       {data && (
-        <div className="mt-6 grid items-start gap-4 lg:grid-cols-2">
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <Section collapsible title="Sistema" chip={data.os.uefi ? 'UEFI' : undefined}>
             <MetricGrid>
               <Metric label="Sistema operacional" value={data.os.name} />

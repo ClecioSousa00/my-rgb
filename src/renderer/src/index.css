@@ -101,6 +101,39 @@
     padding: 20px;
   }
 
+  /*
+   * A card with a bounded height.
+   *
+   * Cards in the same grid row share the tallest one's height, and the row
+   * below starts after it. When one of them is a list of unknown length (the
+   * sensor groups, a disk's SMART table), that height is whatever the machine
+   * happens to report, and the rest of the page is pushed down with a hole
+   * under the shorter cards.
+   *
+   * A bounded card caps the row at about a screenful and scrolls its own
+   * content instead, so a machine with 40 sensors and one with 6 have the same
+   * page rhythm. `--card-max` lets a page pick a different cap.
+   */
+  .card-scroll {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: var(--card-max, min(62vh, 620px));
+  }
+
+  /* The scrolling body of a bounded card: the title bar above it stays put. */
+  .card-scroll-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+
+  /* The global thumb is ringed with the page colour; inside a card the ring
+     has to be the card's own fill. */
+  .card-scroll-body::-webkit-scrollbar-thumb {
+    border-color: var(--color-ink-800);
+  }
+
   .panel-header {
     display: flex;
     align-items: center;
@@ -363,6 +396,11 @@
     gap: 8px;
   }
   .sensor-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    /* Same fill as the card, so the rows scroll underneath it cleanly. */
+    background: var(--color-ink-800);
     padding-bottom: 6px;
     border-bottom: 1px solid var(--color-ink-700);
     font-size: 9.5px;

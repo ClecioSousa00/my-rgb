@@ -192,7 +192,7 @@ export function OverlayPage(): React.JSX.Element {
         </span>
       </PageHeader>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <Section
           title="Janela"
           chip={formatAccelerator(config.shortcut)}
