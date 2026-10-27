@@ -3,6 +3,7 @@
  * Kept dependency-free so it can be imported from any of the three.
  */
 
+import type { LightTarget } from './features/light'
 import type { OverlayConfig } from './features/overlay'
 
 export interface RGB {
@@ -159,6 +160,15 @@ export interface Profile {
   zones: ZoneConfig[]
   palettes: Palette[]
   global: GlobalSettings
+  /**
+   * Where each zone is written.
+   *
+   * Optional on purpose: a profile saved before the lighting router existed
+   * has no targets, and `reconcileProfile` synthesizes the AURA ones from the
+   * hardware layout, so it opens exactly as it did. `ZoneConfig.zoneId` is
+   * still the key that ties a config to its target.
+   */
+  targets?: LightTarget[]
 }
 
 /** Pages reachable from the sidebar. */

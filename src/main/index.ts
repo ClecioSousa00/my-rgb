@@ -10,6 +10,8 @@ import { mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
+import { LightRouter } from './light/router'
+import { AuraBackend } from './light/backends/aura'
 import { defaultProfile, ProfileStore, reconcileProfile } from './store/profileStore'
 import { SettingsStore } from './store/settings'
 import { buildZones } from './zones'
@@ -44,6 +46,8 @@ class MyRgbApp {
   private device = new AuraUsbDevice()
   zones: ZoneState[] = []
   engine!: EffectEngine
+  /** Where frames are written. One backend today (AURA), one per target. */
+  light!: LightRouter
   profileStore!: ProfileStore
   settings!: SettingsStore
   /** Live sensor stream, started by the Sensores page and stopped on quit. */
@@ -103,6 +107,15 @@ class MyRgbApp {
       onFrame: (frame) => this.pushFrame(frame),
       onError: (message) => this.pushError(message)
     })
+
+    // The router owns the write path (and, later, the other backends). The
+    // AURA controller stays opened by this class, so registering it changes
+    // nothing about when the device is claimed or released.
+    this.light = new LightRouter({
+      onError: (message) => this.emitAppError(`Iluminação externa: ${message}`)
+    })
+    this.light.register(new AuraBackend(this.device))
+    this.engine.setOutput(this.light)
 
     // The sensor poll runs only while a page is subscribed (and the window is
     // visible), so creating it here costs nothing.
@@ -179,12 +192,15 @@ class MyRgbApp {
     if (ok) this.lastEngineError = null
     this.reconcile()
     this.engine.setZones(this.zones)
+    // Targets follow the profile; reconcile() has just (re)derived the AURA
+    // ones from the layout, so the router addresses exactly the zones above.
+    // Set before the profile, because `setProfile` re-applies the output state.
+    this.light.setTargets(this.profileStore.profile.targets ?? [])
     // reconcile() may have added zones or fixed their LED counts. The engine
     // holds its own reference to the profile, so it has to be told about the
     // new one - otherwise the first start (and every newly connected zone)
     // renders with the old, zoneless profile.
     this.engine.setProfile(this.profileStore.profile)
-    this.engine.setDevice(ok ? this.device : null)
     // If the lights are supposed to be off, darken them right away instead of
     // leaving whatever the previous owner left on the controller.
     this.engine.syncOutput()
@@ -276,7 +292,7 @@ class MyRgbApp {
       )
       this.zones = []
       this.engine.setZones([])
-      this.engine.setDevice(null)
+      this.light.setTargets([])
       this.lastEngineError = null
       this.pushDeviceInfo()
       this.emitEngineState()
@@ -541,6 +557,7 @@ class MyRgbApp {
     this.bottleneck?.dispose()
     this.fps?.dispose()
     this.sensors?.dispose()
+    this.light?.dispose()
     if (this.conflictTimer) {
       clearInterval(this.conflictTimer)
       this.conflictTimer = null

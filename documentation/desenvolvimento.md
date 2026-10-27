@@ -346,9 +346,50 @@ primeiro plano:
 
 ---
 
+## Como a iluminação é roteada
+
+O motor não conhece hardware: ele renderiza o quadro e entrega cada zona ao
+**roteador** (`src/main/light/router.ts`). Hoje existe um backend só — o
+controlador AURA —, então o caminho é o mesmo de antes; a divisão existe para
+que o segundo backend não encoste no motor.
+
+Um **alvo** (`LightTarget`, em `src/shared/features/light.ts`) é uma zona
+endereçável de um backend: `aura:argb0`, `openrgb:0:2`, `razer:keyboard`.
+Cada alvo guarda o backend, o dispositivo, o índice da zona dentro dele, o nome,
+a quantidade de LEDs e se faz parte da saída.
+
+O perfil continua na **versão 1** e ganhou um campo opcional `targets`:
+
+- Perfil antigo (sem `targets`) abre igual: `reconcileProfile` sintetiza os
+  alvos AURA a partir do layout do controlador, e `ZoneConfig.zoneId` segue
+  sendo a chave curta que o app sempre usou (`argb0`, `mainboard`). Nada é
+  migrado no arquivo.
+- Zona desligada no perfil **continua sendo escrita**, em preto: o `enabled` do
+  alvo diz se ele faz parte da saída, não se o efeito está ligado.
+- Alvos de outros backends são preservados quando a reconciliação refaz os da
+  AURA, e um arquivo importado passa por uma sanitização (backend conhecido,
+  índice inteiro e não negativo, ids sem repetição).
+
+Três regras fazem um backend externo ser seguro de acrescentar:
+
+1. **Um backend não derruba os outros.** Só o AURA é crítico: se a escrita nele
+   falha, o motor para e a interface mostra o mesmo erro de sempre. OpenRGB,
+   Razer e Corsair devolvem o erro por `onError` e o quadro continua.
+2. **Intervalo mínimo por alvo.** O backend declara `minIntervalMs`, para um
+   dispositivo que engasga com 30 atualizações por segundo.
+3. **Acquire/Release.** O backend é "segurado" enquanto tem alvos ligados e
+   liberado quando o último alvo some. O AURA já é aberto pelo processo
+   principal, então o `acquire` dele só confirma que o dispositivo responde.
+
+`tests/light.test.ts` cobre os alvos, a migração implícita e essas três regras;
+`tests/output.test.ts` continua provando que o quadro que chega ao hardware é
+byte a byte o mesmo que aparece na prévia.
+
+---
+
 ## Os testes
 
-255 testes em 16 arquivos, todos rodando em alguns segundos.
+276 testes em 17 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -367,6 +408,7 @@ primeiro plano:
 | `tests/games.test.ts` | O casamento CPU/GPU pelo nome mais longo, a fórmula do FPS, os nomes curtos da API, o cache de 7 dias e os erros 401/403/404/429 |
 | `tests/bottleneck.test.ts` | A ordem e os limites das regras, os textos do equilíbrio, a amostragem, o relatório, a contagem de referência e o timer da sessão |
 | `tests/overlay.test.ts` | O catálogo e a normalização do overlay, os quatro cantos, o formatador de métricas, o protocolo do helper e a contagem de referência/falhas do serviço de FPS |
+| `tests/light.test.ts` | Os alvos de iluminação, a migração implícita dos perfis antigos e as regras do roteador (throttle, acquire/release, isolamento de erro por backend) |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 
 ```bash

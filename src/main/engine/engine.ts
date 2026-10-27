@@ -11,7 +11,7 @@
  */
 
 import type { Frame, Profile, RGB, ZoneConfig, ZoneState } from '@shared/types'
-import type { AuraUsbDevice } from '../aura/auraDevice'
+import type { LightRouter } from '../light/router'
 import { samplePalette } from './palette'
 import { getPattern, resolveParams } from './patterns'
 import { hash, noise } from './patterns/helpers'
@@ -24,7 +24,8 @@ export interface EngineOptions {
 }
 
 export class EffectEngine {
-  private device: AuraUsbDevice | null = null
+  /** Where frames are written. The router decides which backend serves each zone. */
+  private output: LightRouter | null = null
   private profile: Profile
   private zones: ZoneState[] = []
   private readonly onFrame: (frame: Frame) => void
@@ -45,8 +46,8 @@ export class EffectEngine {
     this.onError = options.onError
   }
 
-  setDevice(device: AuraUsbDevice | null): void {
-    this.device = device
+  setOutput(router: LightRouter | null): void {
+    this.output = router
     // A freshly connected device may be showing anything - another program,
     // or the last state before the cable was unplugged. The output state has
     // to be applied again from scratch.
@@ -68,7 +69,7 @@ export class EffectEngine {
    * here (and not on every frame) keeps the "lights off" state cheap.
    */
   syncOutput(): void {
-    if (!this.device || !this.device.connected) return
+    if (!this.output || !this.output.outputAvailable) return
 
     if (this.profile.global.outputEnabled) {
       this.lightsState = 'on'
@@ -82,13 +83,12 @@ export class EffectEngine {
       const config = this.profile.zones.find((z) => z.zoneId === zone.id)
       const count = ledCountFor(config, zone)
       if (count <= 0) continue
-      try {
-        this.device.setChannelLeds(
-          zone.directChannel,
-          new Array<RGB>(count).fill({ r: 0, g: 0, b: 0 })
-        )
-      } catch (err) {
-        this.onError?.(`Failed to clear zone ${zone.id}: ${errorMessage(err)}`)
+      const result = this.output.write(
+        zone.id,
+        new Array<RGB>(count).fill({ r: 0, g: 0, b: 0 })
+      )
+      if (result.fatal) {
+        this.onError?.(`Failed to clear zone ${zone.id}: ${result.error ?? 'unknown error'}`)
         // The zone is still lit, so try again on the next sync.
         this.lightsState = 'unknown'
         return
@@ -220,7 +220,7 @@ export class EffectEngine {
 
   /** Push a rendered frame to the hardware. */
   private applyFrame(frame: Frame): void {
-    if (!this.device || !this.device.connected) return
+    if (!this.output || !this.output.outputAvailable) return
     if (!this.profile.global.outputEnabled) return
 
     let offset = 0
@@ -235,13 +235,12 @@ export class EffectEngine {
       offset += count
 
       if (count === 0) continue
-      try {
-        this.device.setChannelLeds(zone.directChannel, colors)
-      } catch (err) {
+      const result = this.output.write(zone.id, colors)
+      if (result.fatal) {
         // Stop first, so the state pushed with the error already says the
         // engine is no longer producing frames.
         this.stop()
-        this.onError?.(`Failed to write zone ${zone.id}: ${errorMessage(err)}`)
+        this.onError?.(`Failed to write zone ${zone.id}: ${result.error ?? 'unknown error'}`)
         return
       }
     }
@@ -284,8 +283,4 @@ function ledCountFor(config: ZoneConfig | undefined, zone: ZoneState): number {
   const max = Number(zone.maxLedCount)
   const limit = Number.isFinite(max) ? Math.max(0, Math.round(max)) : count
   return Math.max(0, Math.min(count, limit))
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
 }

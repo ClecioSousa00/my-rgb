@@ -95,6 +95,35 @@ próprio nome.
 É o jeito de manter duas ventoinhas sincronizadas sem duplicar o trabalho de
 ajustar.
 
+### `targets`: onde cada zona é escrita
+
+O perfil pode guardar uma lista de **alvos** — a zona de qual dispositivo
+recebe aquele efeito:
+
+```jsonc
+"targets": [
+  {
+    "id": "aura:argb0",       // backend + zona
+    "backend": "aura",
+    "deviceId": "aura",
+    "zoneIndex": 0,           // canal direto do controlador
+    "label": "Frente da caixa",
+    "ledCount": 72,
+    "enabled": true
+  }
+]
+```
+
+O campo é **opcional**. Um perfil salvo antes dele existir abre sem nenhuma
+migração: o programa deriva os alvos AURA do layout do controlador e mantém o
+`zoneId` curto (`argb0`, `mainboard`) como a chave de sempre. Hoje só existe o
+backend AURA; os outros (OpenRGB, Razer, Corsair) entram depois usando o mesmo
+formato.
+
+Nada aqui muda o que você vê: o alvo é a rota da escrita, não o efeito. Quem
+liga e desliga uma zona continua sendo o `enabled` da zona, e quem escolhe o
+efeito continua sendo o próprio efeito.
+
 ---
 
 ## Aplicar o mesmo efeito em todas as zonas

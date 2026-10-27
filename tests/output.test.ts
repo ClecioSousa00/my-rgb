@@ -7,13 +7,15 @@
  * darken the hardware, not just stop sending frames.
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EffectEngine } from '@main/engine/engine'
 import { BUILTIN_PALETTES } from '@main/engine/palette'
 import { buildZones } from '@main/zones'
 import { reconcileProfile } from '@main/store/profileStore'
+import { LightRouter } from '@main/light/router'
+import { AuraBackend } from '@main/light/backends/aura'
 import type { AuraUsbDevice } from '@main/aura/auraDevice'
-import type { Profile, RGB, ZoneState } from '@shared/types'
+import type { Frame, Profile, RGB, ZoneState } from '@shared/types'
 
 const LAYOUT = { argbChannels: 3, mainboardLeds: 1, rgbHeaders: 2 }
 
@@ -63,12 +65,24 @@ function buildProfile(outputEnabled = true): { profile: Profile; zones: ZoneStat
   return { profile, zones }
 }
 
-function attach(
-  engine: EffectEngine,
-  device: FakeDevice
-): void {
-  engine.setDevice(device as unknown as AuraUsbDevice)
+/**
+ * Wire the engine the way the app does: AURA backend -> router -> engine.
+ *
+ * The frames must reach exactly the same channels with exactly the same
+ * colours as when the engine held the device directly; that is the parity the
+ * router commit has to keep.
+ */
+function attach(engine: EffectEngine, device: FakeDevice, profile: Profile): LightRouter {
+  const router = new LightRouter()
+  router.register(new AuraBackend(device as unknown as AuraUsbDevice))
+  router.setTargets(profile.targets ?? [])
+  engine.setOutput(router)
+  return router
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('engine output', () => {
   it('darkens every zone when the output is disabled', () => {
@@ -76,7 +90,7 @@ describe('engine output', () => {
     const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
     const device = new FakeDevice()
 
-    attach(engine, device)
+    attach(engine, device, profile)
 
     expect(device.blackWrites).toHaveLength(4)
     for (const write of device.blackWrites) {
@@ -89,7 +103,7 @@ describe('engine output', () => {
     const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
     const device = new FakeDevice()
 
-    attach(engine, device)
+    attach(engine, device, profile)
 
     expect(device.writes).toHaveLength(0)
   })
@@ -98,7 +112,7 @@ describe('engine output', () => {
     const { profile, zones } = buildProfile(true)
     const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
     const device = new FakeDevice()
-    attach(engine, device)
+    attach(engine, device, profile)
 
     engine.setProfile({ ...profile, global: { ...profile.global, outputEnabled: false } })
 
@@ -109,7 +123,7 @@ describe('engine output', () => {
     const { profile, zones } = buildProfile(true)
     const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
     const device = new FakeDevice()
-    attach(engine, device)
+    attach(engine, device, profile)
 
     engine.setProfile({ ...profile, global: { ...profile.global, outputEnabled: false } })
     const afterOff = device.writes.length
@@ -123,14 +137,47 @@ describe('engine output', () => {
     const { profile, zones } = buildProfile(false)
     const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
     const device = new FakeDevice()
-    attach(engine, device)
+    attach(engine, device, profile)
     expect(device.blackWrites).toHaveLength(4)
 
     // Unplug and plug back in: the controller may be showing anything now.
-    engine.setDevice(null)
-    attach(engine, device)
+    engine.setOutput(null)
+    attach(engine, device, profile)
 
     expect(device.blackWrites).toHaveLength(8)
+  })
+
+  it('writes exactly the rendered frame, zone by zone, through the router', () => {
+    const { profile, zones } = buildProfile(true)
+    const frames: Frame[] = []
+    const engine = new EffectEngine(profile, zones, { onFrame: (frame) => frames.push(frame) })
+    const device = new FakeDevice()
+    const router = attach(engine, device, profile)
+    expect(router.targets().map((t) => t.zoneIndex)).toEqual([4, 0, 1, 2])
+
+    vi.useFakeTimers()
+    engine.start()
+    vi.advanceTimersByTime(1000 / 30 + 5)
+    engine.stop()
+
+    const frame = frames.at(-1)!
+    expect(device.writes.map((w) => w.channel)).toEqual([4, 0, 1, 2])
+
+    // Each channel carries the slice of the frame the preview shows.
+    let offset = 0
+    device.writes.forEach((write, zi) => {
+      const count = frame.zoneLedCounts[zi]
+      expect(write.colors).toHaveLength(count)
+      for (let i = 0; i < count; i++) {
+        const p = (offset + i) * 3
+        expect(write.colors[i]).toEqual({
+          r: frame.pixels[p],
+          g: frame.pixels[p + 1],
+          b: frame.pixels[p + 2]
+        })
+      }
+      offset += count
+    })
   })
 
   it('retries after a failed write', () => {
@@ -143,7 +190,7 @@ describe('engine output', () => {
     const device = new FakeDevice()
     device.failNext = 1
 
-    attach(engine, device)
+    attach(engine, device, profile)
     expect(errors).toHaveLength(1)
     expect(device.writes).toHaveLength(0)
 

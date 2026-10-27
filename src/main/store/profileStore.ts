@@ -17,6 +17,13 @@ import type {
   ZoneConfig,
   ZoneState
 } from '@shared/types'
+import type { LightBackendId, LightTarget } from '@shared/features/light'
+import {
+  LIGHT_BACKENDS,
+  auraTargetsFromZones,
+  mergeTargets,
+  syncAuraTargets
+} from '@shared/features/light'
 import { BUILTIN_PALETTES, hexToRgb, rgbToHex } from '../engine/palette'
 import { defaultParams, getPattern } from '../engine/patterns'
 
@@ -85,14 +92,61 @@ export function validateImportedProfile(value: unknown): Profile {
   const palettes = sanitizePalettes(raw.palettes)
   const paletteIds = new Set(palettes.map((p) => p.id))
   const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Importado'
+  const targets = sanitizeTargets(raw.targets)
 
   return {
     version: 1,
     name,
     zones: sanitizeZones(raw.zones, paletteIds, palettes[0].id),
     palettes,
-    global: sanitizeGlobal(raw.global)
+    global: sanitizeGlobal(raw.global),
+    // Absent stays absent: the targets are derived from the hardware when the
+    // profile is opened, which is what lets an old file be imported as is.
+    ...(targets ? { targets } : {})
   }
+}
+
+/**
+ * Targets from an imported file.
+ *
+ * A target is an instruction to write to a device, so an unknown backend or a
+ * nonsensical zone index is dropped instead of being trusted. A file without
+ * targets keeps none (`undefined`), and the AURA ones are synthesized later.
+ */
+function sanitizeTargets(value: unknown): LightTarget[] | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const result: LightTarget[] = []
+  const ids = new Set<string>()
+
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const target = item as Partial<LightTarget>
+    if (typeof target.id !== 'string' || !target.id || ids.has(target.id)) continue
+    const backend = target.backend as LightBackendId | undefined
+    if (!backend || !LIGHT_BACKENDS.includes(backend)) continue
+
+    const zoneIndex = Math.round(Number(target.zoneIndex))
+    if (!Number.isFinite(zoneIndex) || zoneIndex < 0) continue
+
+    const ledCount = Math.round(Number(target.ledCount))
+    ids.add(target.id)
+    result.push({
+      id: target.id,
+      backend,
+      deviceId:
+        typeof target.deviceId === 'string' && target.deviceId.trim()
+          ? target.deviceId.trim()
+          : backend,
+      zoneIndex,
+      label:
+        typeof target.label === 'string' && target.label.trim() ? target.label.trim() : target.id,
+      ledCount: Number.isFinite(ledCount) ? Math.max(0, ledCount) : 0,
+      enabled: target.enabled !== false
+    })
+  }
+
+  return result.length > 0 ? result : undefined
 }
 
 function sanitizePalettes(input: unknown[]): Palette[] {
@@ -229,7 +283,8 @@ export function defaultProfile(zones: ZoneState[] = []): Profile {
     name: 'Padrão',
     zones: zoneConfigs,
     palettes: BUILTIN_PALETTES.map((p) => ({ ...p, stops: p.stops.map((s) => ({ ...s })) })),
-    global: { ...DEFAULT_GLOBAL }
+    global: { ...DEFAULT_GLOBAL },
+    targets: auraTargetsFromZones(zones, zoneConfigs)
   }
 }
 
@@ -266,6 +321,14 @@ export function reconcileProfile(profile: Profile, zones: ZoneState[]): Profile 
         })
 
   const next: Profile = { ...profile, zones: zoneConfigs }
+
+  // Zones are the physical truth for the AURA controller: a profile written
+  // before targets existed (or one whose layout changed) gets them here, and
+  // an old file opens without a migration step. With no device attached the
+  // stored targets are kept untouched, exactly like the zone configs above.
+  if (zones.length > 0) {
+    next.targets = mergeTargets(profile.targets, auraTargetsFromZones(zones, zoneConfigs))
+  }
 
   // Every zone gets a valid effect, so switching one on later shows something
   // sensible straight away.
@@ -359,7 +422,12 @@ export class ProfileStore {
   }
 
   save(profile: Profile): Profile {
-    this.current = profile
+    // The zone configs own the label and LED count of each AURA target; a
+    // stale copy would travel with the file on export.
+    const targets = profile.targets
+      ? syncAuraTargets(profile.targets, profile.zones)
+      : undefined
+    this.current = targets === profile.targets ? profile : { ...profile, targets }
     this.writeCurrent()
     return this.current
   }

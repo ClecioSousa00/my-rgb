@@ -38,7 +38,8 @@ export async function runFrameDump(options: DumpOptions): Promise<string[]> {
 
   const fps = profile.global.fps || 30
   const engine = new EffectEngine(profile, zones, { onFrame: () => {} })
-  engine.setDevice(options.device)
+  // The dump only renders: it never writes to the hardware, so the router (and
+  // the device) is deliberately not attached here.
 
   // Deterministic clock: frame N is always at exactly N/fps seconds.
   const origin = 1_700_000_000_000
