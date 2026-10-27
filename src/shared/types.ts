@@ -275,5 +275,17 @@ export const IPC = {
   /** Store or erase the HowManyFPS key (never returned to the renderer). */
   gamesSetApiKey: 'games:setApiKey',
   /** Whether a key is stored, and whether it is encrypted. */
-  gamesHasApiKey: 'games:hasApiKey'
+  gamesHasApiKey: 'games:hasApiKey',
+  /** Subscribe to the bottleneck stream (starts the shared sensor poll). */
+  bottleneckStart: 'bottleneck:start',
+  /** Remove the page subscription. A running session keeps the poll alive. */
+  bottleneckStop: 'bottleneck:stop',
+  /** Start a 1, 3 or 5 minute analysis. */
+  bottleneckSessionStart: 'bottleneck:sessionStart',
+  /** Cancel the running analysis. */
+  bottleneckSessionStop: 'bottleneck:sessionStop',
+  /** Last finished report, kept in memory. */
+  bottleneckReport: 'bottleneck:report',
+  /** Pushed once per sensor batch, plus once when a session finishes. */
+  bottleneckSample: 'bottleneck:sample'
 } as const

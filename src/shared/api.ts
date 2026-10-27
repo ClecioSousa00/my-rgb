@@ -29,6 +29,12 @@ import type {
   GamesReport,
   GameOptions
 } from './features/games'
+import type {
+  BottleneckSessionProgress,
+  BottleneckSessionReport,
+  BottleneckSnapshot,
+  BottleneckUpdate
+} from './features/bottleneck'
 
 export type Unsubscribe = () => void
 
@@ -124,6 +130,20 @@ export interface MyRgbApi {
   setGamesApiKey(key: string | null): Promise<ApiKeyState>
   /** Whether a key is stored and whether the OS keyring protects it. */
   getGamesApiKeyState(): Promise<ApiKeyState>
+
+  // bottleneck
+  /** Subscribe to the live limiter and the current session state. */
+  startBottleneck(): Promise<BottleneckSnapshot>
+  /** Remove the subscription; a running session keeps collecting. */
+  stopBottleneck(): Promise<void>
+  /** Start a 1, 3 or 5 minute session. */
+  startBottleneckSession(minutes: number): Promise<BottleneckSessionProgress>
+  /** Cancel the running session. */
+  stopBottleneckSession(): Promise<void>
+  /** Last finished report, kept in memory. */
+  getBottleneckReport(): Promise<BottleneckSessionReport | null>
+  /** One update per second while the page is open. */
+  onBottleneck(callback: (update: BottleneckUpdate) => void): Unsubscribe
 
   // events
   onFrame(callback: (frame: Frame) => void): Unsubscribe

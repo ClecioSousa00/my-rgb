@@ -21,11 +21,13 @@ import { buildEffectsDoc } from './docs/effectsDoc'
 import { initAutoUpdater } from './updater'
 import { registerIpc } from './ipc/register'
 import { SensorsStore } from './features/sensors/store'
+import { BottleneckService } from './features/bottleneck'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
 import type { EngineState } from '@shared/api'
 import type { SensorsSnapshot } from '@shared/features/sensors'
+import type { BottleneckUpdate } from '@shared/features/bottleneck'
 
 const isDev = !app.isPackaged
 
@@ -42,6 +44,8 @@ class MyRgbApp {
   settings!: SettingsStore
   /** Live sensor stream, started by the Sensores page and stopped on quit. */
   sensors!: SensorsStore
+  /** Live limiter and session report, fed by the sensor stream. */
+  bottleneck!: BottleneckService
   window: BrowserWindow | null = null
   private trayHandle: TrayHandle | null = null
   private conflicts: ConflictReport = { conflicting: false, processes: [], hint: '' }
@@ -99,6 +103,13 @@ class MyRgbApp {
       canPoll: () =>
         this.window !== null && !this.window.isDestroyed() && this.window.isVisible(),
       onError: (message) => this.emitAppError(`Sensores: ${message}`)
+    })
+
+    // The bottleneck reads the same batches; it never collects on its own.
+    this.bottleneck = new BottleneckService({
+      sensors: this.sensors,
+      onUpdate: (update) => this.pushBottleneck(update),
+      onError: (message) => this.emitAppError(`Gargalo: ${message}`)
     })
 
     await this.openDevice()
@@ -349,8 +360,17 @@ class MyRgbApp {
   }
 
   private pushSensors(snapshot: SensorsSnapshot): void {
+    // Even when the Sensores page is closed, a bottleneck session may be
+    // running on this batch; it keeps its own reference on the poll.
+    this.bottleneck.ingest(snapshot)
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.sensorsBatch, snapshot)
+    }
+  }
+
+  private pushBottleneck(update: BottleneckUpdate): void {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send(IPC.bottleneckSample, update)
     }
   }
 
@@ -466,6 +486,7 @@ class MyRgbApp {
   /** Release everything before the app quits. */
   shutdown(): void {
     this.engine?.stop()
+    this.bottleneck?.dispose()
     this.sensors?.dispose()
     if (this.conflictTimer) {
       clearInterval(this.conflictTimer)
@@ -741,6 +762,34 @@ async function runSelfTest(): Promise<void> {
         /estimativa local/i.test(text()) &&
         document.querySelector('.page-title')?.textContent === 'Jogos'
 
+      // Gargalo: the live block is fed by the same sensor poll as the Sensores
+      // page. Starting and cancelling a session proves the extra reference and
+      // the cancellation path without waiting a whole minute.
+      window.__myRgbNavigate && window.__myRgbNavigate('bottleneck')
+      await waitFor(
+        () =>
+          document.querySelectorAll('[data-meter]').length >= 5 &&
+          /Limitador agora/.test(text()),
+        15000
+      )
+      const liveMeters = document.querySelectorAll('[data-meter]').length
+      const startBottleneck = Array.from(document.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Iniciar análise'
+      )
+      if (startBottleneck instanceof HTMLElement) startBottleneck.click()
+      await waitFor(() => /Coletando/.test(text()), 8000)
+      const collecting = /Coletando/.test(text())
+      const cancelBottleneck = Array.from(document.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Cancelar'
+      )
+      if (cancelBottleneck instanceof HTMLElement) cancelBottleneck.click()
+      await waitFor(() => /Análise cancelada/.test(text()), 8000)
+      window.__myRgbBottleneckReady =
+        liveMeters >= 5 &&
+        collecting &&
+        /Análise cancelada/.test(text()) &&
+        document.querySelector('.page-title')?.textContent === 'Gargalo'
+
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await sleep(400)
       // The profile controls only make sense on the lighting screen, and they
@@ -793,6 +842,7 @@ async function runSelfTest(): Promise<void> {
         healthTab: window.__myRgbHealthTab === true,
         networkReady: window.__myRgbNetworkReady === true,
         gamesReady: window.__myRgbGamesReady === true,
+        bottleneckReady: window.__myRgbBottleneckReady === true,
         sensorsReady: window.__myRgbSensorsReady === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
@@ -818,6 +868,7 @@ async function runSelfTest(): Promise<void> {
     report.healthTab === true &&
     report.networkReady === true &&
     report.gamesReady === true &&
+    report.bottleneckReady === true &&
     report.sensorsReady === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)

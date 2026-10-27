@@ -30,6 +30,12 @@ import type {
   GamesReport,
   GameOptions
 } from '@shared/features/games'
+import type {
+  BottleneckSessionProgress,
+  BottleneckSessionReport,
+  BottleneckSnapshot,
+  BottleneckUpdate
+} from '@shared/features/bottleneck'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -113,6 +119,18 @@ const api: MyRgbApi = {
   setGamesApiKey: (key: string | null): Promise<ApiKeyState> =>
     ipcRenderer.invoke(IPC.gamesSetApiKey, key),
   getGamesApiKeyState: (): Promise<ApiKeyState> => ipcRenderer.invoke(IPC.gamesHasApiKey),
+
+  // bottleneck
+  startBottleneck: (): Promise<BottleneckSnapshot> =>
+    ipcRenderer.invoke(IPC.bottleneckStart),
+  stopBottleneck: (): Promise<void> => ipcRenderer.invoke(IPC.bottleneckStop),
+  startBottleneckSession: (minutes: number): Promise<BottleneckSessionProgress> =>
+    ipcRenderer.invoke(IPC.bottleneckSessionStart, minutes),
+  stopBottleneckSession: (): Promise<void> => ipcRenderer.invoke(IPC.bottleneckSessionStop),
+  getBottleneckReport: (): Promise<BottleneckSessionReport | null> =>
+    ipcRenderer.invoke(IPC.bottleneckReport),
+  onBottleneck: (callback: (update: BottleneckUpdate) => void) =>
+    subscribe(IPC.bottleneckSample, callback),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

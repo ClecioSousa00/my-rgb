@@ -108,8 +108,8 @@ describe('readHwmonSensors', () => {
 describe('parseNvidiaSmi', () => {
   it('reads one line per GPU and turns N/A into undefined', () => {
     const stdout = [
-      'NVIDIA GeForce RTX 4070, 52, 13, 2100, 78.5, 31',
-      'NVIDIA GeForce RTX 4070, [N/A], [N/A], 405, [Not Supported], [N/A]'
+      'NVIDIA GeForce RTX 4070, 52, 13, 2100, 78.5, 31, 6144, 12288',
+      'NVIDIA GeForce RTX 4070, [N/A], [N/A], 405, [Not Supported], [N/A], [N/A], 12288'
     ].join('\n')
 
     const [first, second] = parseNvidiaSmi(stdout)
@@ -119,10 +119,12 @@ describe('parseNvidiaSmi', () => {
       utilization: 13,
       clockMhz: 2100,
       powerW: 78.5,
-      fanPct: 31
+      fanPct: 31,
+      vramPct: 50
     })
     expect(second.temperature).toBeUndefined()
     expect(second.powerW).toBeUndefined()
+    expect(second.vramPct).toBeUndefined()
   })
 
   it('builds only the readings the card actually reported', () => {

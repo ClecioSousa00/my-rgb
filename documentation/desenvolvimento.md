@@ -244,9 +244,49 @@ Assim a tabela nunca fica vazia por causa de rede, e cada linha carrega o selo
 
 ---
 
+## Como o gargalo é calculado
+
+É um porte direto do `BottleneckAnalyzer` do Reset Explode: a ordem das regras,
+os limites e os textos são os originais. A única diferença é a origem do sinal
+térmico, explicada abaixo.
+
+- `src/main/features/bottleneck/classify.ts` — `classify()` na mesma ordem:
+  VRAM ≥ 97 % → térmico (CPU ≥ 95 °C ou queda térmica da GPU) → GPU ≥ 90 % →
+  CPU ou núcleo ≥ 85 % → RAM ≥ 92 % → travado. Também ficam aqui os títulos, os
+  conselhos e `balance()`, com as cinco faixas e os textos exatos do original.
+  Sem I/O, para que as fixtures fixem cada fronteira.
+- `src/main/features/bottleneck/sample.ts` — transforma um lote de sensores em
+  uma amostra: a primeira carga da GPU, a leitura `VRAM em uso`, a carga total
+  da CPU, o núcleo mais ocupado, a RAM e as temperaturas. Para a CPU vale a
+  temperatura **mais alta** (é o sensor que pode limitar); para a GPU, a
+  `Temperatura` simples, porque o hotspot esquentaria antes e dispararia a regra
+  cedo demais. O que faltou vira uma observação na página.
+- `src/main/features/bottleneck/session.ts` — a distribuição dos limitadores
+  (empate mantém a ordem de primeira aparição, como o `OrderBy` estável do
+  original), as médias e os máximos. O FPS médio só conta valores > 0, então um
+  campo ausente não puxa a média para baixo.
+- `src/main/features/bottleneck/index.ts` — `BottleneckService`: assina o
+  `SensorsStore` em vez de coletar por conta própria (uma coleta por segundo
+  serve as duas páginas). `start`/`stop` são contados como referência, e uma
+  sessão em andamento mantém uma referência extra — sair da página no meio de
+  uma análise não congela a contagem. Um `setTimeout` de segurança fecha a
+  sessão quando a janela está escondida e o poll fica bloqueado; ele é limpo ao
+  cancelar, ao terminar e ao encerrar.
+
+**A diferença do throttle:** o Reset lê os bits de *thermal slowdown* da NVML;
+o `nvidia-smi` não os expõe. Aqui a queda térmica é aproximada pela
+temperatura da GPU ≥ 90 °C. A classificação continua recebendo o campo
+`gpuThermalCap` como entrada, então as regras são as mesmas — só a fonte do
+sinal muda. A página diz isso em uma linha no rodapé.
+
+O relatório fica só na memória do processo principal; não é um documento. O FPS
+real entra na Fase 7, com o overlay.
+
+---
+
 ## Os testes
 
-198 testes em 14 arquivos, todos rodando em alguns segundos.
+224 testes em 15 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -263,6 +303,7 @@ Assim a tabela nunca fica vazia por causa de rede, e cada linha carrega o selo
 | `tests/health.test.ts` | O parser do `smartctl` (NVMe e ATA), a divisão da leitura privilegiada, os limites do veredito e a junção do CIM no Windows |
 | `tests/network.test.ts` | O parser do `ping` (Linux e Windows pt-BR), jitter e perda, e os limites do veredito de rede |
 | `tests/games.test.ts` | O casamento CPU/GPU pelo nome mais longo, a fórmula do FPS, os nomes curtos da API, o cache de 7 dias e os erros 401/403/404/429 |
+| `tests/bottleneck.test.ts` | A ordem e os limites das regras, os textos do equilíbrio, a amostragem, o relatório, a contagem de referência e o timer da sessão |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 
 ```bash

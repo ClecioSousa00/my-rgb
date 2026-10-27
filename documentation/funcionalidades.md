@@ -49,13 +49,13 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Discos | Unidades e Saúde — **pronta** |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
 | Jogos | FPS estimado por jogo, com resolução, preset e upscaling — **pronta** |
-| Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão |
+| Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
 | Overlay | Métricas por cima do jogo |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE |
 
-> **Nota:** Iluminação, Sistema, Sensores, Discos, Rede e Jogos já funcionam.
-> As outras páginas descrevem o que virá; o plano do projeto tem a ordem
-> completa.
+> **Nota:** Iluminação, Sistema, Sensores, Discos, Rede, Jogos e Gargalo já
+> funcionam. As outras páginas descrevem o que virá; o plano do projeto tem a
+> ordem completa.
 
 ---
 
@@ -235,6 +235,63 @@ veio o número.
 - Quando o processador ou a placa de vídeo não estão nas tabelas, a página diz
   isso em **Observações** e usa o índice padrão do Reset Explode (GPU 50,
   CPU 80), em vez de fingir precisão.
+
+---
+
+## A tela de Gargalo
+
+Responde "o que está segurando o FPS?" em três blocos, do mais teórico ao mais
+concreto: o equilíbrio entre processador e placa de vídeo, o limitador do
+momento e o que aconteceu durante uma sessão.
+
+### Equilíbrio teórico
+
+Compara o desempenho relativo dos dois sem medir jogo nenhum, com as mesmas
+tabelas da página Jogos (RTX 4070 e Ryzen 7 7700X valem 100).
+
+- **GPU ÷ CPU** é a razão entre os índices, marcada numa escala logarítmica de
+  0,4× a 2,5× — a mesma do Reset Explode.
+- As cinco faixas de texto são as originais: GPU muito mais forte que a CPU,
+  GPU um pouco à frente, hardware equilibrado, CPU mais forte que a GPU e GPU
+  muito fraca para a CPU.
+- Quando o processador ou a placa não estão na tabela, o índice padrão (GPU 50,
+  CPU 80) aparece com o selo **fora da tabela** e uma observação — a razão
+  continua ali, mas serve só como referência.
+
+### Leitura ao vivo
+
+Uma amostra por segundo, vinda da mesma coleta da página Sensores: carga da
+GPU, carga total da CPU, núcleo mais ocupado, VRAM, RAM e temperaturas.
+
+- O **limitador** é classificado na ordem do Reset Explode: VRAM ≥ 97 % →
+  temperatura (CPU ≥ 95 °C ou GPU em queda térmica) → GPU ≥ 90 % → CPU ou
+  núcleo ≥ 85 % → RAM ≥ 92 % → nada no limite (trava de FPS, V-Sync ou menu).
+- O título e o conselho mudam com o limitador. Quando ele é CPU, VRAM, RAM ou
+  temperatura, o bloco **inverte** — o mesmo tratamento de alerta do original.
+- Uma leitura que não existe aparece como **—** e a regra que dependia dela
+  fica de fora, com uma observação. Sem `nvidia-smi`, por exemplo, carga e
+  temperatura da GPU não entram no veredito; a página diz isso em vez de supor
+  zero.
+- A **queda térmica** da GPU é aproximada pela temperatura ≥ 90 °C. O Reset
+  Explode lê os bits de throttle da NVML, que o `nvidia-smi` não expõe; a regra
+  em si continua sendo a original, com o campo como entrada.
+
+### Análise de sessão
+
+Uma sessão de **1, 3 ou 5 minutos** classifica cada amostra e guarda a
+distribuição, as médias e os máximos.
+
+- O progresso mostra o tempo decorrido, a contagem de amostras e qual
+  limitador está na frente até ali. **Cancelar** termina na hora e não deixa
+  timer para trás.
+- No fim, a página mostra o limitador predominante, a **distribuição do tempo**
+  (barra e legenda, com a fatia de cada um), GPU/CPU médias, núcleo mais
+  ocupado, VRAM e RAM máximas, temperaturas máximas e o número de amostras.
+- A sessão mantém a coleta viva mesmo se você sair da página; fechar o app
+  encerra tudo. O resultado fica só na memória do processo principal — nada é
+  gravado em disco.
+- O **FPS real** ainda aparece como **—**: ele chega com o overlay (Fase 7).
+  Até lá, a sessão olha para carga, memória e temperatura.
 
 ---
 

@@ -22,7 +22,9 @@ const FIELDS = [
   'utilization.gpu',
   'clocks.gr',
   'power.draw',
-  'fan.speed'
+  'fan.speed',
+  'memory.used',
+  'memory.total'
 ].join(',')
 
 /** How long to wait before trying nvidia-smi again after a failure. */
@@ -35,6 +37,8 @@ export interface NvidiaSample {
   clockMhz?: number
   powerW?: number
   fanPct?: number
+  /** Share of the card's memory in use, 0–100. */
+  vramPct?: number
 }
 
 function numberOrUndefined(text: string | undefined): number | undefined {
@@ -51,9 +55,12 @@ export function parseNvidiaSmi(stdout: string): NvidiaSample[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [name, temperature, utilization, clock, power, fan] = line
+      const [name, temperature, utilization, clock, power, fan, memoryUsed, memoryTotal] = line
         .split(',')
         .map((part) => part.trim())
+
+      const used = numberOrUndefined(memoryUsed)
+      const total = numberOrUndefined(memoryTotal)
 
       return {
         name: name || 'GPU NVIDIA',
@@ -61,7 +68,11 @@ export function parseNvidiaSmi(stdout: string): NvidiaSample[] {
         utilization: numberOrUndefined(utilization),
         clockMhz: numberOrUndefined(clock),
         powerW: numberOrUndefined(power),
-        fanPct: numberOrUndefined(fan)
+        fanPct: numberOrUndefined(fan),
+        vramPct:
+          used !== undefined && total !== undefined && total > 0
+            ? Math.round(((used / total) * 100) * 10) / 10
+            : undefined
       }
     })
 }
@@ -122,6 +133,18 @@ export function buildNvidiaReadings(samples: NvidiaSample[]): SensorReading[] {
         label: 'Consumo',
         value: Math.round(sample.powerW * 10) / 10,
         unit: 'W',
+        order: 0
+      })
+    }
+
+    if (sample.vramPct !== undefined) {
+      readings.push({
+        ...base,
+        id: `nvidia:${index}:vram`,
+        kind: 'memory',
+        label: 'VRAM em uso',
+        value: sample.vramPct,
+        unit: '%',
         order: 0
       })
     }

@@ -43,6 +43,7 @@ jobs:
           tests/health.test.ts
           tests/network.test.ts
           tests/games.test.ts
+          tests/bottleneck.test.ts
 
       - name: Build
         run: npm run build

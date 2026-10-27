@@ -31,6 +31,7 @@ import {
   lastNetworkReport
 } from '../features/network'
 import { GamesService } from '../features/games'
+import type { BottleneckService } from '../features/bottleneck'
 
 /** What a handler needs from the application. */
 export interface IpcHost {
@@ -43,6 +44,8 @@ export interface IpcHost {
   settings: SettingsStore
   /** Live sensor poll and its session buffer. */
   sensors: SensorsStore
+  /** Live limiter and session reports, fed by the same sensor poll. */
+  bottleneck: BottleneckService
   /** Device state with the conflict flag already merged in. */
   readonly deviceInfo: DeviceInfo
   readonly engineState: EngineState
@@ -283,4 +286,14 @@ export function registerIpc(host: IpcHost): void {
     games.setApiKey(typeof key === 'string' ? key : null)
   )
   ipcMain.handle(IPC.gamesHasApiKey, () => games.keyState())
+
+  // --- bottleneck ---------------------------------------------------------
+
+  ipcMain.handle(IPC.bottleneckStart, () => host.bottleneck.start())
+  ipcMain.handle(IPC.bottleneckStop, () => host.bottleneck.stop())
+  ipcMain.handle(IPC.bottleneckSessionStart, (_e, minutes: number) =>
+    host.bottleneck.startSession(minutes)
+  )
+  ipcMain.handle(IPC.bottleneckSessionStop, () => host.bottleneck.stopSession())
+  ipcMain.handle(IPC.bottleneckReport, () => host.bottleneck.report())
 }
