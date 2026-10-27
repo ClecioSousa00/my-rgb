@@ -9,6 +9,10 @@
  * The hardware comes from the same `getSystem()` the Sistema page uses, so
  * both pages always describe the same machine. Matching follows the original:
  * the longest catalog key contained in the name wins.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import { join } from 'path'

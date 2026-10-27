@@ -13,6 +13,10 @@
  * Authentication is not officially documented (the credentials are requested
  * by e-mail from info@howmanyfps.com), so the two common headers are sent -
  * `Authorization: Bearer` and `x-api-key` - exactly like the original.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'

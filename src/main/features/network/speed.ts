@@ -9,6 +9,10 @@
  *
  * Nothing is written to disk, and every request is aborted together with the
  * diagnostic (the page's "Cancelar").
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 const DOWN_URL = 'https://speed.cloudflare.com/__down?bytes=25000000'

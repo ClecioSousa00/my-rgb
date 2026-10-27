@@ -10,6 +10,10 @@
  * the CPU the hottest one is used - the thermal rule is about the sensor that
  * is closest to the limit. For the GPU the plain "Temperatura" is preferred,
  * because the hotspot runs hotter and would trigger the rule early.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import type { SensorReading } from '@shared/features/sensors'

@@ -11,6 +11,10 @@
  * whole point of the page: if the gateway is fine and the internet is not,
  * the provider is the suspect; if the gateway is also bad, it is the local
  * network (or the Wi-Fi).
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import type { NetworkPingStat, NetworkVerdict } from '@shared/features/network'

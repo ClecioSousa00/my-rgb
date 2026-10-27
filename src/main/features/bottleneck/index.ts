@@ -13,6 +13,10 @@
  * finish and on dispose - nothing is left behind.
  *
  * The last report lives in memory only; it is a diagnosis, not a document.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import type { SensorsSnapshot } from '@shared/features/sensors'

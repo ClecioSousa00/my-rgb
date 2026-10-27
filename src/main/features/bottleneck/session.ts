@@ -5,6 +5,10 @@
  * distribution of limiters over time plus the averages and peaks that explain
  * it. The original computes the same numbers in `BottleneckSession`; keeping
  * this pure means the whole report can be tested without a clock or a sensor.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import type {

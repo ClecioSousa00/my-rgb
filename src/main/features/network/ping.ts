@@ -11,6 +11,10 @@
  * also carry `TTL`. TTL is the one word Windows does not translate, and the
  * summary lines ("Minimum = 12ms") have no TTL, so they cannot pollute the
  * samples.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import { execFile } from 'child_process'

@@ -8,6 +8,10 @@
  *
  * Kept free of I/O so the fixtures in `tests/bottleneck.test.ts` can pin every
  * boundary: this is the part that has to behave exactly like the Windows app.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import type { BottleneckLimiter, LoadSample } from '@shared/features/bottleneck'

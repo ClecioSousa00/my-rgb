@@ -12,6 +12,10 @@
  * - any reallocated/pending/uncorrectable sector: at least attention.
  *
  * A disk with no metric at all is "sem dados", never "saudável".
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import type { DiskVerdict } from '@shared/features/health'

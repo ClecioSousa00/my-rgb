@@ -14,6 +14,10 @@
  * A name matches by the **longest key contained in it** ("RTX 5070 Ti" before
  * "RTX 5070"), which is what makes "NVIDIA GeForce RTX 5070 Ti" land on the
  * Ti row instead of the plain one.
+ *
+ * Derived in part from the Reset Explode
+ * (https://github.com/GustavoReset/ResetExplode), MIT © 2026 Gustavo.
+
  */
 
 import type {
