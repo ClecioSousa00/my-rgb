@@ -788,9 +788,20 @@ async function runSelfTest(): Promise<void> {
       const paused = /pausado/.test(text())
       if (pauseButton instanceof HTMLElement) pauseButton.click()
       await waitFor(() => /ao vivo/.test(text()), 5000)
+      // The cooling card must either show numbers or say that the system
+      // exposed none: a silent empty card is the failure mode this guards.
+      const coolingCard = Array.from(document.querySelectorAll('section.card')).find((card) =>
+        /Refrigeração/i.test(card.textContent ?? '')
+      )
+      const coolingOk =
+        coolingCard !== undefined &&
+        /Sem dados de rotação|Bomba a |Ventoinhas:|Todos os canais estão parados|parada/.test(
+          coolingCard.textContent ?? ''
+        )
       window.__myRgbSensorsReady =
         sensorRows > 0 &&
         paused &&
+        coolingOk &&
         /ao vivo/.test(text()) &&
         document.querySelector('.page-title')?.textContent === 'Sensores'
 

@@ -74,7 +74,7 @@ Windows e fica isolada em `src/main/features/overlay/` e no helper .NET.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev, com hot reload
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest — 287 testes em 17 arquivos
+npm test             # vitest — 295 testes em 17 arquivos
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 npm run selftest     # build + UI real, conferindo páginas, IPC e quadros
@@ -156,9 +156,23 @@ A página Sensores é a única que se atualiza sozinha, e o caminho é curto:
   `systeminformation`;
 - `src/main/features/sensors/index.ts` — junta as três fontes, ordena e
   transforma cada falha em uma nota;
+- `src/main/features/sensors/cooling.ts` — `buildCooling`: o resumo de
+  refrigeração (bomba, ventoinhas, alarmes e notas). É uma função pura sobre
+  as leituras já ordenadas, chamada depois do merge, para o cartão carregar o
+  mín/máx da sessão sem recalcular nada;
 - `src/main/features/sensors/store.ts` — `SensorsStore`: poll de 1 s,
   contador de assinantes, mínimo/máximo/histórico (60 amostras) e pausa
   quando a janela está escondida.
+
+### O papel de um canal de ventoinha
+
+O kernel não distingue bomba de ventoinha: é tudo tachômetro. O papel
+(`role: 'pump'`) só é marcado quando o **driver** publica um rótulo com
+"pump" (`AIO Pump`, `W_PUMP+`); sem rótulo, o canal fica `Ventoinha N`. A
+regra de alarme também é deliberadamente simples: bomba abaixo de 100 RPM
+avisa sempre; ventoinha parada só avisa quando o hardware que ela refrigera
+passa de 80 °C — 0 RPM no modo passivo é normal. Nenhum RPM é derivado de
+percentual (a ventoinha da GPU NVIDIA só existe em %).
 
 O renderer não coleta nada: chama `startSensors` ao abrir a página, recebe os
 lotes por `onSensors` e chama `stopSensors` ao sair. Como o histórico fica no
@@ -402,7 +416,7 @@ byte a byte o mesmo que aparece na prévia.
 
 ## Os testes
 
-287 testes em 17 arquivos, todos rodando em alguns segundos.
+295 testes em 17 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -415,7 +429,7 @@ byte a byte o mesmo que aparece na prévia.
 | `tests/patterns.test.ts` | Todo padrão tem nome, categoria, descrição e todos os parâmetros descritos |
 | `tests/documentation.test.ts` | A documentação está em dia e não tem link quebrado |
 | `tests/system.test.ts` | As unidades filtram pseudo-filesystems e acham o disco físico da partição |
-| `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, o parser do nvidia-smi e as estatísticas da sessão |
+| `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, os rótulos de bomba, o parser do nvidia-smi, as estatísticas da sessão e o resumo de refrigeração |
 | `tests/health.test.ts` | O parser do `smartctl` (NVMe e ATA), a divisão da leitura privilegiada, os limites do veredito e a junção do CIM no Windows |
 | `tests/network.test.ts` | O parser do `ping` (Linux e Windows pt-BR), jitter e perda, e os limites do veredito de rede |
 | `tests/games.test.ts` | Validação da base, casamento de GPU, interpolação log-log, trava, 1% low nunca derivado, hardware desconhecido e a cobertura dos 32 destaques |

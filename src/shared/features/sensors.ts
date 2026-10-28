@@ -20,6 +20,15 @@ export type SensorKind =
   | 'fan'
   | 'memory'
 
+/**
+ * What a fan channel is expected to do. The kernel has no notion of a pump:
+ * a water cooler's pump is just another tachometer channel, so the role is
+ * only set when the driver itself labels the input as a pump. Guessing from
+ * the header order would be an invention, and a wrong guess here means calling
+ * a chassis fan "the pump".
+ */
+export type CoolingRole = 'pump' | 'fan'
+
 /** Where the reading comes from, for grouping order. */
 export type SensorGroup = 'cpu' | 'gpu' | 'board' | 'ram' | 'storage' | 'network' | 'other'
 
@@ -38,6 +47,8 @@ export interface SensorReading {
   order: number
   /** Value from which the reading deserves attention (temperature only). */
   critical?: number
+  /** Set on fan channels when the source names one as a pump. */
+  role?: CoolingRole
   /** Session minimum and maximum. */
   min?: number
   max?: number
@@ -45,10 +56,51 @@ export interface SensorReading {
   history?: number[]
 }
 
+/** A pump or fan channel, with the session range attached. */
+export interface CoolingChannel {
+  id: string
+  role: CoolingRole
+  /** Hardware the channel belongs to, as shown on the sensors page. */
+  chip: string
+  label: string
+  /** RPM, or % for a GPU fan that only reports a duty cycle. */
+  value: number
+  unit: string
+  min?: number
+  max?: number
+  history?: number[]
+  /**
+   * Temperature of the hardware this channel cools, when it could be paired.
+   * A motherboard header cools the CPU; the GPU fan cools the GPU.
+   */
+  temperature?: number
+}
+
+export type CoolingStatus = 'ok' | 'idle' | 'warning' | 'unknown'
+
+/**
+ * The cooling summary.
+ *
+ * `verdict` is a sentence with the real numbers (or the reason there are
+ * none), not a score: the useful question is "is the pump turning while the
+ * processor is hot?", and that needs both halves to be shown.
+ */
+export interface CoolingSnapshot {
+  status: CoolingStatus
+  verdict: string
+  channels: CoolingChannel[]
+  /** Channels stopped while the hardware they cool is above the hot limit. */
+  alarms: string[]
+  /** What could not be read and what to do about it. */
+  notes: string[]
+}
+
 export interface SensorsSnapshot {
   /** Epoch milliseconds of the collection. */
   at: number
   readings: SensorReading[]
+  /** Fan and pump summary, computed from `readings`. */
+  cooling?: CoolingSnapshot
   /** What could not be read, with the reason. */
   notes: string[]
 }
@@ -58,3 +110,12 @@ export const SENSOR_INTERVAL_MS = 1000
 
 /** Samples kept per reading. One minute at one sample per second. */
 export const SENSOR_HISTORY = 60
+
+/**
+ * Below this a pump is not turning. A running pump sits in the hundreds or
+ * thousands; 0-100 RPM is a stopped rotor, not a slow one.
+ */
+export const COOLING_STOPPED_RPM = 100
+
+/** Above this the hardware is hot enough that a stopped fan matters. */
+export const COOLING_HOT_C = 80

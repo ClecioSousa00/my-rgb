@@ -18,6 +18,7 @@
 import type { SensorsSnapshot, SensorReading } from '@shared/features/sensors'
 import { SENSOR_HISTORY, SENSOR_INTERVAL_MS } from '@shared/features/sensors'
 import { collectSensors } from '.'
+import { buildCooling } from './cooling'
 
 export interface SensorStats {
   min: number
@@ -146,9 +147,13 @@ export class SensorsStore {
     try {
       const collect = this.options.collect ?? collectSensors
       const snapshot = await collect(Date.now())
+      const readings = mergeReadings(this.stats, snapshot.readings, this.historySize)
       const merged: SensorsSnapshot = {
         ...snapshot,
-        readings: mergeReadings(this.stats, snapshot.readings, this.historySize)
+        readings,
+        // Built after the merge so the summary carries the session range, and
+        // so the page never computes a second version of the same judgement.
+        cooling: buildCooling(readings)
       }
       this.last = merged
       this.options.onBatch(merged)

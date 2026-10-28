@@ -154,6 +154,23 @@ escondida.
 
 - **Ao vivo · 1 s** no cabeçalho, com um ponto que pulsa. **Pausar** congela a
   tela sem perder os valores; **Retomar** volta a acompanhar.
+- **Refrigeração**, o primeiro cartão: a bomba e as ventoinhas em uma linha
+  cada, com RPM, mín/máx da sessão e o último minuto. O veredito é uma frase
+  com os números reais ("Bomba a 2 780 RPM · processador a 58 °C") e só
+  inverte para o estado de alerta quando há um problema de verdade:
+  - **bomba parada** avisa sempre — um water cooler sem fluxo não refrigera,
+    mesmo que o processador ainda esteja frio naquele instante;
+  - **ventoinha parada** só avisa quando o hardware que ela refrigera passa de
+    80 °C; a 0 RPM com o processador frio é modo passivo, e a página diz isso
+    em vez de alarmar;
+  - **sem canais** a página não inventa: explica que o driver de sensores não
+    foi carregado (com o comando), que um water cooler ligado por USB só
+    expõe RPM no software do fabricante, ou que o Windows ainda não lê a
+    placa-mãe.
+  - A bomba só é chamada de bomba quando o **driver** rotula o canal como pump
+    (`AIO Pump`, `W_PUMP+`). Sem rótulo, o canal continua "Ventoinha N" e o
+    cartão avisa que o header não foi identificado — adivinhar pela ordem dos
+    headers seria inventar.
 - **Chips por tipo** (Temperatura, Carga, Clock, Consumo, Tensão, Ventoinha,
   Memória) mostram quantas leituras existem de cada tipo e filtram a tabela.
   A busca ao lado filtra por hardware, sensor ou tipo.
@@ -171,13 +188,17 @@ escondida.
 - **O mínimo, o máximo e o histórico vivem no processo principal**, não na
   página: fechar e reabrir Sensores continua a sessão em vez de recomeçar.
 - **De onde vêm os números:**
-  - Linux — `/sys/class/hwmon` para temperaturas, ventoinhas, tensões, consumo
-    e clocks; o kernel já entrega cada leitura com a unidade do driver, que é
-    convertida aqui;
+  - Linux — `/sys/class/hwmon` para temperaturas, ventoinhas (RPM), bombas,
+    tensões, consumo e clocks; o kernel já entrega cada leitura com a unidade
+    do driver, que é convertida aqui. Rótulos de header (`AIO Pump`, `CPU
+    Fan`, `Chassis Fan 2`) são traduzidos, e um canal sem rótulo permanece
+    genérico;
   - Windows — carga, clocks e memória pelo `systeminformation`; os sensores de
     temperatura e ventoinha da placa-mãe chegam com o helper da fase 7;
-  - NVIDIA — `nvidia-smi` nos dois sistemas, quando instalado. Campos que o
-    driver não responde (`[N/A]`) simplesmente não aparecem.
+  - NVIDIA — `nvidia-smi` nos dois sistemas, quando instalado. A ventoinha da
+    GPU vem em **percentual**, não em RPM, e o cartão avisa que não converte
+    uma coisa na outra. Campos que o driver não responde (`[N/A]`)
+    simplesmente não aparecem.
 - **Sanidade antes de exibir:** um valor absurdo (a leitura de 65 261 850 °C
   que um NVMe pode devolver quando o arquivo falha) é descartado, e um sensor
   que não puder ser lido vira **—**, nunca zero.

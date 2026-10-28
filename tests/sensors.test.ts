@@ -6,12 +6,13 @@ import type { SensorReading, SensorsSnapshot } from '@shared/features/sensors'
 import { describeHwmon, readHwmonSensors } from '@main/features/sensors/hwmon'
 import { buildNvidiaReadings, parseNvidiaSmi } from '@main/features/sensors/nvidia'
 import { mergeReadings, SensorsStore, type SensorStats } from '@main/features/sensors/store'
+import { buildCooling } from '@main/features/sensors/cooling'
 
 /**
- * The sensors have three parts worth testing without the machine they run on:
- * the hwmon driver mapping, the nvidia-smi parser and the session statistics.
- * The collectors themselves only read files and processes, so the tests feed
- * them fixtures instead.
+ * The sensors have four parts worth testing without the machine they run on:
+ * the hwmon driver mapping, the nvidia-smi parser, the session statistics and
+ * the cooling summary. The collectors themselves only read files and
+ * processes, so the tests feed them fixtures instead.
  */
 
 describe('describeHwmon', () => {
@@ -72,6 +73,22 @@ describe('readHwmonSensors', () => {
     await writeFile(join(base, 'hwmon2', 'name'), 'nct6799\n')
     await writeFile(join(base, 'hwmon2', 'fan1_input'), '1240\n')
     await writeFile(join(base, 'hwmon2', 'in0_input'), '1310\n')
+
+    // Fan headers with the labels a driver can publish: a pump, the CPU
+    // header and a chassis header that is not turning.
+    await mkdir(join(base, 'hwmon3'))
+    await writeFile(join(base, 'hwmon3', 'name'), 'nct6799\n')
+    await writeFile(join(base, 'hwmon3', 'fan1_input'), '2780\n')
+    await writeFile(join(base, 'hwmon3', 'fan1_label'), 'AIO Pump\n')
+    await writeFile(join(base, 'hwmon3', 'fan2_input'), '980\n')
+    await writeFile(join(base, 'hwmon3', 'fan2_label'), 'CPU Fan\n')
+    await writeFile(join(base, 'hwmon3', 'fan3_input'), '0\n')
+    await writeFile(join(base, 'hwmon3', 'fan3_label'), 'Chassis Fan 2\n')
+
+    // A GPU fan carries no label: it is named by the group it belongs to.
+    await mkdir(join(base, 'hwmon4'))
+    await writeFile(join(base, 'hwmon4', 'name'), 'amdgpu\n')
+    await writeFile(join(base, 'hwmon4', 'fan1_input'), '1500\n')
   })
 
   afterAll(async () => {
@@ -98,6 +115,32 @@ describe('readHwmonSensors', () => {
 
     expect(id('hwmon:hwmon2:fan1')).toMatchObject({ value: 1240, unit: 'RPM', kind: 'fan' })
     expect(id('hwmon:hwmon2:in0')).toMatchObject({ value: 1.31, unit: 'V', kind: 'voltage' })
+  })
+
+  it('names a pump only when the driver labels it as one', async () => {
+    const readings = await readHwmonSensors({}, base)
+    const fan = (id: string): SensorReading | undefined =>
+      readings.find((item) => item.id === id)
+
+    const pump = fan('hwmon:hwmon3:fan1')
+    expect(pump).toMatchObject({
+      label: 'Bomba do water cooler',
+      role: 'pump',
+      value: 2780,
+      unit: 'RPM',
+      group: 'board'
+    })
+
+    expect(fan('hwmon:hwmon3:fan2')).toMatchObject({ label: 'CPU', value: 980 })
+    expect(fan('hwmon:hwmon3:fan2')?.role).toBeUndefined()
+
+    // 0 RPM is a reading, not a missing one: the fan is stopped.
+    expect(fan('hwmon:hwmon3:fan3')).toMatchObject({ label: 'Gabinete 2', value: 0 })
+
+    // Without a label the header stays generic instead of being called a pump.
+    expect(fan('hwmon:hwmon2:fan1')).toMatchObject({ label: 'Ventoinha 1' })
+    expect(fan('hwmon:hwmon4:fan1')).toMatchObject({ label: 'Ventoinha da GPU' })
+    expect(fan('hwmon:hwmon4:fan1')?.role).toBeUndefined()
   })
 
   it('returns an empty list when the directory does not exist', async () => {
@@ -159,11 +202,16 @@ describe('parseNvidiaSmi', () => {
   })
 })
 
-function reading(id: string, value: number, unit = '°C'): SensorReading {
+function reading(
+  id: string,
+  value: number,
+  unit = '°C',
+  group: SensorReading['group'] = 'cpu'
+): SensorReading {
   return {
     id,
     kind: 'temperature',
-    group: 'cpu',
+    group,
     chip: 'CPU · Teste',
     label: id,
     value,
@@ -237,6 +285,9 @@ describe('SensorsStore', () => {
     expect(batches).toHaveLength(2)
     expect(batches[1].readings[0]).toMatchObject({ value: 60, min: 50, max: 60 })
     expect(store.snapshot()).toBe(batches[1])
+    // The summary is built once, in the main process, for every consumer.
+    expect(batches[1].cooling).toBeDefined()
+    expect(batches[1].cooling?.status).toBe('unknown')
     store.dispose()
   })
 
@@ -278,5 +329,141 @@ describe('SensorsStore', () => {
     expect(onError).toHaveBeenCalledWith('boom')
     expect(result?.readings[0].value).toBe(50)
     store.dispose()
+  })
+})
+
+function fanReading(patch: Partial<SensorReading> & { id: string }): SensorReading {
+  return {
+    kind: 'fan',
+    group: 'board',
+    chip: 'Placa-mãe · NCT6799',
+    label: 'Ventoinha',
+    value: 1200,
+    unit: 'RPM',
+    order: 0,
+    ...patch
+  }
+}
+
+function gpuFan(value: number): SensorReading {
+  return {
+    kind: 'fan',
+    group: 'gpu',
+    chip: 'GPU · RTX 4070',
+    label: 'Ventoinha',
+    value,
+    unit: '%',
+    order: 0,
+    id: 'nvidia:0:fan'
+  }
+}
+
+describe('buildCooling', () => {
+  it('reports the pump and the fan range with the temperatures', () => {
+    const cooling = buildCooling(
+      [
+        fanReading({
+          id: 'pump',
+          label: 'Bomba do water cooler',
+          role: 'pump',
+          value: 2780,
+          min: 2700,
+          max: 2810
+        }),
+        fanReading({ id: 'f1', label: 'CPU', value: 980 }),
+        fanReading({ id: 'f2', label: 'Gabinete 2', value: 640 }),
+        reading('cpu', 58)
+      ],
+      'linux'
+    )
+
+    expect(cooling.status).toBe('ok')
+    expect(cooling.alarms).toEqual([])
+    // The pump is the first row even when the header order puts it later.
+    expect(cooling.channels[0]).toMatchObject({ role: 'pump', value: 2780, temperature: 58 })
+    expect(cooling.channels[0].min).toBe(2700)
+    expect(cooling.verdict).toContain('Bomba a 2780 RPM')
+    expect(cooling.verdict).toContain('processador a 58 °C')
+  })
+
+  it('warns about a stopped pump even while the processor is cold', () => {
+    const cooling = buildCooling(
+      [
+        fanReading({ id: 'pump', label: 'Bomba', role: 'pump', value: 0 }),
+        reading('cpu', 42)
+      ],
+      'linux'
+    )
+
+    expect(cooling.status).toBe('warning')
+    expect(cooling.alarms[0]).toMatch(/Bomba .* parada/)
+    expect(cooling.notes.join(' ')).toMatch(/não refrigera/)
+    expect(cooling.verdict).toBe(cooling.alarms[0])
+  })
+
+  it('treats stopped fans at a cool temperature as idle, not as a fault', () => {
+    const cooling = buildCooling(
+      [
+        fanReading({ id: 'f1', label: 'Gabinete 1', value: 0 }),
+        fanReading({ id: 'f2', label: 'Gabinete 2', value: 0 }),
+        reading('cpu', 44)
+      ],
+      'linux'
+    )
+
+    expect(cooling.status).toBe('idle')
+    expect(cooling.alarms).toEqual([])
+    expect(cooling.verdict).toMatch(/parados/)
+    expect(cooling.verdict).toContain('processador a 44 °C')
+  })
+
+  it('warns about a stopped header fan only when the processor is hot', () => {
+    const cool = buildCooling(
+      [fanReading({ id: 'f1', label: 'Gabinete 2', value: 0 }), reading('cpu', 79)],
+      'linux'
+    )
+    const hot = buildCooling(
+      [fanReading({ id: 'f1', label: 'Gabinete 2', value: 0 }), reading('cpu', 92)],
+      'linux'
+    )
+
+    expect(cool.status).toBe('idle')
+    expect(hot.status).toBe('warning')
+    expect(hot.alarms[0]).toContain('processador a 92 °C')
+  })
+
+  it('flags a GPU fan at 0 % only when the GPU is hot', () => {
+    const hot = buildCooling([gpuFan(0), reading('gpu', 86, '°C', 'gpu')], 'linux')
+    const cool = buildCooling([gpuFan(0), reading('gpu', 48, '°C', 'gpu')], 'linux')
+
+    expect(hot.status).toBe('warning')
+    expect(hot.alarms[0]).toMatch(/GPU a 86 °C/)
+    expect(cool.status).toBe('idle')
+    // A duty cycle is not turned into RPM.
+    expect(hot.notes.join(' ')).toMatch(/não em RPM/)
+  })
+
+  it('says there is no data and what to check instead of staying silent', () => {
+    const linux = buildCooling([reading('cpu', 50)], 'linux')
+    const windows = buildCooling([reading('cpu', 50)], 'win32')
+
+    expect(linux.status).toBe('unknown')
+    expect(linux.channels).toEqual([])
+    expect(linux.verdict).toMatch(/Sem dados/)
+
+    expect(linux.notes.join(' ')).toMatch(/modprobe nct6775/)
+    expect(linux.notes.join(' ')).toMatch(/USB/)
+    expect(windows.notes.join(' ')).toMatch(/helper/)
+  })
+
+  it('does not call an unlabelled header a pump', () => {
+    const cooling = buildCooling(
+      [fanReading({ id: 'f1', label: 'Ventoinha 2', value: 1200 }), reading('cpu', 50)],
+      'linux'
+    )
+
+    expect(cooling.status).toBe('ok')
+    expect(cooling.channels[0].role).toBe('fan')
+    expect(cooling.notes.join(' ')).toMatch(/AIO_PUMP/)
   })
 })

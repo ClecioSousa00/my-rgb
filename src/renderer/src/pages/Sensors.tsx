@@ -15,8 +15,14 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import type { SensorKind, SensorReading, SensorsSnapshot } from '@shared/features/sensors'
-import { SENSOR_INTERVAL_MS } from '@shared/features/sensors'
+import type {
+  CoolingSnapshot,
+  CoolingStatus,
+  SensorKind,
+  SensorReading,
+  SensorsSnapshot
+} from '@shared/features/sensors'
+import { COOLING_STOPPED_RPM, SENSOR_INTERVAL_MS } from '@shared/features/sensors'
 import { formatSensor } from '@shared/format'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
@@ -41,6 +47,96 @@ const KIND_LABEL: Record<SensorKind, string> = {
   voltage: 'Tensão',
   fan: 'Ventoinha',
   memory: 'Memória'
+}
+
+const COOLING_LABEL: Record<CoolingStatus, string> = {
+  ok: 'Normal',
+  idle: 'Parado',
+  warning: 'Atenção',
+  unknown: 'Sem dados'
+}
+
+/**
+ * The pump and fan summary.
+ *
+ * It sits above the raw table because "is the pump turning?" is a question
+ * about one number, and hunting for it among forty readings is how a stopped
+ * pump goes unnoticed. The rows are the same readings, with the session range
+ * and the last minute - nothing is computed here.
+ */
+function CoolingCard({ cooling }: { cooling: CoolingSnapshot }): React.JSX.Element {
+  return (
+    <Section
+      title="Refrigeração"
+      chip={cooling.channels.length > 0 ? `${cooling.channels.length}` : undefined}
+      className="mt-6"
+      action={
+        <span className="verdict" data-alert={cooling.status === 'warning'}>
+          {COOLING_LABEL[cooling.status]}
+        </span>
+      }
+    >
+      <p className="text-[12px] leading-relaxed text-ink-200">{cooling.verdict}</p>
+
+      {cooling.alarms.length > 1 && (
+        <ul className="mt-3 space-y-1">
+          {/* The first alarm is the verdict above; the rest would be lost. */}
+          {cooling.alarms.slice(1).map((alarm) => (
+            <li key={alarm} className="flex gap-2 text-[11.5px] leading-relaxed text-ink-300">
+              <span className="text-ink-500">—</span>
+              <span>{alarm}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {cooling.channels.length > 0 && (
+        <div className="mt-4">
+          <div className="sensor-head">
+            <span>Ventoinha / bomba</span>
+            <span>agora</span>
+            <span>mín</span>
+            <span>máx</span>
+            <span aria-hidden="true" />
+          </div>
+          {cooling.channels.map((channel) => {
+            const stopped =
+              channel.unit === '%' ? channel.value <= 0 : channel.value < COOLING_STOPPED_RPM
+            return (
+              <div className="sensor-row" key={channel.id}>
+                <div className="min-w-0">
+                  <div className="truncate text-[12px] text-ink-200">
+                    {channel.role === 'pump' ? `Bomba · ${channel.label}` : channel.label}
+                  </div>
+                  <div className="truncate text-[10px] text-ink-500">
+                    {channel.chip}
+                    {channel.role === 'pump' ? ' · canal identificado como bomba' : ''}
+                  </div>
+                </div>
+                <span className="sensor-value" data-alert={stopped}>
+                  {formatSensor(channel.value, channel.unit)}
+                </span>
+                <span className="sensor-minmax">{formatSensor(channel.min, channel.unit)}</span>
+                <span className="sensor-minmax">{formatSensor(channel.max, channel.unit)}</span>
+                <Sparkline values={channel.history ?? []} alert={stopped} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {cooling.notes.length > 0 && (
+        <ul className="mt-4 space-y-1.5 border-t border-ink-800 pt-3">
+          {cooling.notes.map((note) => (
+            <li key={note} className="flex gap-2 text-[11px] leading-relaxed text-ink-400">
+              <span className="text-ink-500">—</span>
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  )
 }
 
 type KindFilter = SensorKind | 'all'
@@ -165,6 +261,8 @@ export function SensorsPage(): React.JSX.Element {
 
       {snapshot && (
         <>
+          {snapshot.cooling && <CoolingCard cooling={snapshot.cooling} />}
+
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <button
               className="chip"

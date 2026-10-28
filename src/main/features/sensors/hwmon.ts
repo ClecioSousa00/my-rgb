@@ -144,14 +144,19 @@ async function readText(path: string): Promise<string | undefined> {
   }
 }
 
-function labelFor(kind: SensorKind, raw: string | undefined, index: number): string {
+function labelFor(
+  kind: SensorKind,
+  raw: string | undefined,
+  index: number,
+  group: SensorGroup
+): string {
+  if (kind === 'fan') return fanLabel(raw, index, group)
+
   const friendly = raw ? FRIENDLY_LABEL[raw.toLowerCase()] : undefined
   if (friendly) return friendly
   if (raw) return raw
 
   switch (kind) {
-    case 'fan':
-      return `Ventoinha ${index}`
     case 'voltage':
       return `Tensão ${index}`
     case 'power':
@@ -161,6 +166,42 @@ function labelFor(kind: SensorKind, raw: string | undefined, index: number): str
     default:
       return index > 1 ? `Temperatura ${index}` : 'Temperatura'
   }
+}
+
+/**
+ * Fan channels in the spelling the page uses.
+ *
+ * The label is the only place a driver says which header a tachometer belongs
+ * to, so it is translated here instead of in the UI. A channel without a label
+ * stays "Ventoinha N": the header order differs per board, and calling fan2
+ * "the pump" because it usually is would be a guess.
+ */
+function fanLabel(raw: string | undefined, index: number, group: SensorGroup): string {
+  const text = raw?.trim()
+  if (text) {
+    const name = text.toLowerCase().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim()
+
+    if (/pump/.test(name)) {
+      return /aio|water|^w\b/.test(name) ? 'Bomba do water cooler' : 'Bomba'
+    }
+    if (/^cpu(\s+fan)?$/.test(name)) return 'CPU'
+    if (/^cpu\s+opt/.test(name)) return 'CPU OPT'
+
+    const chassis = name.match(/^(?:chassis|cha|sys|system)\s*(?:fan)?\s*(\d+)?/)
+    if (chassis) return chassis[1] ? `Gabinete ${chassis[1]}` : 'Gabinete'
+
+    // A label the driver chose is already the best name it has.
+    return text
+  }
+
+  if (group === 'gpu') return 'Ventoinha da GPU'
+  return `Ventoinha ${index}`
+}
+
+/** A pump is only called that when the source itself says "pump". */
+function roleFor(kind: SensorKind, raw: string | undefined): 'pump' | undefined {
+  if (kind !== 'fan' || !raw) return undefined
+  return /pump|bomba/i.test(raw) ? 'pump' : undefined
 }
 
 /** Read every hwmon chip. A chip without readable inputs is skipped. */
@@ -217,10 +258,11 @@ export async function readHwmonSensors(
         kind,
         group,
         chip,
-        label: labelFor(kind, rawLabel, index),
+        label: labelFor(kind, rawLabel, index, group),
         value: round(kind, value),
         unit: UNIT_OF_KIND[kind] ?? '',
         order: index,
+        role: roleFor(kind, rawLabel),
         critical:
           kind === 'temperature' && Number.isFinite(crit) && crit > 20 && crit < 130
             ? Math.round(crit * 10) / 10

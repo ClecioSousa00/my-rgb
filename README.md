@@ -51,7 +51,7 @@ operacionais.
 |---|---|
 | Iluminação | pronta (tela original) |
 | Sistema | pronto: SO, placa-mãe/BIOS, CPU, memória, GPU e discos físicos |
-| Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx e histórico |
+| Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx, histórico e o cartão de refrigeração (RPM da bomba e das ventoinhas) |
 | Discos | pronta: abas Unidades e Saúde (S.M.A.R.T. / CIM) |
 | Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
 | Jogos | pronta: base offline com 17 mil jogos, FPS medido ou estimado, com fonte e confiança ([metodologia](documentation/jogos.md)) |
@@ -226,7 +226,7 @@ garantir que as duas execuções usaram a mesma configuração.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest (287 testes, 17 arquivos)
+npm test             # vitest (295 testes, 17 arquivos)
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
