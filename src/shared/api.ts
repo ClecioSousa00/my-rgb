@@ -23,12 +23,7 @@ import type { DriveInfo, SystemSnapshot } from './features/system'
 import type { SensorsSnapshot } from './features/sensors'
 import type { DiskHealthSnapshot } from './features/health'
 import type { NetworkProgress, NetworkReport } from './features/network'
-import type {
-  ApiKeyState,
-  GamesApiResult,
-  GamesReport,
-  GameOptions
-} from './features/games'
+import type { GamesQuery, GamesReport, GpuMatch } from './features/games'
 import type {
   BottleneckSessionProgress,
   BottleneckSessionReport,
@@ -127,14 +122,14 @@ export interface MyRgbApi {
   onNetworkProgress(callback: (progress: NetworkProgress) => void): Unsubscribe
 
   // games
-  /** Local FPS estimate for the catalog, no network call. */
-  listGames(options?: Partial<GameOptions>): Promise<GamesReport>
-  /** Measured FPS for the games the API knows (uses the 7 day cache). */
-  fetchGameFps(options?: Partial<GameOptions>): Promise<GamesApiResult>
-  /** Store or erase the HowManyFPS key. The key itself never comes back. */
-  setGamesApiKey(key: string | null): Promise<ApiKeyState>
-  /** Whether a key is stored and whether the OS keyring protects it. */
-  getGamesApiKeyState(): Promise<ApiKeyState>
+  /**
+   * Resolve the catalog for the given query: options, search text and an
+   * optional manual GPU. Everything comes from the dataset shipped with the
+   * app, so the call works offline.
+   */
+  listGames(query?: GamesQuery): Promise<GamesReport>
+  /** Search the GPU table (name, G3D score) for the manual picker. */
+  searchGpus(query: string, limit?: number): Promise<GpuMatch[]>
 
   // bottleneck
   /** Subscribe to the live limiter and the current session state. */

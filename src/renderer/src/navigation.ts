@@ -90,9 +90,9 @@ export const PAGE_META: Record<PageId, PageMeta> = {
     title: 'Jogos',
     subtitle: 'Quanto FPS esperar em cada jogo, com o seu hardware.',
     planned: [
-      'FPS médio e 1% low por resolução, preset e upscaling',
-      'Estimativa local quando não houver chave da HowManyFPS',
-      'Selo do limitador: GPU, CPU ou trava do próprio jogo'
+      'FPS médio e 1% low quando a fonte os publica',
+      'Estimativa a partir das 12 GPUs de referência, com fonte e confiança',
+      'Hardware fora da base: sem dados e escolha manual do modelo'
     ],
     phase: 'Fase 5'
   },

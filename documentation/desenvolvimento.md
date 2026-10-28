@@ -74,7 +74,7 @@ Windows e fica isolada em `src/main/features/overlay/` e no helper .NET.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev, com hot reload
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest — 276 testes em 17 arquivos
+npm test             # vitest — 287 testes em 17 arquivos
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 npm run selftest     # build + UI real, conferindo páginas, IPC e quadros
@@ -127,6 +127,7 @@ npx electron . --gen-docs documentation/efeitos.md
 npm run probe      # lê a config table do hardware real e mostra o layout
 npm run icons      # regenera os ícones do app e da bandeja
 npm run docs       # regera documentation/efeitos.md
+npm run games:data # baixa e normaliza a base de FPS (precisa de rede)
 ```
 
 ---
@@ -139,6 +140,7 @@ npm run docs       # regera documentation/efeitos.md
 | `tools/gen-icons.mjs` | Regenera os ícones do app e da bandeja |
 | `tools/compare-frames.mjs <a> <b>` | Compara dois dumps de frames byte a byte |
 | `tools/check-hid-binary.mjs` | Confere se o binário nativo do node-hid existe para esta plataforma |
+| `tools/build-games-data.mjs` | Baixa, valida e normaliza a base de FPS distribuída com o app |
 
 ---
 
@@ -230,32 +232,35 @@ anterior continua intacto. Os destinos e as durações são constantes em
 
 ## Como o FPS por jogo é calculado
 
-O catálogo é uma cópia do Reset Explode, números incluídos, e a fórmula também:
+A página não usa o catálogo do Reset Explode. A base é normalizada a partir de
+duas fontes públicas em CC BY 4.0 e distribuída com o aplicativo; a metodologia
+completa está em [jogos.md](jogos.md).
 
-- `src/main/features/games/catalog.ts` — os 32 jogos, as tabelas `GPU_INDEX` e
-  `CPU_INDEX` (RTX 4070 e Ryzen 7 7700X = 100), o casamento por **chave mais
-  longa contida no nome** ("RTX 5070 Ti" antes de "RTX 5070") e a conta
-  `min(teto da GPU, teto da CPU, trava do jogo)`, com o 1% low em 75% da média.
-  Os fatores de resolução/preset/upscaling e os nomes curtos para a API
-  (`shortGpuName`/`shortCpuName`) vivem aqui, longe de I/O, para serem testados.
-- `src/main/features/games/howManyFps.ts` — `POST https://howmanyfps.com/api`,
-  cache em `userData/fps-cache.json` por 7 dias com a chave
-  `cpu|gpu|game|resolução|upscaling`. 401/403/429 são `fatal` e param a rodada;
-  404 é um erro só daquele jogo. Quando a resposta é uma página HTML do
-  Cloudflare, a mensagem fala do bloqueio em vez de culpar a chave.
-- `src/main/features/games/secrets.ts` — `safeStorage.encryptString` em
-  `userData/secrets.bin`. O arquivo registra se o conteúdo está criptografado,
-  então uma máquina sem chaveiro ainda guarda a chave (em texto puro) e a
-  página avisa. O renderer nunca recebe a chave, só `{ configured, encrypted,
-  available }`.
-- `src/main/features/games/index.ts` — `GamesService`: o relatório local lê o
-  mesmo `getSystem()` da página Sistema (GPU dedicada primeiro) e devolve as 32
-  linhas sem tocar na rede; `fetchApi` consulta jogo por jogo, para na primeira
-  recusa fatal e devolve as linhas medidas + as que falharam.
+- `tools/build-games-data.mjs` — gera `src/main/features/games/data/catalog.json`
+  a partir de `games.csv`/`gpus.csv` (PCGameBenchmarks) e do
+  `official.json` (Open GPU Benchmarks). Valida cada linha, descarta o que não
+  encaixa, deduplica títulos pelo ano mais recente e agrupa execuções medidas
+  iguais. Rode com `npm run games:data` (ou `-- --from DIR` para cópias locais).
+- `src/main/features/games/dataset.ts` — valida a base carregada e monta os
+  índices: busca de jogos sem acento/caixa, tabela de GPUs e casamento de nome
+  (`canonicalGpu`/`matchGpu`). O casamento preserva `Ti`, `SUPER`, `Laptop` e
+  memória e prefere o nome mais longo contido no nome detectado.
+- `src/main/features/games/estimate.ts` — matemática pura: interpolação log-log
+  entre as 12 âncoras (excluindo valores na trava), fatores de resolução/preset,
+  extrapolação limitada acima da âncora mais forte e `null` abaixo da mínima.
+- `src/main/features/games/query.ts` — prioridade medida → estimativa → sem
+  dados, com a explicação e os avisos de cada linha. O 1% low só é preenchido
+  por uma execução medida; nunca é derivado.
+- `src/main/features/games/index.ts` — `GamesService`: usa o `getSystem()` da
+  página Sistema, resolve a GPU (detectada ou escolha manual) e devolve as 32
+  linhas em destaque ou o resultado da busca. Não toca na rede.
+- `src/main/features/games/reference.ts` — tabelas relativas de GPU/CPU do
+  Reset Explode, usadas **só** pelo Gargalo; ficaram separadas para o
+  diagnóstico não carregar a base de jogos.
 
-A página pede o relatório local ao abrir e só chama a API quando existe chave.
-Assim a tabela nunca fica vazia por causa de rede, e cada linha carrega o selo
-`API` ou `estimativa` para não misturar medido com calculado.
+A página pede o relatório ao abrir e a cada mudança de opção, busca ou GPU. Cada
+linha carrega `measured`, `estimated` ou `none`, além da confiança, para não
+misturar medido com calculado. Não há chave, cache de API nem chamada externa.
 
 ---
 
@@ -397,7 +402,7 @@ byte a byte o mesmo que aparece na prévia.
 
 ## Os testes
 
-276 testes em 17 arquivos, todos rodando em alguns segundos.
+287 testes em 17 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -413,7 +418,7 @@ byte a byte o mesmo que aparece na prévia.
 | `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, o parser do nvidia-smi e as estatísticas da sessão |
 | `tests/health.test.ts` | O parser do `smartctl` (NVMe e ATA), a divisão da leitura privilegiada, os limites do veredito e a junção do CIM no Windows |
 | `tests/network.test.ts` | O parser do `ping` (Linux e Windows pt-BR), jitter e perda, e os limites do veredito de rede |
-| `tests/games.test.ts` | O casamento CPU/GPU pelo nome mais longo, a fórmula do FPS, os nomes curtos da API, o cache de 7 dias e os erros 401/403/404/429 |
+| `tests/games.test.ts` | Validação da base, casamento de GPU, interpolação log-log, trava, 1% low nunca derivado, hardware desconhecido e a cobertura dos 32 destaques |
 | `tests/bottleneck.test.ts` | A ordem e os limites das regras, os textos do equilíbrio, a amostragem, o relatório, a contagem de referência e o timer da sessão |
 | `tests/overlay.test.ts` | O catálogo e a normalização do overlay, os quatro cantos, o formatador de métricas, o protocolo do helper e a contagem de referência/falhas do serviço de FPS |
 | `tests/light.test.ts` | Os alvos de iluminação, a migração implícita dos perfis antigos e as regras do roteador (throttle, acquire/release, isolamento de erro por backend) |

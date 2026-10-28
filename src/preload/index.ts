@@ -25,10 +25,9 @@ import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { DiskHealthSnapshot } from '@shared/features/health'
 import type { NetworkProgress, NetworkReport } from '@shared/features/network'
 import type {
-  ApiKeyState,
-  GamesApiResult,
+  GamesQuery,
   GamesReport,
-  GameOptions
+  GpuMatch
 } from '@shared/features/games'
 import type {
   BottleneckSessionProgress,
@@ -117,13 +116,10 @@ const api: MyRgbApi = {
     subscribe(IPC.netProgress, callback),
 
   // games
-  listGames: (options?: Partial<GameOptions>): Promise<GamesReport> =>
-    ipcRenderer.invoke(IPC.gamesList, options),
-  fetchGameFps: (options?: Partial<GameOptions>): Promise<GamesApiResult> =>
-    ipcRenderer.invoke(IPC.gamesFps, options),
-  setGamesApiKey: (key: string | null): Promise<ApiKeyState> =>
-    ipcRenderer.invoke(IPC.gamesSetApiKey, key),
-  getGamesApiKeyState: (): Promise<ApiKeyState> => ipcRenderer.invoke(IPC.gamesHasApiKey),
+  listGames: (query?: GamesQuery): Promise<GamesReport> =>
+    ipcRenderer.invoke(IPC.gamesList, query),
+  searchGpus: (query: string, limit?: number): Promise<GpuMatch[]> =>
+    ipcRenderer.invoke(IPC.gamesGpus, query, limit),
 
   // bottleneck
   startBottleneck: (): Promise<BottleneckSnapshot> =>

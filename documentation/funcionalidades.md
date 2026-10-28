@@ -1,9 +1,9 @@
 # Funcionalidades
 
 O MyRGB tem uma navegação lateral com dez páginas: a de **Iluminação** (a tela
-original, descrita abaixo) e nove páginas de diagnóstico e desempenho que estão
-sendo incorporadas do Reset Explode. Este documento começa pela navegação e
-depois detalha a tela de iluminação, que é a que já está completa.
+original, descrita abaixo) e nove páginas de diagnóstico e desempenho, no
+visual monocromático inspirado no Reset Explode. Este documento começa pela
+navegação e depois detalha cada tela.
 
 ---
 
@@ -48,7 +48,7 @@ depois detalha a tela de iluminação, que é a que já está completa.
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
 | Discos | Unidades e Saúde — **pronta** |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
-| Jogos | FPS estimado por jogo, com resolução, preset e upscaling — **pronta** |
+| Jogos | FPS medido ou estimado por jogo, com fonte e confiança — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
 | Overlay | Métricas por cima do jogo — **pronta** |
 | Integrações | OpenRGB, Razer Chroma e Corsair iCUE — **não implementada** |
@@ -269,35 +269,56 @@ o teste o botão vira **Cancelar**; recusar mantém o último resultado na tela.
 
 ## A tela de Jogos
 
-Responde "quantos FPS eu faço neste jogo?" com o hardware que está na máquina,
-para 32 jogos. A tabela abre preenchida na hora e diz, em cada linha, de onde
-veio o número.
+Responde "quantos FPS eu faço neste jogo?" com o hardware que está na máquina.
+A base normalizada (PCGameBenchmarks + Open GPU Benchmarks) viaja com o
+aplicativo: a página abre preenchida e funciona **sem internet**.
 
 - **Opções** no topo: resolução (1080p, 1440p, 4K), gráficos (Baixo a Ultra) e
   upscaling (Nativo, Qualidade, Desempenho). Mudar qualquer uma recalcula a
   tabela inteira.
-- **Estimativa local** (sempre disponível, sem internet): usa as mesmas tabelas
-  do Reset Explode, com uma RTX 4070 e um Ryzen 7 7700X valendo 100. O FPS é o
-  **menor** entre o teto da GPU, o teto da CPU e a trava do próprio jogo; o
-  1% low estimado é 75% da média.
-- **Selo do limitador**: `GPU`, `CPU` ou `Trava` (com o FPS da trava, como os
-  60 de Elden Ring), para saber o que está segurando o número.
-- **Fonte por linha**: `estimativa` ou `API`. Com uma chave da HowManyFPS
-  (pedida em info@howmanyfps.com), a página consulta FPS médio e 1% low
-  medidos em sessões reais; as respostas ficam em cache por 7 dias e vêm de lá
-  mesmo depois de reiniciar o app.
-- A API usa a resolução e o upscaling da consulta; o preset gráfico vale só
-  para a estimativa local.
-- **A chave fica no processo principal**, criptografada pelo chaveiro do
-  sistema (DPAPI no Windows, libsecret/KWallet no Linux). A interface só sabe
-  se existe uma chave. Sem chaveiro, a página avisa que o arquivo ficou sem
-  criptografia e oferece o botão **Remover**.
-- Uma chave recusada, a cota esgotada ou o Cloudflare bloqueando a conexão
-  aparecem como uma frase na página, e a estimativa local continua na tabela —
-  nada quebra e nenhum número é inventado.
-- Quando o processador ou a placa de vídeo não estão nas tabelas, a página diz
-  isso em **Observações** e usa o índice padrão do Reset Explode (GPU 50,
-  CPU 80), em vez de fingir precisão.
+- **Hardware considerado** mostra a GPU e a CPU detectadas, o modelo em que a
+  GPU foi encontrada na base e o score G3D. Se a detecção não corresponder a
+  nenhuma das 1.381 placas, a página diz isso e oferece uma **busca manual**;
+  a escolha não altera a detecção do sistema e pode ser desfeita.
+- **Catálogo**: 32 jogos em destaque na abertura; a busca alcança os 17.230
+  títulos da base. A tabela traz FPS médio, 1% low, fonte e confiança, e pode
+  ser ordenada por FPS, fonte ou nome.
+- **Resultado**: o cartão do jogo selecionado mostra o valor, o tipo de
+  resultado, a GPU/CPU consideradas, a confiança, o teto aplicado, a contagem
+  de amostras e a explicação de como o número foi obtido.
+- **Fontes e licenças**: nome, link, licença (CC BY 4.0), versão de cada base e
+  a data da normalização, além da atribuição obrigatória.
+
+### Medido e estimado não se misturam
+
+- **Benchmark medido**: uma execução real para aquela combinação de jogo, GPU,
+  resolução, preset e upscaling. É exibida como publicada, com 1% low e número
+  de amostras. A base incorporada tem 9 combinações medidas (Cyberpunk 2077 em
+  uma RTX 5080).
+- **Estimativa pública**: quando não há execução exata, a página coloca a GPU
+  na curva das 12 GPUs de referência (interpolação log-log por score G3D) e
+  aplica os fatores de resolução e preset documentados pela fonte. O cartão
+  avisa que é estimativa e reduz a confiança.
+- **Dados insuficientes**: GPU fora da base, placa mais fraca que a referência
+  mínima ou configuração que a base não sustenta. Nenhum índice padrão é usado
+  para preencher a lacuna.
+
+### O 1% low
+
+Só aparece quando foi **medido**. Uma estimativa nunca o deriva do FPS médio —
+não existe uma percentagem universal. Sem medição, a linha diz "Não
+disponível". O 1% low também não é apresentado como FPS mínimo.
+
+### Limitações na própria página
+
+A tabela não tem coluna de limitador: a estimativa considera apenas a GPU, e
+afirmar "gargalo de CPU" a partir dela seria inventar um diagnóstico. O
+limitador real continua nas páginas Gargalo e Overlay. Upscaling, ray tracing e
+geração de quadros não são modelados; a página avisa quando a configuração
+escolhida depende deles.
+
+A metodologia completa, as licenças e o processo de atualização estão em
+[jogos.md](jogos.md).
 
 ---
 
@@ -309,8 +330,8 @@ momento e o que aconteceu durante uma sessão.
 
 ### Equilíbrio teórico
 
-Compara o desempenho relativo dos dois sem medir jogo nenhum, com as mesmas
-tabelas da página Jogos (RTX 4070 e Ryzen 7 7700X valem 100).
+Compara o desempenho relativo dos dois sem medir jogo nenhum, com as tabelas
+de referência do Reset Explode (RTX 4070 e Ryzen 7 7700X valem 100).
 
 - **GPU ÷ CPU** é a razão entre os índices, marcada numa escala logarítmica de
   0,4× a 2,5× — a mesma do Reset Explode.

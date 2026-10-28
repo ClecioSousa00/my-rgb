@@ -38,7 +38,8 @@
     "dump:frames": "npm run build && electron . --dump-frames",
     "write-test": "npm run build && electron . --write-test",
     "selftest": "npm run build && electron . --selftest",
-    "docs": "npm run build && electron . --gen-docs documentation/efeitos.md"
+    "docs": "npm run build && electron . --gen-docs documentation/efeitos.md",
+    "games:data": "node tools/build-games-data.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",

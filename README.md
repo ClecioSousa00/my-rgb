@@ -54,7 +54,7 @@ operacionais.
 | Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx e histórico |
 | Discos | pronta: abas Unidades e Saúde (S.M.A.R.T. / CIM) |
 | Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
-| Jogos | pronta: estimativa local dos 32 jogos e FPS medido por API (opcional) |
+| Jogos | pronta: base offline com 17 mil jogos, FPS medido ou estimado, com fonte e confiança ([metodologia](documentation/jogos.md)) |
 | Gargalo | pronto: equilíbrio GPU × CPU, limitador ao vivo e sessão de 1/3/5 min |
 | Overlay | pronto: métricas sobre o jogo, atalho global e escolha do que mostrar; FPS real no Windows, "indisponível" no Linux |
 | Visão geral | pronta: hardware resumido, limitador ao vivo, discos, saúde, rede e atalhos para o que precisa de atenção |
@@ -226,7 +226,7 @@ garantir que as duas execuções usaram a mesma configuração.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest (276 testes, 17 arquivos)
+npm test             # vitest (287 testes, 17 arquivos)
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
@@ -238,6 +238,7 @@ npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
 |---|---|
 | `node tools/probe-aura.mjs` | Lê a config table do hardware real e mostra o layout |
 | `node tools/gen-icons.mjs` | Regenera os ícones do app e da bandeja |
+| `npm run games:data` | Baixa e normaliza a base de FPS (PCGameBenchmarks + Open GPU Benchmarks) |
 | `node tools/compare-frames.mjs <a> <b>` | Compara dois dumps de frames |
 | `node tools/check-hid-binary.mjs` | Confere se o binário nativo do node-hid existe para esta plataforma |
 | `npx electron . --write-test` | Escreve um arco-íris em todas as zonas (teste de hardware) |

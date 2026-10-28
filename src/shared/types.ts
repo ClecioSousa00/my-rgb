@@ -282,14 +282,10 @@ export const IPC = {
   netLast: 'net:last',
   /** Pushed while the diagnostic runs. */
   netProgress: 'net:progress',
-  /** Local FPS estimate for the whole catalog. */
+  /** Resolve the catalog for a search, the options and (optionally) a GPU. */
   gamesList: 'games:list',
-  /** Measured FPS from HowManyFPS for the games it knows. */
-  gamesFps: 'games:fps',
-  /** Store or erase the HowManyFPS key (never returned to the renderer). */
-  gamesSetApiKey: 'games:setApiKey',
-  /** Whether a key is stored, and whether it is encrypted. */
-  gamesHasApiKey: 'games:hasApiKey',
+  /** Search the GPU table for the manual picker. */
+  gamesGpus: 'games:gpus',
   /** Subscribe to the bottleneck stream (starts the shared sensor poll). */
   bottleneckStart: 'bottleneck:start',
   /** Remove the page subscription. A running session keeps the poll alive. */

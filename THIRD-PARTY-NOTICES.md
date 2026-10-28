@@ -9,9 +9,12 @@ texto da licença dela e as dependências que o aplicativo carrega em execução
 
 ## Reset Explode
 
-Partes da lógica de diagnóstico, o catálogo de jogos e as fórmulas de
-estimativa derivam do Reset Explode
+Partes da lógica de diagnóstico e as tabelas de referência de GPU/CPU usadas
+pelo Gargalo derivam do Reset Explode
 (<https://github.com/GustavoReset/ResetExplode>), MIT © 2026 Gustavo.
+
+A base de FPS da página Jogos **não** vem do Reset Explode: ela é normalizada
+a partir de duas fontes públicas em CC BY 4.0, documentadas abaixo.
 
 Nada foi copiado como binário: a lógica foi reescrita em TypeScript (no
 processo principal) e em C# (no helper do Windows). Os arquivos que carregam
@@ -19,9 +22,8 @@ essa lógica têm o aviso no cabeçalho:
 
 | Arquivo | O que veio de lá |
 |---|---|
-| `src/main/features/games/catalog.ts` | O catálogo dos 32 jogos, os índices de GPU/CPU e a fórmula `min(gpu, cpu, cap)` |
-| `src/main/features/games/index.ts` | O casamento entre o nome do hardware e a chave do catálogo |
-| `src/main/features/games/howManyFps.ts` | A chave de cache `cpu\|gpu\|game\|resolution\|upscaling`, o TTL de 7 dias e o formato das respostas |
+| `src/main/features/games/reference.ts` | Os índices relativos de GPU/CPU e os nomes curtos usados pelo Gargalo |
+| `src/main/features/bottleneck/index.ts` | O casamento entre o nome do hardware e o índice de referência |
 | `src/main/features/bottleneck/classify.ts` | A ordem das regras do limitador, os limites e os textos |
 | `src/main/features/bottleneck/sample.ts` | A escolha de qual leitura alimenta cada regra |
 | `src/main/features/bottleneck/session.ts` | A distribuição do relatório de sessão |
@@ -55,6 +57,44 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+---
+
+## PCGameBenchmarks
+
+Os FPS estimados da página Jogos vêm da base pública do PCGameBenchmarks
+(<https://pcgamebenchmarks.com>), distribuída em
+<https://github.com/emilioagustin83/pc-game-fps-dataset>, sob
+**[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)**.
+
+- Autoria: **PCGameBenchmarks** (<https://pcgamebenchmarks.com>).
+- O que foi usado: `games.csv` (títulos, ano, trava de motor e FPS estimado em
+  1080p/Alto em 12 GPUs de referência) e `gpus.csv` (1.381 GPUs e scores G3D).
+- O que foi alterado: normalização de nomes, resolução, preset e upscaling;
+  deduplicação por título; seleção das colunas usadas. Nenhum valor foi
+  inventado.
+- Versão incorporada: snapshot de 5 de outubro de 2026.
+- Os valores são **estimativas** da fonte, não medições.
+
+## Open GPU Benchmarks
+
+Os benchmarks medidos da página Jogos vêm do Open GPU Benchmarks
+(<https://opengpubenchmarks.com>), pela API pública
+<https://opengpubenchmarks.com/api/v1/official.json>, sob
+**[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)**.
+
+- Autoria: **Open GPU Benchmarks** (<https://opengpubenchmarks.com>).
+- O que foi usado: execuções oficiais com FPS médio, 1% low e a configuração
+  de cada teste (jogo, GPU, CPU, resolução, preset e upscaling).
+- O que foi alterado: filtro de presets/upscalers compatíveis com a página e
+  agrupamento de execuções iguais pela média. Nenhum valor foi inventado.
+- Versão incorporada: `metadata.generated_at` do JSON, gravado em
+  `src/main/features/games/data/catalog.json`.
+- Os textos do blog do projeto não estão cobertos pela licença e não foram
+  usados.
+
+A atribuição completa, a metodologia e o processo de atualização estão em
+[documentation/jogos.md](documentation/jogos.md).
 
 ---
 

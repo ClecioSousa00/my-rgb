@@ -857,29 +857,78 @@ async function runSelfTest(): Promise<void> {
         /Teste cancelado/.test(text()) &&
         document.querySelector('.page-title')?.textContent === 'Rede'
 
-      // Jogos: the local estimate needs no key and no network, so the table
-      // must fill with 32 rows. Changing the resolution has to recompute the
-      // numbers, which proves the options reach the main process.
+      // Jogos: the local dataset needs no key and no network, so the table
+      // must fill with the featured games. The GPU is picked manually when the
+      // detector cannot name it (the self test must not depend on the machine
+      // having a card the base knows), then changing the resolution has to
+      // recompute the numbers, which proves the options reach the main process.
       window.__myRgbNavigate && window.__myRgbNavigate('games')
       await waitFor(
-        () => document.querySelectorAll('tbody tr').length >= 30 && /estimativa local/i.test(text()),
+        () => document.querySelectorAll('tbody tr').length >= 30 && /Catálogo/.test(text()),
         15000
       )
       const gameRows = document.querySelectorAll('tbody tr').length
       const firstFps = () =>
         document.querySelector('tbody tr td:nth-child(2) .font-mono')?.textContent?.trim()
+      const allFps = () =>
+        Array.from(document.querySelectorAll('tbody tr td:nth-child(2) .font-mono'))
+          .map((cell) => cell.textContent?.trim())
+          .join('|')
+
+      const pickGpu = Array.from(document.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Escolher GPU'
+      )
+      if (pickGpu instanceof HTMLElement) pickGpu.click()
+      await waitFor(
+        () =>
+          Array.from(document.querySelectorAll('input')).some((input) =>
+            /RTX 4070/.test(input.placeholder)
+          ),
+        5000
+      )
+      const gpuInput = Array.from(document.querySelectorAll('input')).find((input) =>
+        /RTX 4070/.test(input.placeholder)
+      )
+      if (gpuInput instanceof HTMLInputElement) {
+        const setValue = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value'
+        )?.set
+        setValue?.call(gpuInput, 'RTX 4070')
+        gpuInput.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      await waitFor(
+        () =>
+          Array.from(document.querySelectorAll('li button')).some((button) =>
+            /^GeForce RTX 4070\\d/.test((button.textContent ?? '').trim())
+          ),
+        8000
+      )
+      const exactGpu = Array.from(document.querySelectorAll('li button')).find((button) =>
+        /^GeForce RTX 4070\\d/.test((button.textContent ?? '').trim())
+      )
+      if (exactGpu instanceof HTMLElement) exactGpu.click()
+
+      await waitFor(() => {
+        const value = firstFps()
+        return value !== undefined && value !== '—' && value.length > 0
+      }, 8000)
       const fpsBefore = firstFps()
+      const allBefore = allFps()
       const chip4k = Array.from(document.querySelectorAll('button.chip')).find(
         (button) => button.textContent?.trim() === '4K'
       )
       if (chip4k instanceof HTMLElement) chip4k.click()
-      await waitFor(() => firstFps() !== fpsBefore, 8000)
+      // The highest rows are games capped at 360 FPS, so the first cell may not
+      // move; the rest of the column does.
+      await waitFor(() => allFps() !== allBefore, 8000)
       window.__myRgbGamesReady =
         gameRows >= 30 &&
         fpsBefore !== undefined &&
         fpsBefore.length > 0 &&
-        firstFps() !== fpsBefore &&
-        /estimativa local/i.test(text()) &&
+        allFps() !== allBefore &&
+        /Base normalizada distribuída com o aplicativo/i.test(text()) &&
+        /FPS médio/.test(text()) &&
         document.querySelector('.page-title')?.textContent === 'Jogos'
 
       // Gargalo: the live block is fed by the same sensor poll as the Sensores

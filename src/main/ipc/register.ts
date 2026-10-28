@@ -10,7 +10,7 @@
  * are registered here as they arrive, keeping one place to audit the surface.
  */
 
-import { app, dialog, ipcMain } from 'electron'
+import { dialog, ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { readFileSync, writeFileSync } from 'fs'
 import type { EngineState } from '@shared/api'
@@ -281,15 +281,13 @@ export function registerIpc(host: IpcHost): void {
 
   // --- games --------------------------------------------------------------
 
-  // The service owns the key store and the FPS cache, both under userData.
-  const games = new GamesService(app.getPath('userData'))
+  // The dataset is bundled with the app; the service keeps no cache on disk.
+  const games = new GamesService()
 
-  ipcMain.handle(IPC.gamesList, (_e, options) => games.report(options))
-  ipcMain.handle(IPC.gamesFps, (_e, options) => games.fetchApi(options))
-  ipcMain.handle(IPC.gamesSetApiKey, (_e, key) =>
-    games.setApiKey(typeof key === 'string' ? key : null)
+  ipcMain.handle(IPC.gamesList, (_e, query) => games.report(query))
+  ipcMain.handle(IPC.gamesGpus, (_e, query: string, limit?: number) =>
+    games.searchGpus(query, limit)
   )
-  ipcMain.handle(IPC.gamesHasApiKey, () => games.keyState())
 
   // --- bottleneck ---------------------------------------------------------
 

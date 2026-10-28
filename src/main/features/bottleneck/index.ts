@@ -31,7 +31,7 @@ import type {
   BottleneckUpdate
 } from '@shared/features/bottleneck'
 import { normalizeSessionMinutes } from '@shared/features/bottleneck'
-import { cpuPerf, gpuPerf, shortCpuName, shortGpuName } from '../games/catalog'
+import { cpuPerf, gpuPerf, shortCpuName, shortGpuName } from '../games/reference'
 import { getSystem } from '../system/info'
 import { balance, classify, title, advice } from './classify'
 import { sampleFromReadings } from './sample'
