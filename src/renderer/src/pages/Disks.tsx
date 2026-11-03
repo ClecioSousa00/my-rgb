@@ -334,6 +334,7 @@ export function DisksPage(): React.JSX.Element {
     if (healthRequest.current) return
     healthRequest.current = true
     setLoadingHealth(true)
+    setHealthError(null)
     try {
       setHealth(await window.myrgb.listDiskHealth(force))
       setHealthError(null)
@@ -365,8 +366,11 @@ export function DisksPage(): React.JSX.Element {
   }, [load])
 
   useEffect(() => {
-    if (tab === 'health' && !health && !loadingHealth) void loadHealth(false)
-  }, [tab, health, loadingHealth, loadHealth])
+    // A failed read must not retry on its own: without the `healthError`
+    // guard, `health` staying null re-ran this effect on every render and
+    // spawned one `smartctl` per cycle. The retry button clears the error.
+    if (tab === 'health' && !health && !loadingHealth && !healthError) void loadHealth(false)
+  }, [tab, health, loadingHealth, healthError, loadHealth])
 
   const total = drives?.reduce((sum, drive) => sum + drive.totalBytes, 0) ?? 0
   const used = drives?.reduce((sum, drive) => sum + drive.usedBytes, 0) ?? 0

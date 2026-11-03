@@ -39,7 +39,12 @@ export function ToastHost(): React.JSX.Element {
   if (messages.length === 0) return <></>
 
   return (
-    <div className="pointer-events-none absolute bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
+    <div
+      className="pointer-events-none absolute bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2"
+      role="status"
+      aria-live="polite"
+      aria-atomic="false"
+    >
       {messages.map((message) => (
         <div
           key={message.id}

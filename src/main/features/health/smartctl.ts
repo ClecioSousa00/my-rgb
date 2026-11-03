@@ -220,7 +220,10 @@ function interpretFailure(err: unknown): SmartctlRun {
   const json = parseJson(e.stdout)
   const text = errorText(err)
   const permission = PERMISSION_PATTERN.test(text)
-  const canceled = e.code === 126 || e.code === 127 || /dismissed|not authorized/i.test(text)
+  // "Cancelled" belongs to pkexec's dialog (code 126). Exit 127 is "not
+  // authorized / no authentication agent / command failed", and a direct
+  // smartctl run never cancels anything.
+  const canceled = /dismissed/i.test(text)
 
   if (json) {
     // smartctl writes a valid JSON even when the disk is failing. Keep it.
@@ -293,15 +296,35 @@ export async function readSmartctlElevated(devices: string[]): Promise<ElevatedS
       timeout: ELEVATED_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER
     })
-    return { byDevice: splitElevatedOutput(stdout), canceled: false }
-  } catch (err) {
-    const e = err as { stdout?: string; code?: number | string }
-    const canceled = e.code === 126 || e.code === 127
-    return {
-      byDevice: splitElevatedOutput(e.stdout ?? ''),
-      canceled,
-      error: canceled ? undefined : errorText(err) || 'a leitura com privilégio falhou'
+    const byDevice = splitElevatedOutput(stdout)
+    // The script runs `smartctl … || true`, so a missing binary looks like a
+    // successful read with no output. Say what probably happened instead of
+    // showing an empty health tab.
+    if (byDevice.size === 0) {
+      return {
+        byDevice,
+        canceled: false,
+        error:
+          'Nenhuma unidade devolveu dados; verifique se o smartmontools está instalado.'
+      }
     }
+    return { byDevice, canceled: false }
+  } catch (err) {
+    const e = err as { stdout?: string; code?: number | string; message?: string }
+    const byDevice = splitElevatedOutput(e.stdout ?? '')
+    // Code 126 is the only one that means "the user dismissed the dialog".
+    // 127 means the authorization failed (or no agent is available), and
+    // ENOENT means pkexec itself is missing.
+    if (e.code === 126) return { byDevice, canceled: true }
+
+    const missing = e.code === 'ENOENT'
+    const error = missing
+      ? 'o pkexec não está instalado; instale o polkit para ler a saúde dos discos.'
+      : e.code === 127
+        ? 'a autorização foi recusada ou o polkit não tem um agente disponível. ' +
+          (errorText(err) || 'Verifique o agente de autenticação.')
+        : errorText(err) || 'a leitura com privilégio falhou'
+    return { byDevice, canceled: false, error }
   }
 }
 

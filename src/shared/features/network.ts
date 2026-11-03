@@ -78,6 +78,18 @@ export interface NetworkProgress {
   fraction: number
 }
 
+/**
+ * State of the diagnostic as a page finds it on open.
+ *
+ * The run belongs to the main process, so leaving the page mid-test and
+ * coming back must not show the intro card as if nothing were happening.
+ */
+export interface NetworkStatus {
+  running: boolean
+  /** Latest step of the run, if one is in progress. */
+  progress: NetworkProgress | null
+}
+
 /** How many packets each target receives, and how far apart. */
 export const NETWORK_PING_SAMPLES = 20
 export const NETWORK_PING_INTERVAL_MS = 200

@@ -326,7 +326,7 @@ processo principal formata cada linha e envia um quadro pronto a cada 500 ms; o
 bundle do overlay (`src/renderer/src/overlay/`) só desenha o que recebe, sem
 acessar hardware.
 
-- `src/shared/features/overlay.ts` — catálogo das 26 métricas (mesma ordem e
+- `src/shared/features/overlay.ts` — catálogo das 24 métricas (mesma ordem e
   mesmos padrões do Reset Explode), `OverlayConfig`, normalização e o formato do
   quadro. É a única fonte para a página e para o overlay.
 - `src/main/features/overlay/manager.ts` — `OverlayService`: cria a janela

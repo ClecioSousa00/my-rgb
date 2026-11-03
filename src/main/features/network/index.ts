@@ -22,7 +22,8 @@ import type {
   NetworkDnsLookup,
   NetworkPingStat,
   NetworkProgress,
-  NetworkReport
+  NetworkReport,
+  NetworkStatus
 } from '@shared/features/network'
 import {
   NETWORK_DOWNLOAD_SECONDS,
@@ -334,10 +335,27 @@ interface ActiveRun {
 
 let active: ActiveRun | null = null
 let lastReport: NetworkReport | null = null
+/** Latest step of the run in flight; shown again when the page remounts. */
+let lastProgress: NetworkProgress | null = null
 
 /** The last completed report, so the page can show it again on open. */
 export function lastNetworkReport(): NetworkReport | null {
   return lastReport
+}
+
+/** Whether a run is in progress, and how far it got. */
+export function networkStatus(): NetworkStatus {
+  return { running: active !== null, progress: active ? lastProgress : null }
+}
+
+/**
+ * Attach to the run in flight, if any.
+ *
+ * Unlike `diagnoseNetwork`, this never starts a test: a page that remounts
+ * between the status check and the join must not saturate the link again.
+ */
+export function joinNetworkDiagnosis(): Promise<NetworkReport | null> {
+  return active?.promise ?? Promise.resolve(null)
 }
 
 /** Stop the running diagnostic. The pending promise resolves to null. */
@@ -357,6 +375,7 @@ export function diagnoseNetwork(
   const controller = new AbortController()
   const emit = (progress: NetworkProgress): void => {
     if (controller.signal.aborted) return
+    lastProgress = progress
     try {
       onProgress(progress)
     } catch {
@@ -375,6 +394,7 @@ export function diagnoseNetwork(
     })
     .finally(() => {
       active = null
+      lastProgress = null
     })
 
   active = { controller, promise }

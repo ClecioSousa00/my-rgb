@@ -91,7 +91,6 @@ export function buildOverlayFrame(input: OverlayFrameInput): OverlayFrame {
   const gpuClock = gpuClocks.find((r) => !/mem/i.test(r.label))?.value
   const gpuMemClock = gpuClocks.find((r) => /mem/i.test(r.label))?.value
   const gpuPower = find(readings, (r) => r.group === 'gpu' && r.kind === 'power')?.value
-  const gpuVolt = find(readings, (r) => r.group === 'gpu' && r.kind === 'voltage')?.value
   const gpuFan = find(readings, (r) => r.group === 'gpu' && r.kind === 'fan')
 
   const vramPct = find(
@@ -142,11 +141,9 @@ export function buildOverlayFrame(input: OverlayFrameInput): OverlayFrame {
     gpu_clock: megahertz(gpuClock),
     gpu_memclock: megahertz(gpuMemClock),
     gpu_power: watts(gpuPower),
-    // nvidia-smi exposes neither the core voltage nor the NVML throttle bits;
-    // the page explains what would provide them.
-    gpu_volt: gpuVolt === undefined ? DASH : `${gpuVolt.toFixed(3)} V`,
+    // NVML's throttle bits are not exposed by nvidia-smi, and there is no
+    // portable core-voltage reading, so neither is offered as an item.
     gpu_fan: fan(gpuFan),
-    gpu_perfcap: DASH,
     vram_used: gigabytes(vramUsed),
     vram_pct: percent(vramPct),
     vram_temp: celsius(vramTemp),

@@ -264,11 +264,18 @@ interface Cache {
 }
 
 let cache: Cache | null = null
+/** One collection at a time: two pages asking together share the same run. */
+let inFlight: Promise<SystemSnapshot> | null = null
 const CACHE_MS = 60_000
 
 export async function getSystem(force = false): Promise<SystemSnapshot> {
   if (!force && cache && Date.now() - cache.at < CACHE_MS) return cache.value
+  // Opening Sistema/Jogos or pressing "Atualizar" while a read is running
+  // used to start a second full collection (nine `systeminformation` calls,
+  // including `dmidecode`/WMI); the last one to finish won the cache.
+  if (inFlight) return inFlight
 
+  const pending = (async (): Promise<SystemSnapshot> => {
   const notes: string[] = []
   const [os, system, baseboard, bios, cpu, mem, layout, graphics, disks] = await Promise.all([
     attempt('as informações do sistema operacional', () => si.osInfo(), notes),
@@ -314,4 +321,12 @@ export async function getSystem(force = false): Promise<SystemSnapshot> {
 
   cache = { at: Date.now(), value: snapshot }
   return snapshot
+  })()
+
+  inFlight = pending
+  try {
+    return await pending
+  } finally {
+    if (inFlight === pending) inFlight = null
+  }
 }

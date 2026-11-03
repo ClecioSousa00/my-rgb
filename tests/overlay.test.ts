@@ -46,9 +46,9 @@ function config(items: string[]): OverlayConfig {
 }
 
 describe('overlay catalogue', () => {
-  it('has the same 26 metrics as the original, without duplicate keys', () => {
-    expect(OVERLAY_METRICS).toHaveLength(26)
-    expect(new Set(OVERLAY_METRICS.map((metric) => metric.key)).size).toBe(26)
+  it('has the same 24 metrics as the original, without duplicate keys', () => {
+    expect(OVERLAY_METRICS).toHaveLength(24)
+    expect(new Set(OVERLAY_METRICS.map((metric) => metric.key)).size).toBe(24)
   })
 
   it('selects the original default preset', () => {
@@ -472,6 +472,42 @@ describe('FpsService', () => {
 
     service.retry()
     await vi.waitFor(() => expect(service.capabilities().available).toBe(true))
+    service.dispose()
+  })
+
+  it('retries while the previous start is still waiting for UAC', async () => {
+    const pending: { release?: () => void } = {}
+    const bridges: StubBridge[] = []
+    const service = new FpsService({
+      platform: 'win32',
+      createBridge: () => {
+        const bridge = new StubBridge()
+        bridges.push(bridge)
+        if (bridges.length === 1) {
+          // The first attempt is stuck on the elevated launch, as when the UAC
+          // prompt is left open; `retry` must not be ignored because of it.
+          bridge.start = () =>
+            new Promise<void>((resolve) => {
+              pending.release = resolve
+            })
+        }
+        return bridge
+      },
+      pollMs: 60_000
+    })
+
+    service.start()
+    await vi.waitFor(() => expect(bridges).toHaveLength(1))
+    expect(service.capabilities().available).toBe(false)
+
+    service.retry()
+    await vi.waitFor(() => expect(service.capabilities().available).toBe(true))
+    expect(bridges).toHaveLength(2)
+
+    // The abandoned attempt finishing late must not overwrite the live one.
+    pending.release?.()
+    await Promise.resolve()
+    expect(service.capabilities().available).toBe(true)
     service.dispose()
   })
 

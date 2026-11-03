@@ -280,6 +280,10 @@ export const IPC = {
   netCancel: 'net:cancel',
   /** Last completed report, without running the test again. */
   netLast: 'net:last',
+  /** Whether a diagnostic is running, and how far it got. */
+  netStatus: 'net:status',
+  /** Attach to the run in flight without starting another one. */
+  netJoin: 'net:join',
   /** Pushed while the diagnostic runs. */
   netProgress: 'net:progress',
   /** Resolve the catalog for a search, the options and (optionally) a GPU. */

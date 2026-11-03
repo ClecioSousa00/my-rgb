@@ -80,6 +80,8 @@ export interface HelperBridgeOptions {
 
 const CONNECT_TIMEOUT_MS = 30_000
 const REQUEST_TIMEOUT_MS = 5_000
+/** Includes the time the user spends on the UAC prompt. */
+const LAUNCH_TIMEOUT_MS = 45_000
 
 interface Pending {
   resolve: (value: unknown) => void
@@ -103,10 +105,23 @@ function launchElevated(executable: string, pipeName: string): Promise<void> {
     execFile(
       'powershell.exe',
       ['-NoProfile', '-Command', script],
-      { windowsHide: true },
+      {
+        windowsHide: true,
+        // A UAC prompt left open must not hold `start()` forever: the caller
+        // has no way to cancel it, and the page would stay on "iniciando".
+        timeout: LAUNCH_TIMEOUT_MS,
+        killSignal: 'SIGKILL'
+      },
       (error, _stdout, stderr) => {
         if (error) {
-          reject(new Error(stderr.trim() || error.message))
+          const killed = (error as NodeJS.ErrnoException & { killed?: boolean }).killed
+          reject(
+            new Error(
+              killed
+                ? 'A janela de permissão do Windows não respondeu dentro do tempo esperado.'
+                : stderr.trim() || error.message
+            )
+          )
           return
         }
         resolve()
@@ -124,6 +139,8 @@ export class HelperBridge {
   private readonly pending = new Map<number, Pending>()
   private connecting: Promise<void> | null = null
   private failure: string | null = null
+  /** Rejects the wait for the helper's connection when the bridge is closed. */
+  private abortConnect: ((error: Error) => void) | null = null
 
   constructor(options: HelperBridgeOptions) {
     this.options = options
@@ -158,11 +175,21 @@ export class HelperBridge {
 
     const connected = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
+        this.abortConnect = null
         reject(new Error('O helper não conectou dentro do tempo esperado.'))
       }, connectTimeout)
 
+      // `dispose()` uses this to settle the wait immediately instead of
+      // leaving the caller blocked until the connect timeout.
+      this.abortConnect = (error) => {
+        clearTimeout(timer)
+        this.abortConnect = null
+        reject(error)
+      }
+
       server.once('connection', (socket) => {
         clearTimeout(timer)
+        this.abortConnect = null
         this.attach(socket)
         resolve()
       })
@@ -201,6 +228,13 @@ export class HelperBridge {
       server.once('error', onError)
       server.listen(helperPipePath(pipeName), () => {
         server.off('error', onError)
+        // The listener must not disappear after `listen` resolves: a later
+        // error (pipe removed or taken over) without a handler is an
+        // uncaughtException in the main process.
+        server.on('error', (error) => {
+          this.fail(`O canal do helper falhou: ${error.message}`)
+          this.teardown()
+        })
         resolve(server)
       })
     })
@@ -237,13 +271,17 @@ export class HelperBridge {
 
   private fail(reason: string): void {
     if (!this.failure) this.failure = reason
+    this.rejectPending(reason)
+    this.socket?.destroy()
+    this.socket = null
+  }
+
+  private rejectPending(reason: string): void {
     for (const [id, pending] of this.pending) {
       clearTimeout(pending.timer)
       pending.reject(new Error(reason))
       this.pending.delete(id)
     }
-    this.socket?.destroy()
-    this.socket = null
   }
 
   async request<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -279,15 +317,21 @@ export class HelperBridge {
         // The pipe may already be gone; nothing else to do.
       }
     }
+    // A request in flight must settle, or its caller (`fps.poll`) stays
+    // awaited forever and never polls again.
+    this.abortConnect?.(new Error('O helper foi encerrado.'))
+    this.abortConnect = null
+    this.rejectPending('O helper foi encerrado.')
     this.socket?.destroy()
     this.socket = null
     this.server?.close()
     this.server = null
-    for (const pending of this.pending.values()) clearTimeout(pending.timer)
-    this.pending.clear()
   }
 
   private teardown(): void {
+    this.abortConnect?.(new Error('O helper foi encerrado.'))
+    this.abortConnect = null
+    this.rejectPending('O helper foi encerrado.')
     this.server?.close()
     this.server = null
     this.socket?.destroy()

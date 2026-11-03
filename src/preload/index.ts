@@ -23,7 +23,7 @@ import type {
 import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
 import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { DiskHealthSnapshot } from '@shared/features/health'
-import type { NetworkProgress, NetworkReport } from '@shared/features/network'
+import type { NetworkProgress, NetworkReport, NetworkStatus } from '@shared/features/network'
 import type {
   GamesQuery,
   GamesReport,
@@ -112,6 +112,8 @@ const api: MyRgbApi = {
   runNetworkDiagnosis: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netDiagnose),
   cancelNetworkDiagnosis: (): Promise<void> => ipcRenderer.invoke(IPC.netCancel),
   getNetworkReport: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netLast),
+  getNetworkStatus: (): Promise<NetworkStatus> => ipcRenderer.invoke(IPC.netStatus),
+  joinNetworkDiagnosis: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netJoin),
   onNetworkProgress: (callback: (progress: NetworkProgress) => void) =>
     subscribe(IPC.netProgress, callback),
 
@@ -153,8 +155,7 @@ const api: MyRgbApi = {
   onProfileChange: (callback: (profile: Profile) => void) => subscribe(IPC.profileGet, callback),
   onProfileSaved: (callback: (event: ProfileSavedEvent) => void) =>
     subscribe(IPC.profileSaved, callback),
-  onAppError: (callback: (message: string) => void) => subscribe(IPC.appError, callback),
-  onTrayCommand: (callback: (command: string) => void) => subscribe(IPC.engineState, callback)
+  onAppError: (callback: (message: string) => void) => subscribe(IPC.appError, callback)
 }
 
 contextBridge.exposeInMainWorld('myrgb', api)

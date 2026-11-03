@@ -32,14 +32,24 @@ export interface PingRun {
 
 let availability: Promise<boolean> | null = null
 
-/** Whether the system has a usable `ping`. Cached for the process lifetime. */
+/**
+ * Whether the system has a usable `ping`.
+ *
+ * Only a positive result is cached: a machine where the user installs
+ * iputils-ping while the app is open must see the diagnostic start working
+ * without a restart. A miss is cheap (one `which`/`where`) and is retried on
+ * the next call.
+ */
 export async function pingAvailable(): Promise<boolean> {
   if (availability) return availability
-  availability = new Promise<boolean>((resolve) => {
+  const check = new Promise<boolean>((resolve) => {
     const finder = process.platform === 'win32' ? 'where' : 'which'
     execFile(finder, ['ping'], { timeout: 4000 }, (error) => resolve(!error))
   })
-  return availability
+  availability = check
+  const ok = await check
+  if (!ok && availability === check) availability = null
+  return ok
 }
 
 /**

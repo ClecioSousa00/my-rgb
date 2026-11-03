@@ -42,14 +42,32 @@ export const DEFAULT_HEADER_LEDS = 72
 const WRITE_DEBOUNCE_MS = 150
 
 /**
- * Turn a profile name into the file name used on disk.
+ * Turn a profile name into the base file name used on disk.
  *
  * Accents and other characters that are not safe in a file name become "_"
  * here. The file name is only an identifier: the profile keeps the real name
- * inside the JSON, and that is what the UI shows.
+ * inside the JSON, and that is what the UI shows. Because two different names
+ * can sanitise to the same text ("Setup:2024" and "Setup*2024"), `pathFor`
+ * adds a short hash when the base name already belongs to another profile.
  */
 export function profileFileId(name: string): string {
   return sanitize(name)
+}
+
+/**
+ * Stable 32-bit FNV-1a, rendered in base 36.
+ *
+ * Used only to disambiguate two names that sanitise to the same file name; it
+ * is deterministic, so the same profile always resolves to the same file even
+ * across restarts.
+ */
+function nameHash(name: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
 }
 
 /**
@@ -391,8 +409,17 @@ export class ProfileStore {
       try {
         const parsed = JSON.parse(readFileSync(target, 'utf8')) as Profile
         if (parsed && parsed.version === 1) {
+          // Persist whatever the profile being left still has pending: the
+          // debounced write below would otherwise land in the file that is
+          // being opened and the edits would never reach the old profile.
+          // At startup there is nothing to persist yet (`writtenPath` and the
+          // timer are both empty), so the initial default is not written.
+          if (this.writtenPath || this.writeTimer) this.flush()
           this.current = parsed
-          this.writeCurrent()
+          // The loaded file is the home of this profile from now on. Loading
+          // must not write: a profile whose file was renamed by hand would
+          // otherwise be duplicated under the name stored inside the JSON.
+          this.writtenPath = target
         }
       } catch (err) {
         throw new Error(`Could not read profile: ${errorMessage(err)}`)
@@ -427,7 +454,12 @@ export class ProfileStore {
     const targets = profile.targets
       ? syncAuraTargets(profile.targets, profile.zones)
       : undefined
-    this.current = targets === profile.targets ? profile : { ...profile, targets }
+    const next = targets === profile.targets ? profile : { ...profile, targets }
+    // A different name is a different file (save-as, duplicate, import): the
+    // previous path must not be reused, or the new profile would overwrite the
+    // old one instead of getting its own.
+    if (next.name !== this.current.name) this.writtenPath = null
+    this.current = next
     this.writeCurrent()
     return this.current
   }
@@ -628,15 +660,32 @@ export class ProfileStore {
 
     const oldPath = this.writtenPath ?? this.resolvePath(oldName)
     const targetPath = this.pathFor(name)
-    if (!overwrite && targetPath !== oldPath && existsSync(targetPath)) {
+    const owner = existsSync(targetPath) ? this.nameAt(targetPath) : null
+    if (!overwrite && owner !== null && owner !== oldName) {
       throw new Error(`Já existe um perfil chamado "${name}".`)
     }
 
-    if (oldPath && existsSync(oldPath)) unlinkSync(oldPath)
-    if (this.writtenPath === oldPath) this.writtenPath = null
+    const renamed = { ...this.current, name }
+    // Write the new file before deleting the old one. A full disk, a read-only
+    // home or a process killed in the 150 ms debounce window would otherwise
+    // leave the user without the only copy of the profile.
+    try {
+      if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
+      writeFileSync(targetPath, JSON.stringify(renamed, null, 2), 'utf8')
+    } catch (err) {
+      const message = `Não foi possível salvar o perfil: ${errorMessage(err)}`
+      this.lastWriteError = message
+      this.onError?.(message)
+      throw new Error(message)
+    }
 
-    this.current = { ...this.current, name }
-    return this.save(this.current)
+    if (oldPath && oldPath !== targetPath && existsSync(oldPath)) unlinkSync(oldPath)
+
+    this.current = renamed
+    this.writtenPath = targetPath
+    this.lastWriteError = null
+    this.onSaved?.(this.current.name)
+    return this.current
   }
 
   private writeCurrent(): void {
@@ -661,7 +710,13 @@ export class ProfileStore {
   private writeNow(): void {
     try {
       if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
-      const file = this.pathFor(this.current.name)
+      // Keep writing to the file this profile came from. A profile whose file
+      // name differs from the name inside the JSON (copied by hand, renamed
+      // outside the app) must not gain a second copy under the sanitised name.
+      const file =
+        this.writtenPath && existsSync(this.writtenPath)
+          ? this.writtenPath
+          : this.pathFor(this.current.name)
       writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
       this.writtenPath = file
       this.lastWriteError = null
@@ -682,33 +737,68 @@ export class ProfileStore {
   }
 
   /**
-   * Resolve a profile name to its file.
+   * Resolve a profile name (or legacy file id) to its file.
    *
-   * The direct hit covers both the sanitised file id ("Padr_o" for "Padrão")
-   * and names that need no sanitising. The scan adds two fallbacks: old files
-   * are also addressable by their raw file name, and profiles whose file was
-   * renamed by hand still load by the name stored inside the JSON.
+   * The name stored in the JSON wins: two display names can sanitise to the
+   * same file name, and the file must follow the name the user sees. The raw
+   * file name and the sanitised id remain as fallbacks for older callers
+   * (`load('Padr_o')`) and for files copied by hand.
    */
   private resolvePath(id: string): string | null {
-    const direct = this.pathFor(id)
-    if (existsSync(direct)) return direct
     if (!existsSync(this.dir)) return null
+    const wanted = id.trim()
+    if (!wanted) return null
 
-    for (const file of readdirSync(this.dir)) {
-      if (!file.endsWith('.json')) continue
-      if (file.slice(0, -5) === id) return join(this.dir, file)
+    const files = readdirSync(this.dir).filter((file) => file.endsWith('.json'))
+
+    for (const file of files) {
+      const full = join(this.dir, file)
       try {
-        const parsed = JSON.parse(readFileSync(join(this.dir, file), 'utf8')) as Partial<Profile>
-        if (parsed.name === id) return join(this.dir, file)
+        const parsed = JSON.parse(readFileSync(full, 'utf8')) as Partial<Profile>
+        if (typeof parsed.name === 'string' && parsed.name.trim() === wanted) return full
       } catch {
-        /* ignore damaged files here; load() reports them */
+        /* damaged file: fall back to its name on disk */
       }
     }
+
+    const raw = `${wanted}.json`
+    if (files.includes(raw)) return join(this.dir, raw)
+
+    // A sanitised id ("Padr_o" for "Padrão") is only a fallback when the
+    // caller's string could itself be a file id. A display name containing
+    // characters the sanitiser rewrites must not borrow another profile's
+    // file just because both sanitise to the same text.
+    if (profileFileId(wanted) === wanted) {
+      const sanitised = `${profileFileId(wanted)}.json`
+      if (files.includes(sanitised)) return join(this.dir, sanitised)
+    }
+
     return null
   }
 
-  private pathFor(id: string): string {
-    return join(this.dir, `${profileFileId(id)}.json`)
+  /**
+   * File for a profile name.
+   *
+   * An existing profile keeps its file; a new one gets the sanitised name,
+   * plus a short stable hash when that name already belongs to a different
+   * profile. Deterministic, so the same name resolves to the same file on the
+   * next run.
+   */
+  private pathFor(name: string): string {
+    const existing = this.resolvePath(name)
+    if (existing) return existing
+
+    const base = join(this.dir, `${profileFileId(name)}.json`)
+    if (!existsSync(base)) return base
+
+    const hashed = join(this.dir, `${profileFileId(name)}-${nameHash(name)}.json`)
+    if (!existsSync(hashed)) return hashed
+
+    for (let i = 2; i < 1000; i++) {
+      const candidate = join(this.dir, `${profileFileId(name)}-${nameHash(name)}-${i}.json`)
+      if (!existsSync(candidate)) return candidate
+    }
+    return join(this.dir, `${profileFileId(name)}-${Date.now()}.json`)
   }
 
   private lastUsedPath(): string | null {

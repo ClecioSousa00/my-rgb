@@ -79,6 +79,12 @@ export class FpsService {
   private reason: string | undefined
   private disposed = false
   private starting = false
+  /**
+   * Increments on every new start. An attempt that lost the race (the user
+   * pressed "Tentar novamente") must not publish its error or clear the bridge
+   * the new attempt installed.
+   */
+  private attempt = 0
   private lastStatus = ''
 
   constructor(private readonly options: FpsServiceOptions = {}) {
@@ -106,6 +112,10 @@ export class FpsService {
   /** Forget a previous failure and try again (the page's "Tentar novamente"). */
   retry(): void {
     if (!this.supported || this.subscribers === 0) return
+    // A start may still be waiting for UAC. Invalidate it and let a fresh
+    // attempt begin now; the old one is settled by `dispose()` below.
+    this.attempt++
+    this.starting = false
     this.stopPoll()
     this.bridge?.dispose()
     this.bridge = null
@@ -139,6 +149,7 @@ export class FpsService {
 
   dispose(): void {
     this.disposed = true
+    this.attempt++
     this.subscribers = 0
     this.stopPoll()
     this.bridge?.dispose()
@@ -163,6 +174,7 @@ export class FpsService {
       return
     }
 
+    const attempt = ++this.attempt
     this.starting = true
     this.bridge = bridge
     try {
@@ -172,9 +184,11 @@ export class FpsService {
         throw new Error(started?.error ?? 'O helper não conseguiu iniciar a captura de frames.')
       }
 
-      if (this.subscribers === 0 || this.disposed) {
+      // A retry may have started another attempt while this one waited for
+      // UAC/the helper. Leave the new attempt alone.
+      if (attempt !== this.attempt || this.subscribers === 0 || this.disposed) {
         bridge.dispose()
-        this.bridge = null
+        if (this.bridge === bridge) this.bridge = null
         return
       }
 
@@ -187,12 +201,14 @@ export class FpsService {
       this.timer.unref?.()
     } catch (error) {
       bridge.dispose()
-      this.bridge = null
+      // Superseded by a retry: its state must not overwrite the new attempt's.
+      if (attempt !== this.attempt) return
+      if (this.bridge === bridge) this.bridge = null
       this.available = false
       this.reason = messageOf(error)
       this.emitStatus()
     } finally {
-      this.starting = false
+      if (attempt === this.attempt) this.starting = false
     }
   }
 

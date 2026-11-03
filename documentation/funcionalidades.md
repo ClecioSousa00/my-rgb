@@ -193,8 +193,9 @@ escondida.
     do driver, que é convertida aqui. Rótulos de header (`AIO Pump`, `CPU
     Fan`, `Chassis Fan 2`) são traduzidos, e um canal sem rótulo permanece
     genérico;
-  - Windows — carga, clocks e memória pelo `systeminformation`; os sensores de
-    temperatura e ventoinha da placa-mãe chegam com o helper da fase 7;
+  - Windows — carga, clocks e memória pelo `systeminformation`. Não há
+    leitura de temperatura e ventoinha da placa-mãe: o helper do Windows mede
+    FPS por ETW, não sensores, e a página diz isso em vez de mostrar zeros;
   - NVIDIA — `nvidia-smi` nos dois sistemas, quando instalado. A ventoinha da
     GPU vem em **percentual**, não em RPM, e o cartão avisa que não converte
     uma coisa na outra. Campos que o driver não responde (`[N/A]`)
@@ -243,8 +244,9 @@ De onde vêm os números:
 - **Windows** — a API de armazenamento (CIM): `MSFT_PhysicalDisk` para mídia,
   barramento e saúde geral, `MSFT_StorageReliabilityCounter` para temperatura,
   desgaste, horas e contadores de erro, e `MSStorageDriver_FailurePredictStatus`
-  para o aviso de falha do próprio disco. É a mesma leitura do Reset Explode,
-  sem esperar o helper da fase 7 — quando ele chegar, o cartão não muda.
+  para o aviso de falha do próprio disco. É a mesma leitura do Reset Explode e
+  não depende do helper do Windows (que mede FPS); se um dia ele também ler
+  sensores, o cartão não muda.
 - A leitura fica em cache por 60 s (um HDD adormecido acorda com o `smartctl`);
   **Atualizar** força uma nova.
 - Um disco que não responde (pendrive com bridge USB sem suporte, disco sem
@@ -260,7 +262,9 @@ porque satura a conexão e não faria sentido disparar ao abrir a página. Duran
 o teste o botão vira **Cancelar**; recusar mantém o último resultado na tela.
 
 - **Progresso por etapa** no topo: procurar a conexão, medir latência, DNS,
-  download e upload, com a fração concluída.
+  download e upload, com a fração concluída. O teste roda no processo
+  principal: sair da página e voltar mostra o mesmo progresso e o botão
+  **Cancelar**, em vez de fingir que nada está acontecendo.
 - **Latência, jitter e perda** de três alvos em paralelo: o **roteador**
   (gateway do sistema) e dois servidores públicos (1.1.1.1 e 8.8.8.8). São 20
   pacotes no Linux e 12 no Windows, onde o ping é de um em um segundo.

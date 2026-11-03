@@ -188,7 +188,14 @@ function rank(drive: DriveInfo): number {
 
 export async function listDrives(): Promise<DriveInfo[]> {
   const [volumes, blocks, disks] = await Promise.all([
-    si.fsSize(),
+    // Without the volumes there is nothing to show, so the failure must reach
+    // the page as an explanation it can display - not as a raw rejection that
+    // leaves the whole tab empty with no reason and no retry.
+    si.fsSize().catch((error: unknown) => {
+      throw new Error(
+        `Não foi possível ler as unidades: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }),
     si.blockDevices().catch(() => []),
     si.diskLayout().catch(() => [])
   ])

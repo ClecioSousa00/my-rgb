@@ -490,6 +490,8 @@ export function BottleneckPage(): React.JSX.Element {
   const [live, setLive] = useState<BottleneckLive | null>(null)
   const [session, setSession] = useState<BottleneckSessionProgress | null>(null)
   const [report, setReport] = useState<BottleneckSessionReport | null>(null)
+  /** Report that existed before the session now running, restored on cancel. */
+  const reportBeforeSession = useRef<BottleneckSessionReport | null>(null)
   const [minutes, setMinutes] = useState<BottleneckSessionMinutes>(1)
   const [cancelled, setCancelled] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -539,6 +541,9 @@ export function BottleneckPage(): React.JSX.Element {
     setCancelled(false)
     try {
       const progress = await window.myrgb.startBottleneckSession(minutes)
+      // Only clear the previous report once the new session really started;
+      // a failed start must not erase the last diagnosis.
+      reportBeforeSession.current = report
       setReport(null)
       setSession(progress)
     } catch (err) {
@@ -546,14 +551,16 @@ export function BottleneckPage(): React.JSX.Element {
     } finally {
       setBusy(false)
     }
-  }, [minutes])
+  }, [minutes, report])
 
   const cancel = useCallback(async () => {
     setBusy(true)
     try {
       await window.myrgb.stopBottleneckSession()
       setSession(null)
-      setReport(null)
+      // Cancelling the new session brings back the report it replaced; there
+      // is no partial result to keep.
+      setReport(reportBeforeSession.current)
       setCancelled(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))

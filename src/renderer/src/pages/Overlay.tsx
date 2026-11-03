@@ -184,6 +184,13 @@ export function OverlayPage(): React.JSX.Element {
     void apply({ items })
   }
 
+  // 0 means "primary". An id that is no longer connected must resolve to the
+  // same fallback the main process uses, instead of the browser silently
+  // showing the first option and labelling the wrong monitor.
+  const displayValue = state.displays.some((display) => display.id === config.displayId)
+    ? config.displayId
+    : 0
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-8 py-7">
       <PageHeader page="overlay">
@@ -234,14 +241,19 @@ export function OverlayPage(): React.JSX.Element {
                   onBlur={() => setCapturing(false)}
                   onKeyDown={(event) => {
                     if (!capturing) return
-                    event.preventDefault()
-                    event.stopPropagation()
                     if (event.key === 'Escape') {
+                      event.preventDefault()
+                      event.stopPropagation()
                       setCapturing(false)
                       return
                     }
                     const accelerator = acceleratorFor(event)
+                    // A key that cannot be an accelerator (Tab, arrows, a bare
+                    // modifier) keeps its normal behaviour, so focus is not
+                    // trapped in the button.
                     if (!accelerator) return
+                    event.preventDefault()
+                    event.stopPropagation()
                     setCapturing(false)
                     void apply({ shortcut: accelerator })
                   }}
@@ -270,10 +282,11 @@ export function OverlayPage(): React.JSX.Element {
               <div className="metric-label">Monitor</div>
               <select
                 className="field mt-1.5"
-                value={config.displayId}
+                value={displayValue}
                 disabled={busy}
                 onChange={(event) => void apply({ displayId: Number(event.target.value) })}
               >
+                <option value={0}>Primário (monitor principal)</option>
                 {state.displays.map((display) => (
                   <option key={display.id} value={display.id}>
                     {display.label}

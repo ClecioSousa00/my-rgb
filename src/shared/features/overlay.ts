@@ -28,9 +28,7 @@ export type OverlayItemKey =
   | 'gpu_clock'
   | 'gpu_memclock'
   | 'gpu_power'
-  | 'gpu_volt'
   | 'gpu_fan'
-  | 'gpu_perfcap'
   | 'vram_used'
   | 'vram_pct'
   | 'vram_temp'
@@ -66,9 +64,7 @@ export const OVERLAY_METRICS: OverlayMetric[] = [
   { key: 'gpu_clock', group: 'GPU', label: 'Clock do núcleo', default: true },
   { key: 'gpu_memclock', group: 'GPU', label: 'Clock da memória', default: false },
   { key: 'gpu_power', group: 'GPU', label: 'Consumo', default: true },
-  { key: 'gpu_volt', group: 'GPU', label: 'Tensão do núcleo', default: false },
   { key: 'gpu_fan', group: 'GPU', label: 'Ventoinha', default: false },
-  { key: 'gpu_perfcap', group: 'GPU', label: 'Limitador (NVIDIA)', default: false },
 
   { key: 'vram_used', group: 'VRAM', label: 'Usada (GB)', default: true },
   { key: 'vram_pct', group: 'VRAM', label: 'Uso (%)', default: false },

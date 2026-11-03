@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
@@ -413,6 +413,69 @@ describe('ProfileStore', () => {
     expect(store.list()).toEqual(['Coração'])
     const reopened = new ProfileStore(dir, defaultProfile())
     expect(reopened.load('Coração').name).toBe('Coração')
+  })
+
+  it('keeps two names that sanitise to the same file apart', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Setup:2024' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Setup*2024' })
+    store.flush()
+
+    // Both are on disk and neither replaced the other.
+    expect(store.list()).toEqual(['Setup*2024', 'Setup:2024'])
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Setup:2024').name).toBe('Setup:2024')
+    expect(reopened.load('Setup*2024').name).toBe('Setup*2024')
+
+    // The second name gets its own file, not the first one's.
+    const files = readdirSync(join(dir, 'profiles')).sort()
+    expect(files).toHaveLength(2)
+    const names = files.map((file) => {
+      const parsed = JSON.parse(
+        readFileSync(join(dir, 'profiles', file), 'utf8')
+      ) as { name: string }
+      return parsed.name
+    })
+    expect(names.sort()).toEqual(['Setup*2024', 'Setup:2024'])
+  })
+
+  it('does not duplicate a profile whose file was renamed by hand', () => {
+    const dir = tempDir()
+    mkdirSync(join(dir, 'profiles'), { recursive: true })
+    const manual = { ...emptyProfile(), name: 'Copiado', global: { ...DEFAULT_GLOBAL } }
+    writeFileSync(join(dir, 'profiles', 'manual.json'), JSON.stringify(manual), 'utf8')
+
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    expect(store.load('Copiado').name).toBe('Copiado')
+    store.setGlobal({ brightness: 0.4 })
+    store.flush()
+
+    expect(readdirSync(join(dir, 'profiles'))).toEqual(['manual.json'])
+    const saved = JSON.parse(
+      readFileSync(join(dir, 'profiles', 'manual.json'), 'utf8')
+    ) as Profile
+    expect(saved.name).toBe('Copiado')
+    expect(saved.global.brightness).toBe(0.4)
+  })
+
+  it('flushes pending edits before switching to another profile', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Estudo' })
+    store.flush()
+
+    store.load('Gamer')
+    // Debounced: this edit only exists in memory until a flush.
+    store.setGlobal({ brightness: 0.25 })
+    store.load('Estudo')
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Gamer').global.brightness).toBe(0.25)
   })
 
   it('normalises the LED count when a zone is configured', () => {

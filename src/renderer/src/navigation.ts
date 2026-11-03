@@ -109,12 +109,8 @@ export const PAGE_META: Record<PageId, PageMeta> = {
   overlay: {
     title: 'Overlay',
     subtitle: 'FPS, frametime e sensores por cima do jogo.',
-    planned: [
-      'Janela transparente, sempre no topo e que ignora cliques',
-      'Atalho global Ctrl+Shift+O para ligar e desligar',
-      'Escolha das métricas, opacidade, escala e canto'
-    ],
-    phase: 'Fase 7'
+    planned: [],
+    phase: ''
   },
   integrations: {
     title: 'Integrações',

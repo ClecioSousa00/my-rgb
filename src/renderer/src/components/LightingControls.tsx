@@ -7,6 +7,7 @@
  */
 
 import { useApp } from '../store'
+import { useDebouncedNumber } from './useDebouncedNumber'
 
 export function LightingControls(): React.JSX.Element {
   const profile = useApp((s) => s.profile)
@@ -15,6 +16,17 @@ export function LightingControls(): React.JSX.Element {
   const setGlobal = useApp((s) => s.setGlobal)
 
   const lightsOn = profile?.global.outputEnabled ?? true
+
+  // The thumb must not wait for the profile round trip: the draft moves with
+  // the pointer and the value is written after the drag settles.
+  const [brightness, setBrightness] = useDebouncedNumber(
+    profile?.global.brightness ?? 1,
+    (next) => void setGlobal({ brightness: next })
+  )
+  const [speed, setSpeed] = useDebouncedNumber(
+    profile?.global.speed ?? 1,
+    (next) => void setGlobal({ speed: next })
+  )
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2">
@@ -25,12 +37,12 @@ export function LightingControls(): React.JSX.Element {
           min={0}
           max={1}
           step={0.01}
-          value={profile?.global.brightness ?? 1}
+          value={brightness}
           className="w-20"
-          onChange={(e) => void setGlobal({ brightness: Number(e.target.value) })}
+          onChange={(e) => setBrightness(Number(e.target.value))}
         />
         <span className="w-9 font-mono text-[11px] text-ink-400">
-          {Math.round((profile?.global.brightness ?? 1) * 100)}%
+          {Math.round(brightness * 100)}%
         </span>
       </label>
 
@@ -41,13 +53,11 @@ export function LightingControls(): React.JSX.Element {
           min={0.1}
           max={3}
           step={0.05}
-          value={profile?.global.speed ?? 1}
+          value={speed}
           className="w-20"
-          onChange={(e) => void setGlobal({ speed: Number(e.target.value) })}
+          onChange={(e) => setSpeed(Number(e.target.value))}
         />
-        <span className="w-9 font-mono text-[11px] text-ink-400">
-          {(profile?.global.speed ?? 1).toFixed(2)}x
-        </span>
+        <span className="w-9 font-mono text-[11px] text-ink-400">{speed.toFixed(2)}x</span>
       </label>
 
       <div className="h-5 w-px bg-ink-700" />

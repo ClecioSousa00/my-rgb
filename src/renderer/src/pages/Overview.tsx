@@ -25,6 +25,7 @@ import type { DiskHealthSnapshot, DiskVerdict } from '@shared/features/health'
 import type { NetworkReport } from '@shared/features/network'
 import type { BottleneckLimiter, BottleneckLive } from '@shared/features/bottleneck'
 import { BOTTLENECK_LIMITER_LABEL } from '@shared/features/bottleneck'
+import type { CoolingSnapshot } from '@shared/features/sensors'
 import {
   formatAgo,
   formatBytes,
@@ -108,6 +109,8 @@ export function OverviewPage(): React.JSX.Element {
   const [network, setNetwork] = useState<NetworkReport | null>(null)
   const [live, setLive] = useState<BottleneckLive | null>(null)
   const [liveError, setLiveError] = useState<string | null>(null)
+  /** Cooling alarms come from the same batch the bottleneck already runs. */
+  const [cooling, setCooling] = useState<CoolingSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -159,6 +162,13 @@ export function OverviewPage(): React.JSX.Element {
       setLiveError(null)
     })
 
+    // The same per-second batch carries the fan/pump summary. Listening does
+    // not start another poll; the bottleneck subscription above already does.
+    const unsubscribeCooling = window.myrgb.onSensors((snapshot) => {
+      if (!alive) return
+      setCooling(snapshot.cooling ?? null)
+    })
+
     void window.myrgb
       .startBottleneck()
       .then((snapshot) => {
@@ -172,6 +182,7 @@ export function OverviewPage(): React.JSX.Element {
     return () => {
       alive = false
       unsubscribe()
+      unsubscribeCooling()
       void window.myrgb.stopBottleneck()
     }
   }, [])
@@ -308,6 +319,18 @@ export function OverviewPage(): React.JSX.Element {
       })
     }
 
+    // A stopped pump is an emergency, not a note: it must be visible without
+    // opening the Sensores page.
+    for (const [index, alarm] of (cooling?.alarms ?? []).entries()) {
+      items.push({
+        id: `cooling-${index}`,
+        title: alarm,
+        detail: cooling?.verdict ?? 'Abra Sensores › Refrigeração para ver os canais.',
+        page: 'sensors',
+        alert: true
+      })
+    }
+
     if (network && network.verdict !== 'good') {
       items.push({
         id: 'network',
@@ -331,7 +354,7 @@ export function OverviewPage(): React.JSX.Element {
     // Problems first, notes after; the order inside each group is the order
     // they were checked, so the list does not jump between polls.
     return items.sort((a, b) => Number(b.alert) - Number(a.alert))
-  }, [device, engineRunning, profile, dirty, health, drives, network, live])
+  }, [device, engineRunning, profile, dirty, health, drives, network, live, cooling])
 
   const refresh = (): void => {
     void load(true)

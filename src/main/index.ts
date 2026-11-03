@@ -5,7 +5,7 @@
  * the renderer over a narrow IPC surface. The renderer never touches HID.
  */
 
-import { app, BrowserWindow, globalShortcut, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron'
 import { mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
@@ -67,6 +67,16 @@ class MyRgbApp {
   private devicePresent = false
   /** Last hardware write error, forwarded to the UI. */
   private lastEngineError: string | null = null
+  /** Sequence of the last frame the engine rendered, for `EngineState`. */
+  private lastFrameSeq = -1
+  /**
+   * Whether the user wants the engine running.
+   *
+   * Kept apart from `engine.isRunning` because a failed write stops the engine
+   * on its own. A replug must resume only when the stop was not the user's
+   * choice, and it must not undo an explicit "stop" from the UI.
+   */
+  private engineWanted = false
   /** Disk/app messages waiting for a window to show them. */
   private pendingAppErrors: string[] = []
   private quitting = false
@@ -176,7 +186,7 @@ class MyRgbApp {
     await this.overlay.start()
 
     if (this.settings.settings.autoStart) {
-      this.engine.start()
+      this.startEngine()
     }
   }
 
@@ -204,7 +214,24 @@ class MyRgbApp {
     // If the lights are supposed to be off, darken them right away instead of
     // leaving whatever the previous owner left on the controller.
     this.engine.syncOutput()
+    // A controller that came back after an unplug resumes the effect the user
+    // had running. Without this the lights stay frozen on the last frame even
+    // though the device is connected again; an explicit "stop" from the UI
+    // clears `engineWanted`, so it is not overridden here.
+    if (ok && this.engineWanted) this.engine.start()
     return ok
+  }
+
+  /** Start the engine, remembering that this is what the user wants. */
+  startEngine(): void {
+    this.engineWanted = true
+    this.engine.start()
+  }
+
+  /** Stop the engine and keep it stopped across a replug. */
+  stopEngine(): void {
+    this.engineWanted = false
+    this.engine.stop()
   }
 
   /** Re-read the device layout and make sure the profile covers every zone. */
@@ -293,7 +320,9 @@ class MyRgbApp {
       this.zones = []
       this.engine.setZones([])
       this.light.setTargets([])
-      this.lastEngineError = null
+      // Keep the last engine error: it explains why the lights froze. It is
+      // cleared by openDevice() once the controller is back and the profile
+      // has been re-applied, not by the unplug itself.
       this.pushDeviceInfo()
       this.emitEngineState()
       return
@@ -404,6 +433,9 @@ class MyRgbApp {
   // --- engine -------------------------------------------------------------
 
   private pushFrame(frame: Frame): void {
+    // The engine's sequence is the real progress of the output; `-1` used to
+    // be hardcoded here, so any consumer of `EngineState` saw a dead value.
+    this.lastFrameSeq = frame.seq
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.engineFrame, frame)
     }
@@ -458,7 +490,7 @@ class MyRgbApp {
     return {
       running: this.engine.isRunning,
       fps: this.profileStore.profile.global.fps,
-      lastFrameSeq: -1,
+      lastFrameSeq: this.lastFrameSeq,
       error: this.lastEngineError
     }
   }
@@ -1169,36 +1201,49 @@ if (!app.requestSingleInstanceLock()) {
     instance?.createWindow()
   })
 
-  void app.whenReady().then(async () => {
-    if (process.argv.includes('--selftest')) {
-      await runSelfTest()
-      return
-    }
-    if (process.argv.includes('--write-test')) {
-      await runWriteTest()
-      return
-    }
-    if (process.argv.includes('--dump-frames')) {
-      await runHeadlessDump()
-      return
-    }
-    if (process.argv.includes('--gen-docs')) {
-      await runDocGeneration()
-      return
-    }
+  void app.whenReady()
+    .then(async () => {
+      if (process.argv.includes('--selftest')) {
+        await runSelfTest()
+        return
+      }
+      if (process.argv.includes('--write-test')) {
+        await runWriteTest()
+        return
+      }
+      if (process.argv.includes('--dump-frames')) {
+        await runHeadlessDump()
+        return
+      }
+      if (process.argv.includes('--gen-docs')) {
+        await runDocGeneration()
+        return
+      }
 
-    app.setAppUserModelId('com.myrgb.app')
-    initAutoUpdater()
+      app.setAppUserModelId('com.myrgb.app')
+      initAutoUpdater()
 
-    const instance = new MyRgbApp()
-    ;(globalThis as { __myRgbApp?: MyRgbApp }).__myRgbApp = instance
-    await instance.start()
+      const instance = new MyRgbApp()
+      ;(globalThis as { __myRgbApp?: MyRgbApp }).__myRgbApp = instance
+      await instance.start()
 
-    app.on('activate', () => {
-      // The overlay window is also a BrowserWindow; count only the dashboard.
-      if (!instance.mainWindow) instance.createWindow()
+      app.on('activate', () => {
+        // The overlay window is also a BrowserWindow; count only the dashboard.
+        if (!instance.mainWindow) instance.createWindow()
+      })
     })
-  })
+    // Without this, a failure in `start()` (IPC registration, the games
+    // dataset, the tray in a session without appindicator) leaves the process
+    // alive with no window, no tray and no way to report what happened.
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error('[startup]', error)
+      dialog.showErrorBox(
+        'MyRGB não conseguiu iniciar',
+        `${message}\n\nPerfis e configurações continuam em ${app.getPath('userData')}.`
+      )
+      app.exit(1)
+    })
 
   app.on('window-all-closed', () => {
     // The tray keeps the app alive on both platforms.

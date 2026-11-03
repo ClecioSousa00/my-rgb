@@ -6,9 +6,8 @@
  * counters. `MSStorageDriver_FailurePredictStatus` is the drive's own "I will
  * fail" flag, matched to the disk through `Win32_DiskDrive`.
  *
- * The same data the Reset Explode reads from WMI, without waiting for the
- * phase 7 helper. The helper can replace this later - the card shape is the
- * same, so the page does not change.
+ * The same data the Reset Explode reads from WMI. The .NET helper could
+ * replace this later - the card shape is the same, so the page does not change.
  *
  * Everything is read-only and nothing is written to the disks.
  */

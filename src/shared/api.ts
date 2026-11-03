@@ -22,7 +22,7 @@ import type {
 import type { DriveInfo, SystemSnapshot } from './features/system'
 import type { SensorsSnapshot } from './features/sensors'
 import type { DiskHealthSnapshot } from './features/health'
-import type { NetworkProgress, NetworkReport } from './features/network'
+import type { NetworkProgress, NetworkReport, NetworkStatus } from './features/network'
 import type { GamesQuery, GamesReport, GpuMatch } from './features/games'
 import type {
   BottleneckSessionProgress,
@@ -118,6 +118,13 @@ export interface MyRgbApi {
   cancelNetworkDiagnosis(): Promise<void>
   /** The last completed report, or null when none has run yet. */
   getNetworkReport(): Promise<NetworkReport | null>
+  /** Whether a diagnostic is already running (and its latest step). */
+  getNetworkStatus(): Promise<NetworkStatus>
+  /**
+   * Wait for the run in flight, if there is one, without starting a test.
+   * Resolves to null when nothing was running.
+   */
+  joinNetworkDiagnosis(): Promise<NetworkReport | null>
   /** Step-by-step progress of the running diagnostic. */
   onNetworkProgress(callback: (progress: NetworkProgress) => void): Unsubscribe
 
@@ -169,7 +176,6 @@ export interface MyRgbApi {
   onProfileSaved(callback: (event: ProfileSavedEvent) => void): Unsubscribe
   /** Emitted when the main process cannot persist data (disk full, ...). */
   onAppError(callback: (message: string) => void): Unsubscribe
-  onTrayCommand(callback: (command: string) => void): Unsubscribe
 }
 
 export interface PatternParamMeta extends PatternMeta {

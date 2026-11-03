@@ -3,6 +3,7 @@ import { useApp } from '../store'
 import { pageTitle } from '../navigation'
 import type { AppSettings } from '@shared/types'
 import { showToast } from './Toast'
+import { Modal } from './ui/Modal'
 
 export function TopBar(): React.JSX.Element {
   const device = useApp((s) => s.device)
@@ -17,6 +18,30 @@ export function TopBar(): React.JSX.Element {
   const [profileNames, setProfileNames] = useState<string[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const settingsRef = useRef<HTMLDivElement>(null)
+
+  // The settings popover is not a modal, but it must not stay open on top of
+  // another page or after a click elsewhere in the bar.
+  useEffect(() => {
+    if (!showSettings) return
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!settingsRef.current?.contains(event.target as Node)) setShowSettings(false)
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setShowSettings(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [showSettings])
+
+  // Changing pages closes it too: it belongs to the bar, not to the page.
+  useEffect(() => {
+    setShowSettings(false)
+  }, [page])
 
   const [savePromptOpen, setSavePromptOpen] = useState(false)
   const [savePromptValue, setSavePromptValue] = useState('')
@@ -27,6 +52,11 @@ export function TopBar(): React.JSX.Element {
   const [renameValue, setRenameValue] = useState('')
   const [renameError, setRenameError] = useState<string | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  /** Pending "overwrite this profile?" confirmation, with the action to run. */
+  const [overwrite, setOverwrite] = useState<{
+    name: string
+    kind: 'save' | 'rename'
+  } | null>(null)
 
   useEffect(() => {
     void window.myrgb.listProfiles().then(setProfileNames)
@@ -84,14 +114,17 @@ export function TopBar(): React.JSX.Element {
       showToast('Perfil salvo')
       return
     }
-    let overwrite = false
     if (profileNames.includes(trimmed)) {
-      overwrite = window.confirm(`Já existe um perfil "${trimmed}". Sobrescrever?`)
-      if (!overwrite) {
-        setSavePromptError('Já existe um perfil com esse nome.')
-        return
-      }
+      // Replaced the native `window.confirm`: the rest of the app uses modals,
+      // and this is the decision that overwrites a file.
+      setOverwrite({ name: trimmed, kind: 'save' })
+      return
     }
+    await saveAs(trimmed, false)
+  }
+
+  const saveAs = async (trimmed: string, overwrite: boolean): Promise<void> => {
+    if (!profile) return
     try {
       await renameProfile(trimmed, overwrite)
       await saveProfile({ ...profile, name: trimmed })
@@ -115,14 +148,14 @@ export function TopBar(): React.JSX.Element {
       setRenameOpen(false)
       return
     }
-    let overwrite = false
     if (profileNames.includes(trimmed)) {
-      overwrite = window.confirm(`Já existe um perfil "${trimmed}". Sobrescrever?`)
-      if (!overwrite) {
-        setRenameError('Já existe um perfil com esse nome.')
-        return
-      }
+      setOverwrite({ name: trimmed, kind: 'rename' })
+      return
     }
+    await renameAs(trimmed, false)
+  }
+
+  const renameAs = async (trimmed: string, overwrite: boolean): Promise<void> => {
     try {
       await renameProfile(trimmed, overwrite)
       setProfileNames(await window.myrgb.listProfiles())
@@ -131,6 +164,14 @@ export function TopBar(): React.JSX.Element {
     } catch (err) {
       setRenameError(err instanceof Error ? err.message : 'Não foi possível renomear o perfil.')
     }
+  }
+
+  const confirmOverwrite = async (): Promise<void> => {
+    const request = overwrite
+    setOverwrite(null)
+    if (!request) return
+    if (request.kind === 'save') await saveAs(request.name, true)
+    else await renameAs(request.name, true)
   }
 
   const handleExport = async (): Promise<void> => {
@@ -154,7 +195,13 @@ export function TopBar(): React.JSX.Element {
         showToast(`Perfil importado como “${imported.name}”`)
       }
     } catch (err) {
-      showToast('Erro ao importar perfil')
+      // Electron wraps handler failures ("Error invoking remote method…").
+      // Strip that so the message the main process wrote is what the user sees.
+      const raw = err instanceof Error ? err.message : String(err)
+      showToast(
+        raw.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '') ||
+          'Erro ao importar perfil'
+      )
     }
   }
 
@@ -252,17 +299,23 @@ export function TopBar(): React.JSX.Element {
         </>
       )}
 
-      <div className="relative">
+      <div className="relative" ref={settingsRef}>
         <button
           className="btn btn-ghost px-2 text-[18px] leading-none"
           onClick={() => setShowSettings((v) => !v)}
           title="Configurações"
+          aria-expanded={showSettings}
+          aria-haspopup="dialog"
         >
           ⚙
         </button>
 
         {showSettings && settings && (
-          <div className="panel absolute right-0 top-9 z-10 w-72 p-3 shadow-2xl">
+          <div
+            role="dialog"
+            aria-label="Configurações"
+            className="panel absolute right-0 top-9 z-10 w-72 p-3 shadow-2xl"
+          >
             <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
               Configurações
             </div>
@@ -322,66 +375,77 @@ export function TopBar(): React.JSX.Element {
       </div>
 
       {savePromptOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
-          <div className="panel w-80 p-4 shadow-2xl">
-            <div className="mb-2 text-sm font-semibold">Salvar perfil</div>
-            <div className="mb-1 text-[11px] text-ink-400">
-              Informe o nome do perfil. Se já existir, você pode optar por sobrescrever.
-            </div>
-            <input
-              ref={savePromptInputRef}
-              className="field"
-              value={savePromptValue}
-              onChange={(e) => {
-                setSavePromptValue(e.target.value)
-                setSavePromptError(null)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void confirmSavePrompt()
-                if (e.key === 'Escape') setSavePromptOpen(false)
-              }}
-            />
-            {savePromptError && <div className="mt-1 text-[11px] text-bad-500">{savePromptError}</div>}
-            <div className="mt-3 flex justify-end gap-2">
-              <button className="btn btn-ghost" onClick={() => setSavePromptOpen(false)}>
-                Cancelar
-              </button>
-              <button className="btn btn-primary" onClick={() => void confirmSavePrompt()}>
-                Salvar
-              </button>
-            </div>
+        <Modal
+          title="Salvar perfil"
+          description="Informe o nome do perfil. Se já existir, você pode optar por sobrescrever."
+          onClose={() => setSavePromptOpen(false)}
+        >
+          <input
+            ref={savePromptInputRef}
+            className="field"
+            value={savePromptValue}
+            aria-label="Nome do perfil"
+            onChange={(e) => {
+              setSavePromptValue(e.target.value)
+              setSavePromptError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void confirmSavePrompt()
+            }}
+          />
+          {savePromptError && <div className="mt-1 text-[11px] text-bad-500">{savePromptError}</div>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={() => setSavePromptOpen(false)}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={() => void confirmSavePrompt()}>
+              Salvar
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {renameOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
-          <div className="panel w-80 p-4 shadow-2xl">
-            <div className="mb-2 text-sm font-semibold">Renomear perfil</div>
-            <input
-              ref={renameInputRef}
-              className="field"
-              value={renameValue}
-              onChange={(e) => {
-                setRenameValue(e.target.value)
-                setRenameError(null)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void confirmRename()
-                if (e.key === 'Escape') setRenameOpen(false)
-              }}
-            />
-            {renameError && <div className="mt-1 text-[11px] text-bad-500">{renameError}</div>}
-            <div className="mt-3 flex justify-end gap-2">
-              <button className="btn btn-ghost" onClick={() => setRenameOpen(false)}>
-                Cancelar
-              </button>
-              <button className="btn btn-primary" onClick={() => void confirmRename()}>
-                Renomear
-              </button>
-            </div>
+        <Modal title="Renomear perfil" onClose={() => setRenameOpen(false)}>
+          <input
+            ref={renameInputRef}
+            className="field"
+            value={renameValue}
+            aria-label="Novo nome do perfil"
+            onChange={(e) => {
+              setRenameValue(e.target.value)
+              setRenameError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void confirmRename()
+            }}
+          />
+          {renameError && <div className="mt-1 text-[11px] text-bad-500">{renameError}</div>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={() => setRenameOpen(false)}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={() => void confirmRename()}>
+              Renomear
+            </button>
           </div>
-        </div>
+        </Modal>
+      )}
+      {overwrite && (
+        <Modal
+          title="Sobrescrever perfil?"
+          description={`Já existe um perfil chamado “${overwrite.name}”. O conteúdo atual desse perfil será substituído.`}
+          onClose={() => setOverwrite(null)}
+        >
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={() => setOverwrite(null)}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={() => void confirmOverwrite()}>
+              Sobrescrever
+            </button>
+          </div>
+        </Modal>
       )}
     </header>
   )

@@ -31,11 +31,15 @@ public sealed class FrameMonitor : IDisposable
     /// <summary>Window used for the 1% low and for the recent frame times.</summary>
     private const double HistoryMs = 10_000;
 
+    /// <summary>How often dead processes are forgotten (ETW clock).</summary>
+    private const double PruneIntervalMs = 5_000;
+
     private TraceEventSession? _session;
     private Thread? _thread;
     private readonly object _lock = new();
     private readonly Dictionary<int, Queue<double>> _presents = new(); // pid -> timestamps (ms, ETW clock)
     private readonly Dictionary<int, long> _lastSeen = new();           // pid -> Stopwatch of the last event
+    private double _lastPrune = double.NegativeInfinity;
 
     public bool Running => _thread?.IsAlive == true;
     public string? Error { get; private set; }
@@ -89,6 +93,33 @@ public sealed class FrameMonitor : IDisposable
             queue.Enqueue(t);
             while (queue.Count > 0 && queue.Peek() < t - HistoryMs) queue.Dequeue();
             _lastSeen[e.ProcessID] = Stopwatch.GetTimestamp();
+
+            // The helper lives as long as the app, so an entry per program that
+            // ever presented a frame would grow without bound. A few times a
+            // minute is enough to forget the ones that are gone.
+            if (t - _lastPrune >= PruneIntervalMs)
+            {
+                _lastPrune = t;
+                PruneDead(t);
+            }
+        }
+    }
+
+    /// <summary>Forget processes that have not presented a frame in the window.</summary>
+    private void PruneDead(double now)
+    {
+        List<int>? dead = null;
+        foreach (var (pid, queue) in _presents)
+        {
+            while (queue.Count > 0 && queue.Peek() < now - HistoryMs) queue.Dequeue();
+            if (queue.Count > 0) continue;
+            (dead ??= new List<int>()).Add(pid);
+        }
+        if (dead is null) return;
+        foreach (int pid in dead)
+        {
+            _presents.Remove(pid);
+            _lastSeen.Remove(pid);
         }
     }
 
@@ -99,7 +130,9 @@ public sealed class FrameMonitor : IDisposable
         lock (_lock)
         {
             if (!_presents.TryGetValue(pid, out var queue) || queue.Count < 3) return null;
-            if (Stopwatch.GetElapsedTime(_lastSeen[pid]).TotalSeconds > 2) return null;
+            // The entry can be pruned between two calls; never assume it exists.
+            if (!_lastSeen.TryGetValue(pid, out long seen)) return null;
+            if (Stopwatch.GetElapsedTime(seen).TotalSeconds > 2) return null;
             ts = queue.ToArray();
         }
 

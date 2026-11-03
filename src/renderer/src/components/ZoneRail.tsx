@@ -95,10 +95,34 @@ function ZoneCard({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  /** Text being typed in the LED field; null means "show the stored value". */
+  const [ledDraft, setLedDraft] = useState<string | null>(null)
   /** Enter commits and then blurs the input, so the commit must happen once. */
   const committing = useRef(false)
 
   const displayName = zoneDisplayName(zone, config)
+  const storedLedCount = config?.ledCount ?? 0
+
+  // Typing "12" must not write 1 first (the strip would flash with a single
+  // LED) and must not be truncated mid-edit. The store is only told on
+  // blur/Enter, like the gradient's hex field.
+  useEffect(() => {
+    setLedDraft(null)
+  }, [storedLedCount, zone.id])
+
+  const commitLedCount = (): void => {
+    if (ledDraft === null) return
+    const raw = Number(ledDraft)
+    // Empty text is not zero: keep what was stored instead of turning the
+    // strip dark because the field was cleared on the way to a new number.
+    const count = ledDraft.trim()
+      ? Number.isFinite(raw)
+        ? Math.max(0, Math.min(zone.maxLedCount, Math.round(raw)))
+        : storedLedCount
+      : storedLedCount
+    setLedDraft(null)
+    if (count !== storedLedCount) onConfig({ ledCount: count })
+  }
 
   useEffect(() => {
     if (editing) {
@@ -200,17 +224,20 @@ function ZoneCard({
               min={0}
               max={zone.maxLedCount}
               step={1}
-              value={config?.ledCount ?? 0}
+              value={ledDraft ?? String(storedLedCount)}
               title="Quantidade de LEDs neste header"
               onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                // LED counts are whole numbers. Letting 1.5 through reaches
-                // `new Array(1.5)` in the engine and crashes the app.
-                const raw = Number(e.target.value)
-                const count = Number.isFinite(raw)
-                  ? Math.max(0, Math.min(zone.maxLedCount, Math.round(raw)))
-                  : 0
-                void onConfig({ ledCount: count })
+              onChange={(e) => setLedDraft(e.target.value)}
+              onBlur={commitLedCount}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitLedCount()
+                  e.currentTarget.blur()
+                } else if (e.key === 'Escape') {
+                  setLedDraft(null)
+                  e.currentTarget.blur()
+                }
               }}
             />
             <span className="text-[10.5px] text-ink-400">/ {zone.maxLedCount} LEDs</span>
@@ -239,7 +266,14 @@ function ZoneFollowPicker(): React.JSX.Element {
   const setZoneConfig = useApp((s) => s.setZoneConfig)
 
   const config = profile?.zones.find((z) => z.zoneId === selectedZoneId)
-  const value = config?.followZoneId ?? ''
+  const wanted = config?.followZoneId ?? ''
+  // The engine falls back to the zone's own effect when the followed zone is
+  // gone, so the select must say the same instead of showing "— efeito
+  // próprio —" over a value that is something else. The link is kept as is:
+  // with the controller unplugged there are no zones to match, and writing
+  // null would destroy a link that is still valid.
+  const value =
+    wanted && zones.some((z) => z.id === wanted && z.id !== selectedZoneId) ? wanted : ''
 
   return (
     <div className="border-t border-ink-700 p-3">

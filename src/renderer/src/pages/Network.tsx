@@ -285,28 +285,11 @@ export function NetworkPage(): React.JSX.Element {
     }
   }, [])
 
-  // The report belongs to the main process; opening the page shows the last
-  // one instead of pretending no test ever ran.
-  useEffect(() => {
-    let mounted = true
-    window.myrgb
-      .getNetworkReport()
-      .then((last) => {
-        if (mounted && last) setReport(last)
-      })
-      .catch(() => undefined)
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  useEffect(() => window.myrgb.onNetworkProgress(setProgress), [])
-
-  const start = useCallback(async () => {
+  const runDiagnosis = useCallback(async (initial?: NetworkProgress) => {
     setRunning(true)
     setCanceled(false)
     setError(null)
-    setProgress({ text: 'Procurando a conexão ativa…', fraction: 0.02 })
+    setProgress(initial ?? { text: 'Procurando a conexão ativa…', fraction: 0.02 })
     try {
       const result = await window.myrgb.runNetworkDiagnosis()
       if (!alive.current) return
@@ -322,6 +305,41 @@ export function NetworkPage(): React.JSX.Element {
     }
   }, [])
 
+  /**
+   * Reattach to a test that was already running when the page opened.
+   *
+   * `join` waits for the same promise without starting anything, so the gap
+   * between the status check and the call cannot begin a second test.
+   */
+  const attachDiagnosis = useCallback(async (initial: NetworkProgress | null) => {
+    setRunning(true)
+    setCanceled(false)
+    setError(null)
+    setProgress(initial ?? { text: 'Continuando o diagnóstico…', fraction: 0.02 })
+    try {
+      const result = await window.myrgb.joinNetworkDiagnosis()
+      if (!alive.current) return
+      if (result) {
+        setReport(result)
+      } else {
+        // It finished between the status and the join; show the report it left.
+        const last = await window.myrgb.getNetworkReport()
+        if (alive.current && last) setReport(last)
+      }
+    } catch (err) {
+      if (alive.current) setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      if (alive.current) {
+        setRunning(false)
+        setProgress(null)
+      }
+    }
+  }, [])
+
+  const start = useCallback(() => {
+    void runDiagnosis()
+  }, [runDiagnosis])
+
   const cancel = useCallback(async () => {
     try {
       await window.myrgb.cancelNetworkDiagnosis()
@@ -329,6 +347,32 @@ export function NetworkPage(): React.JSX.Element {
       // The pending diagnose call already reports the cancellation.
     }
   }, [])
+
+  // The report belongs to the main process; opening the page shows the last
+  // one instead of pretending no test ever ran. A test started before this
+  // mount keeps running there, so attach to it and keep its progress visible
+  // instead of showing the intro card as if nothing were happening.
+  useEffect(() => {
+    let mounted = true
+    window.myrgb
+      .getNetworkReport()
+      .then((last) => {
+        if (mounted && last) setReport(last)
+      })
+      .catch(() => undefined)
+    window.myrgb
+      .getNetworkStatus()
+      .then((status) => {
+        if (!mounted || !status.running) return
+        void attachDiagnosis(status.progress)
+      })
+      .catch(() => undefined)
+    return () => {
+      mounted = false
+    }
+  }, [attachDiagnosis])
+
+  useEffect(() => window.myrgb.onNetworkProgress(setProgress), [])
 
   const subtitle = report
     ? report.adapter

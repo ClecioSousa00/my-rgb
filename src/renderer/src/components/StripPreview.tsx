@@ -61,10 +61,13 @@ export function StripPreview(): React.JSX.Element {
   const zones = useApp((s) => s.zones)
   const profile = useApp((s) => s.profile)
   const selectedZoneId = useApp((s) => s.selectedZoneId)
+  const selectZone = useApp((s) => s.selectZone)
 
   const frameRef = useRef<Frame | null>(null)
   const zonesRef = useRef(zones)
   const profileRef = useRef(profile)
+  /** Where each strip was drawn, so a click can be turned into a selection. */
+  const layoutsRef = useRef<StripLayout[]>([])
   zonesRef.current = zones
   profileRef.current = profile
 
@@ -131,6 +134,7 @@ export function StripPreview(): React.JSX.Element {
     }
 
     const configs = profileRef.current?.zones ?? []
+    layoutsRef.current = layouts
 
     for (const layout of layouts) {
       const zone = list[layout.zoneIndex]
@@ -199,6 +203,18 @@ export function StripPreview(): React.JSX.Element {
     ? zoneDisplayName(zone, profile?.zones.find((c) => c.zoneId === zone.id))
     : null
 
+  /** Select the zone whose label or strip is under the pointer. */
+  const handleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const y = event.clientY - rect.top
+    const hit = layoutsRef.current.find(
+      (layout) => y >= layout.labelY - 4 && y <= layout.stripY + layout.stripH
+    )
+    if (!hit) return
+    const target = zonesRef.current[hit.zoneIndex]
+    if (target && target.id !== selectedZoneId) selectZone(target.id)
+  }
+
   return (
     <div className="panel relative z-0 flex min-h-0 flex-1 flex-col">
       <div className="panel-header">
@@ -211,7 +227,12 @@ export function StripPreview(): React.JSX.Element {
         </span>
       </div>
       <div ref={wrapRef} className="relative min-h-0 flex-1">
-        <canvas ref={canvasRef} className="absolute inset-0" />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 cursor-pointer"
+          onClick={handleClick}
+          title="Clique numa faixa para selecionar a zona"
+        />
       </div>
     </div>
   )

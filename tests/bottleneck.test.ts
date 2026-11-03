@@ -339,19 +339,24 @@ afterEach(() => {
 })
 
 describe('BottleneckService', () => {
-  it('subscribes once for two starts (StrictMode) and stops on the last leave', async () => {
+  it('counts one poll reference per start and releases each on stop', async () => {
     const { service, sensors } = setup()
 
     const snapshot = await service.start()
     await service.start()
-    expect(sensors.starts).toBe(1)
+    // StrictMode mounts twice; each subscriber holds its own reference, so
+    // the store counts two and the second cleanup cannot kill the first.
+    expect(sensors.starts).toBe(2)
     expect(snapshot.balance.ratio).toBe(1)
     expect(snapshot.balance.text).toMatch(/Hardware equilibrado/)
 
     service.stop()
-    expect(sensors.stops).toBe(0)
-    service.stop()
     expect(sensors.stops).toBe(1)
+    service.stop()
+    expect(sensors.stops).toBe(2)
+    // A spy stop with no reference left must not release someone else's.
+    service.stop()
+    expect(sensors.stops).toBe(2)
   })
 
   it('keeps the poll alive while a session runs, even if the page leaves', async () => {
@@ -361,13 +366,14 @@ describe('BottleneckService', () => {
     const progress = service.startSession(1)
     expect(progress).toMatchObject({ durationMinutes: 1, samples: 0 })
     expect(progress.endsAt - progress.startedAt).toBe(60_000)
+    // Page reference plus the session's own.
     expect(sensors.starts).toBe(2)
 
     service.stop() // page unmounted
-    expect(sensors.stops).toBe(0) // the session still holds the poll
+    expect(sensors.stops).toBe(1) // only the page's reference; the session holds on
 
     service.stopSession()
-    expect(sensors.stops).toBe(1)
+    expect(sensors.stops).toBe(2)
   })
 
   it('holds the FPS helper only while a session runs', async () => {

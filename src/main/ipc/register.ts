@@ -12,7 +12,7 @@
 
 import { dialog, ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, statSync, writeFileSync } from 'fs'
 import type { EngineState } from '@shared/api'
 import type { DeviceInfo, EffectDefinition, Palette, Profile, ZoneConfig, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
@@ -28,12 +28,17 @@ import { listDiskHealth } from '../features/health'
 import {
   cancelNetworkDiagnosis,
   diagnoseNetwork,
-  lastNetworkReport
+  joinNetworkDiagnosis,
+  lastNetworkReport,
+  networkStatus
 } from '../features/network'
 import { GamesService } from '../features/games'
 import type { BottleneckService } from '../features/bottleneck'
 import type { OverlayService } from '../features/overlay/manager'
 import type { OverlayConfig } from '@shared/features/overlay'
+
+/** Largest profile file accepted on import; real ones are a few kilobytes. */
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024
 
 /** What a handler needs from the application. */
 export interface IpcHost {
@@ -55,6 +60,8 @@ export interface IpcHost {
   readonly engineState: EngineState
 
   reconnect(): Promise<DeviceInfo>
+  startEngine(): void
+  stopEngine(): void
   rememberProfileName(before: string, after: string): void
   emitProfile(profile: Profile): void
   emitEngineState(): void
@@ -204,32 +211,55 @@ export function registerIpc(host: IpcHost): void {
     })
     if (result.canceled || result.filePaths.length === 0) return null
 
-    const content = readFileSync(result.filePaths[0], 'utf8')
-    const parsed = JSON.parse(content) as unknown
-    const imported = validateImportedProfile(parsed)
-    // Never overwrite a profile with the same name: give the import the
-    // first free variant ("Nome (2)", ...) and save it once, validated.
-    const name = store.availableName(imported.name)
-    const before = store.profile.name
-    const saved = store.save(reconcileProfile({ ...imported, name }, host.zones))
-    store.flush?.()
-    engine.setProfile(saved)
-    host.rememberProfileName(before, saved.name)
-    host.emitProfile(saved)
-    return saved
+    try {
+      const file = result.filePaths[0]
+      // A profile is a few kilobytes; a multi-megabyte file is a mistake (or a
+      // whole disk image) and reading it synchronously would freeze the window.
+      const { size } = statSync(file)
+      if (size > MAX_IMPORT_BYTES) {
+        throw new Error(
+          `o arquivo tem ${(size / 1024 / 1024).toFixed(1)} MB; o limite é ` +
+            `${MAX_IMPORT_BYTES / 1024 / 1024} MB.`
+        )
+      }
+
+      const content = readFileSync(file, 'utf8')
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(content)
+      } catch {
+        throw new Error('o arquivo não é um JSON válido.')
+      }
+      const imported = validateImportedProfile(parsed)
+      // Never overwrite a profile with the same name: give the import the
+      // first free variant ("Nome (2)", ...) and save it once, validated.
+      const name = store.availableName(imported.name)
+      const before = store.profile.name
+      const saved = store.save(reconcileProfile({ ...imported, name }, host.zones))
+      store.flush?.()
+      engine.setProfile(saved)
+      host.rememberProfileName(before, saved.name)
+      host.emitProfile(saved)
+      return saved
+    } catch (err) {
+      // The raw Electron message ("Error invoking remote method…") tells the
+      // user nothing, and validation already writes in Portuguese.
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(`Não foi possível importar o perfil: ${message}`)
+    }
   })
 
   // --- engine -------------------------------------------------------------
 
   ipcMain.handle(IPC.engineStart, () => {
     host.clearEngineError()
-    engine.start()
+    host.startEngine()
     host.emitEngineState()
     return host.engineState
   })
 
   ipcMain.handle(IPC.engineStop, () => {
-    engine.stop()
+    host.stopEngine()
     host.emitEngineState()
     return host.engineState
   })
@@ -278,6 +308,8 @@ export function registerIpc(host: IpcHost): void {
     cancelNetworkDiagnosis()
   })
   ipcMain.handle(IPC.netLast, () => lastNetworkReport())
+  ipcMain.handle(IPC.netStatus, () => networkStatus())
+  ipcMain.handle(IPC.netJoin, () => joinNetworkDiagnosis())
 
   // --- games --------------------------------------------------------------
 

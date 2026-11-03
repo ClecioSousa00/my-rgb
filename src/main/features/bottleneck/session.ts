@@ -99,7 +99,8 @@ export function buildReport(input: SessionInput): BottleneckSessionReport {
     maxRamPct: maximum(samples.map((entry) => entry.sample.ramPct)),
     maxGpuTemp: maximum(samples.map((entry) => entry.sample.gpuTemp)),
     maxCpuTemp: maximum(samples.map((entry) => entry.sample.cpuTemp)),
-    // Only a real measurement counts; the overlay arrives in phase 7.
+    // Only a real measurement counts; the FPS comes from the overlay service
+    // (Windows helper), so it is absent when there is no source.
     avgFps: average(samples.map((entry) => (entry.sample.fps && entry.sample.fps > 0 ? entry.sample.fps : undefined)))
   }
 }

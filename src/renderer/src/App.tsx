@@ -34,6 +34,7 @@ export default function App(): React.JSX.Element {
   const device = useApp((s) => s.device)
   const error = useApp((s) => s.error)
   const reconnect = useApp((s) => s.reconnect)
+  const reconnecting = useApp((s) => s.reconnecting)
   const page = useApp((s) => s.page)
 
   useEffect(() => {
@@ -60,8 +61,12 @@ export default function App(): React.JSX.Element {
         <div className="flex items-center gap-3 border-b border-ink-600 bg-ink-800 px-4 py-2 text-[11.5px] text-ink-100">
           <span className="font-semibold">Problema no dispositivo.</span>
           <span className="flex-1 text-ink-300">{error}</span>
-          <button className="btn h-7 px-3" onClick={() => void reconnect()}>
-            Reconectar
+          <button
+            className="btn h-7 px-3"
+            onClick={() => void reconnect()}
+            disabled={reconnecting}
+          >
+            {reconnecting ? 'Reconectando…' : 'Reconectar'}
           </button>
         </div>
       )}

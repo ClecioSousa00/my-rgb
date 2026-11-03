@@ -129,6 +129,9 @@ function HardwareCard({
     if (!open) return
     const trimmed = query.trim()
     if (trimmed.length < 2) {
+      // Invalidate any request already in flight, or it would repopulate the
+      // list under an empty field.
+      seq.current++
       setResults([])
       setSearching(false)
       return
@@ -608,7 +611,14 @@ export function GamesPage(): React.JSX.Element {
                             type="button"
                             className="block max-w-[260px] truncate text-left text-[12.5px] text-ink-100 hover:underline"
                             title={row.game}
-                            onClick={() => setSelected(row.game)}
+                            aria-expanded={active}
+                            aria-label={`Ver detalhes de ${row.game}`}
+                            onClick={(event) => {
+                              // The name button is the keyboard path; the row
+                              // click is only a larger hit area for the mouse.
+                              event.stopPropagation()
+                              setSelected(row.game)
+                            }}
                           >
                             {row.game}
                           </button>

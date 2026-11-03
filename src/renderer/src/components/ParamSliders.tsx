@@ -1,5 +1,6 @@
 import { useApp, useSelectedZoneConfig } from '../store'
 import { HelpTip } from './HelpTip'
+import { useDebouncedNumber } from './useDebouncedNumber'
 import type { ParamSpec, ParamValue } from '@shared/types'
 
 export function ParamSliders(): React.JSX.Element | null {
@@ -109,7 +110,27 @@ function ParamControl({
   }
 
   const numeric = Number(value)
-  const pct = spec.max > spec.min ? ((numeric - spec.min) / (spec.max - spec.min)) * 100 : 0
+
+  return <NumberParam spec={spec} value={numeric} onChange={onChange} />
+}
+
+/**
+ * Slider for a numeric parameter.
+ *
+ * Kept in its own component so the draft hook runs unconditionally, whichever
+ * branch of `ParamControl` is taken.
+ */
+function NumberParam({
+  spec,
+  value,
+  onChange
+}: {
+  spec: Extract<ParamSpec, { type: 'number' }>
+  value: number
+  onChange: (value: ParamValue) => void
+}): React.JSX.Element {
+  const [draft, setDraft] = useDebouncedNumber(value, (next) => onChange(next))
+  const pct = spec.max > spec.min ? ((draft - spec.min) / (spec.max - spec.min)) * 100 : 0
 
   return (
     <div>
@@ -120,7 +141,7 @@ function ParamControl({
           {spec.unit && <span className="text-[10px] text-ink-500">({spec.unit})</span>}
         </span>
         <span className="font-mono text-[11px] text-ink-400">
-          {formatNumber(numeric)}
+          {formatNumber(draft)}
           {spec.unit ? ` ${spec.unit}` : ''}
         </span>
       </div>
@@ -129,9 +150,10 @@ function ParamControl({
         min={spec.min}
         max={spec.max}
         step={spec.step}
-        value={numeric}
+        value={draft}
         style={{ '--fill': `${pct}%` } as React.CSSProperties}
-        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={spec.label}
+        onChange={(e) => setDraft(Number(e.target.value))}
       />
     </div>
   )

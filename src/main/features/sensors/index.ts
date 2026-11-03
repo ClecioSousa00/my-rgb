@@ -6,9 +6,9 @@
  * the other readings - it adds a note explaining what is missing, so the page
  * can show the values it has and say why the rest is not there.
  *
- * Windows has no hwmon. Temperatures, fans and board voltages there come from
- * the helper planned for phase 7; until then the page shows load, clocks,
- * memory and (with an NVIDIA card) the GPU sensors, plus a note.
+ * Windows has no hwmon and the .NET helper only measures FPS, so board
+ * temperatures, fans and voltages are not available there yet; the page shows
+ * load, clocks, memory and (with an NVIDIA card) the GPU sensors, plus a note.
  */
 
 import type { SensorsSnapshot, SensorReading } from '@shared/features/sensors'

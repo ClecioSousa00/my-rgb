@@ -14,7 +14,7 @@
  * because the snapshot already has everything.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   CoolingSnapshot,
   CoolingStatus,
@@ -156,6 +156,9 @@ export function SensorsPage(): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<SensorsSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [paused, setPaused] = useState(false)
+  /** Read by the unmount cleanup, which must not release a reference the
+   * pause already released (a double `stop` would kill another consumer). */
+  const pausedRef = useRef(false)
   const [kind, setKind] = useState<KindFilter>('all')
   const [query, setQuery] = useState('')
 
@@ -184,7 +187,11 @@ export function SensorsPage(): React.JSX.Element {
     return () => {
       alive = false
       unsubscribe()
-      void window.myrgb.stopSensors()
+      // If the user paused, this page already released its reference; a
+      // second stop here would decrement another consumer (overlay, session).
+      if (!pausedRef.current) {
+        void window.myrgb.stopSensors().catch(() => {})
+      }
     }
   }, [])
 
@@ -218,13 +225,26 @@ export function SensorsPage(): React.JSX.Element {
 
   const togglePause = (): void => {
     if (paused) {
+      pausedRef.current = false
       setPaused(false)
-      void window.myrgb.startSensors().then((initial) => {
-        if (initial) setSnapshot(initial)
-      })
+      void window.myrgb
+        .startSensors()
+        .then((initial) => {
+          if (initial) setSnapshot(initial)
+        })
+        .catch((err: unknown) => {
+          // The stream did not resume: show it as paused instead of claiming
+          // "ao vivo" over frozen values.
+          pausedRef.current = true
+          setPaused(true)
+          setError(err instanceof Error ? err.message : String(err))
+        })
     } else {
+      pausedRef.current = true
       setPaused(true)
-      void window.myrgb.stopSensors()
+      void window.myrgb.stopSensors().catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err))
+      })
     }
   }
 

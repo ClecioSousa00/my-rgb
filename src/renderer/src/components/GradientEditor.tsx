@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp, useSelectedZoneConfig } from '../store'
 import { paletteToCssGradient, samplePalette, rgbToHex, normalizeHexColor } from '@shared/color'
 import { HelpTip } from './HelpTip'
+import { useDebouncedNumber } from './useDebouncedNumber'
 import type { Palette } from '@shared/types'
 
 export function GradientEditor(): React.JSX.Element {
@@ -17,6 +18,8 @@ export function GradientEditor(): React.JSX.Element {
   const [dragging, setDragging] = useState<number | null>(null)
   /** Local position while dragging, so the store is not hammered. */
   const [dragPosition, setDragPosition] = useState<number | null>(null)
+  /** Same value for the pointerup handler, which is not a state updater. */
+  const dragPositionRef = useRef<number | null>(null)
   /**
    * Text being typed in the hex field.
    *
@@ -39,6 +42,25 @@ export function GradientEditor(): React.JSX.Element {
           stops: stored.stops.map((s, i) => (i === dragging ? { ...s, position: dragPosition } : s))
         }
       : stored
+
+  /**
+   * A profile can point at a palette that no longer exists (removed in another
+   * window, imported profile). The engine already falls back to the first
+   * palette; writing that back is what keeps the select, the editor and the
+   * engine saying the same thing instead of the select showing a palette the
+   * effect does not reference.
+   */
+  const reconciled = useRef<string | null>(null)
+  useEffect(() => {
+    const effect = zoneConfig?.effect
+    if (!effect || palettes.length === 0) return
+    if (palettes.some((p) => p.id === effect.paletteId)) return
+    const key = `${selectedZoneId}:${effect.paletteId}`
+    if (reconciled.current === key) return
+    // StrictMode runs the effect twice; only one write is needed.
+    reconciled.current = key
+    void setZoneEffect(selectedZoneId, { ...effect, paletteId: palettes[0].id })
+  }, [zoneConfig?.effect, palettes, selectedZoneId, setZoneEffect])
 
   // Keep the selection valid when the palette list changes.
   useEffect(() => {
@@ -77,21 +99,23 @@ export function GradientEditor(): React.JSX.Element {
     if (dragging === null) return
 
     const move = (event: PointerEvent): void => {
-      setDragPosition(positionFromEvent(event.clientX))
+      const position = positionFromEvent(event.clientX)
+      dragPositionRef.current = position
+      setDragPosition(position)
     }
 
     const up = (): void => {
-      // Commit the final position once, when the button is released.
-      setDragPosition((position) => {
-        if (position !== null && stored && dragging !== null) {
-          const stops = stored.stops.map((s, i) =>
-            i === dragging ? { ...s, position } : s
-          )
-          commit({ ...stored, stops })
-        }
-        return null
-      })
+      // Commit the final position once, when the button is released. Reading
+      // it from a ref keeps the IPC call out of a state updater, which React
+      // StrictMode runs twice.
+      const position = dragPositionRef.current
+      dragPositionRef.current = null
+      setDragPosition(null)
       setDragging(null)
+      if (position !== null && stored && dragging !== null) {
+        const stops = stored.stops.map((s, i) => (i === dragging ? { ...s, position } : s))
+        commit({ ...stored, stops })
+      }
     }
 
     window.addEventListener('pointermove', move)
@@ -298,18 +322,10 @@ export function GradientEditor(): React.JSX.Element {
               aria-invalid={colorDraftInvalid}
               title="Cor da parada em hexadecimal (#rrggbb)"
             />
-            <input
-              type="range"
-              className="flex-1"
-              min={0}
-              max={1}
-              step={0.005}
+            <StopPositionSlider
               value={selected.position}
-              onChange={(e) => updateStop(activeStop, { position: Number(e.target.value) })}
+              onChange={(position) => updateStop(activeStop, { position })}
             />
-            <span className="w-10 text-right font-mono text-[11px] text-ink-400">
-              {(selected.position * 100).toFixed(1)}%
-            </span>
             <button
               className="btn btn-danger h-7 px-2"
               onClick={() => removeStop(activeStop)}
@@ -322,5 +338,34 @@ export function GradientEditor(): React.JSX.Element {
         )}
       </div>
     </div>
+  )
+}
+
+/** Position slider of the selected stop, drafting locally while dragging. */
+function StopPositionSlider({
+  value,
+  onChange
+}: {
+  value: number
+  onChange: (position: number) => void
+}): React.JSX.Element {
+  const [position, setPosition] = useDebouncedNumber(value, onChange)
+
+  return (
+    <>
+      <input
+        type="range"
+        className="flex-1"
+        min={0}
+        max={1}
+        step={0.005}
+        value={position}
+        aria-label="Posição da parada"
+        onChange={(e) => setPosition(Number(e.target.value))}
+      />
+      <span className="w-10 text-right font-mono text-[11px] text-ink-400">
+        {(position * 100).toFixed(1)}%
+      </span>
+    </>
   )
 }

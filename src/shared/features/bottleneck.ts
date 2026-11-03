@@ -63,7 +63,7 @@ export interface LoadSample {
   gpuTemp?: number
   cpuTemp?: number
   gpuThermalCap?: boolean
-  /** Real FPS from the game overlay. Absent until phase 7. */
+  /** Real FPS from the overlay; absent when the platform has no source. */
   fps?: number
 }
 
@@ -133,7 +133,7 @@ export interface BottleneckSessionReport {
   maxRamPct?: number
   maxGpuTemp?: number
   maxCpuTemp?: number
-  /** Real FPS from the overlay. Absent until phase 7. */
+  /** Real FPS from the overlay; absent on Linux or without the helper. */
   avgFps?: number
 }
 

@@ -96,15 +96,19 @@ export class BottleneckService {
   /** Subscribe to the stream and return the current state. */
   async start(): Promise<BottleneckSnapshot> {
     this.subscribers++
-    if (this.subscribers === 1) this.options.sensors.start()
+    // Every subscriber owns one reference: the page and a session each hold
+    // their own, so leaving the page cannot stop the poll a session still
+    // needs (and the session ending cannot stop one the page still needs).
+    this.options.sensors.start()
     await this.ensureBalance()
     return this.snapshot()
   }
 
   /** Remove a subscriber; the poll stops when the last one leaves. */
   stop(): void {
-    this.subscribers = Math.max(0, this.subscribers - 1)
-    if (this.subscribers === 0 && !this.session) this.options.sensors.stop()
+    if (this.subscribers === 0) return
+    this.subscribers--
+    this.options.sensors.stop()
   }
 
   /** Start a session, keeping the poll alive even if the page is left. */
