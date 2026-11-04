@@ -54,6 +54,14 @@ export interface ProfileSavedEvent {
   at: number
 }
 
+/** Result of "open the logs folder". */
+export interface LogsFolderResult {
+  /** Absolute path of the folder, whether or not it opened. */
+  path: string
+  /** What the file manager said, or null when it opened. */
+  error: string | null
+}
+
 export interface MyRgbApi {
   // device
   getDeviceInfo(): Promise<DeviceInfo>
@@ -90,6 +98,14 @@ export interface MyRgbApi {
   // settings
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+
+  /**
+   * Open the folder with the log and the crash reports.
+   *
+   * Returns the path even when the file manager refused to open it, so the UI
+   * can show the user where the file is instead of only saying it failed.
+   */
+  openLogsFolder(): Promise<LogsFolderResult>
 
   // system & drives
   /** Static hardware snapshot. Cached in the main process for a minute. */

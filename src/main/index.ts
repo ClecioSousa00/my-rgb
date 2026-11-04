@@ -6,7 +6,7 @@
  */
 
 import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, statSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
@@ -34,6 +34,9 @@ import { samplePalette } from './engine/palette'
 import type { EngineState } from '@shared/api'
 import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { BottleneckUpdate } from '@shared/features/bottleneck'
+import { applyLogLevel, activeLogFile, logDirectory, startLogging } from './logging'
+import { crashDumpDirectory, startCrashReporter } from './logging/crash'
+import { normalizeLogLevel } from '@shared/logging'
 
 const isDev = !app.isPackaged
 
@@ -41,6 +44,46 @@ const isDev = !app.isPackaged
 const CONFLICT_POLL_MS = 5000
 /** How often to check whether the controller was plugged or unplugged. */
 const DEVICE_POLL_MS = 3000
+
+// ---------------------------------------------------------------------------
+// Logging
+// ---------------------------------------------------------------------------
+
+/**
+ * The log starts before anything else, so a failure in the bootstrap below
+ * still leaves a file to look at. The path comes from `app`, so
+ * `--user-data-dir` is honoured (the self test relies on it).
+ */
+const envLogLevel = process.env.MYRGB_LOG_LEVEL
+const logger = startLogging({
+  dir: logDirectory(app.getPath('userData')),
+  level: normalizeLogLevel(envLogLevel),
+  version: app.getVersion()
+})
+
+const crashReporterOn = startCrashReporter({
+  dir: crashDumpDirectory(app.getPath('userData')),
+  env: process.env.MYRGB_CRASH_REPORTER,
+  argv: process.argv,
+  version: app.getVersion()
+})
+logger.log('info', `crash reports: ${crashReporterOn ? 'on, local only' : 'off'}`)
+
+// An exception in a timer or a poll would otherwise end the process and the
+// lighting with it, leaving nothing behind. Recording it and staying alive
+// keeps the LEDs running and the reason in the file; nothing is sent anywhere.
+process.on('uncaughtException', (error) => {
+  logger.log('error', 'uncaught exception', error)
+})
+process.on('unhandledRejection', (reason) => {
+  logger.log('error', 'unhandled rejection', reason)
+})
+
+// Renderer, GPU and utility crashes do not reach the main process otherwise.
+app.on('child-process-gone', (_event, details) => {
+  const name = details.name ? ` (${details.name})` : ''
+  logger.log('error', `child process gone: ${details.type}${name} - ${details.reason}`)
+})
 
 class MyRgbApp {
   private device = new AuraUsbDevice()
@@ -86,6 +129,10 @@ class MyRgbApp {
       this.emitAppError(message)
     )
 
+    // The setting is the user's choice; the environment variable is an escape
+    // hatch for support, so it wins when present.
+    if (!envLogLevel) applyLogLevel(this.settings.settings.logLevel ?? 'info')
+
     const initial = defaultProfile()
     this.profileStore = new ProfileStore(app.getPath('userData'), initial, {
       onSaved: (name) => this.emitProfileSaved(name),
@@ -129,6 +176,9 @@ class MyRgbApp {
 
     // The sensor poll runs only while a page is subscribed (and the window is
     // visible), so creating it here costs nothing.
+    // Every FPS transition goes to the file log: a helper that never starts on
+    // a user's Windows machine is the one failure that leaves no other trace.
+    let lastFpsStatus = ''
     this.fps = new FpsService({
       createBridge: () => {
         // Absent helper is a capability, not an error: no FPS, overlay still on.
@@ -137,7 +187,16 @@ class MyRgbApp {
         )
         return executable ? new HelperBridge({ executable }) : null
       },
-      onStatus: () => this.pushOverlayState()
+      onStatus: (capabilities) => {
+        const status = `${capabilities.supported ? 'supported' : 'unsupported'}/${
+          capabilities.available ? 'available' : 'unavailable'
+        }: ${capabilities.reason ?? ''}`
+        if (status !== lastFpsStatus) {
+          lastFpsStatus = status
+          logger.log(capabilities.available ? 'info' : 'warn', `fps: ${status}`)
+        }
+        this.pushOverlayState()
+      }
     })
 
     this.sensors = new SensorsStore({
@@ -200,6 +259,14 @@ class MyRgbApp {
       this.zones = buildZones(this.device.info.layout)
     }
     if (ok) this.lastEngineError = null
+    if (ok) {
+      logger.log(
+        'info',
+        `controller connected: ${this.device.info.path ?? '?'} firmware ${this.device.info.firmware ?? '?'}, ${this.zones.length} zones`
+      )
+    } else {
+      logger.log('warn', `controller not available: ${this.device.info.error ?? 'unknown reason'}`)
+    }
     this.reconcile()
     this.engine.setZones(this.zones)
     // Targets follow the profile; reconcile() has just (re)derived the AURA
@@ -225,12 +292,14 @@ class MyRgbApp {
   /** Start the engine, remembering that this is what the user wants. */
   startEngine(): void {
     this.engineWanted = true
+    logger.log('info', 'engine start requested')
     this.engine.start()
   }
 
   /** Stop the engine and keep it stopped across a replug. */
   stopEngine(): void {
     this.engineWanted = false
+    logger.log('info', 'engine stop requested')
     this.engine.stop()
   }
 
@@ -314,6 +383,7 @@ class MyRgbApp {
     this.devicePresent = present
 
     if (!present) {
+      logger.log('warn', 'controller disconnected')
       this.device.markDisconnected(
         'O controlador AURA foi desconectado. Reconecte o cabo USB.'
       )
@@ -329,6 +399,7 @@ class MyRgbApp {
     }
 
     // Plugged back in: claim the channels and restore the current profile.
+    logger.log('info', 'controller plugged back in')
     await this.openDevice()
     await this.refreshConflicts()
     this.pushDeviceInfo()
@@ -1075,6 +1146,22 @@ async function runSelfTest(): Promise<void> {
 
       window.__myRgbNavigate && window.__myRgbNavigate('lighting')
       await sleep(400)
+      // The settings popover carries the log controls: the level select and
+      // the button that opens the folder. Opening it proves both made it into
+      // the build, which a unit test cannot see.
+      const gear = Array.from(document.querySelectorAll('header button')).find(
+        (button) => button.getAttribute('aria-haspopup') === 'dialog'
+      )
+      if (gear instanceof HTMLElement) gear.click()
+      await waitFor(
+        () => /Nível de registo/.test(text()) && /Abrir pasta de registos/.test(text()),
+        5000
+      )
+      window.__myRgbLogsUi =
+        /Nível de registo/.test(text()) &&
+        /Abrir pasta de registos/.test(text()) &&
+        document.querySelectorAll('select[aria-label="Nível de registo"]').length === 1
+      if (gear instanceof HTMLElement) gear.click()
       // The profile controls only make sense on the lighting screen, and they
       // have to be back when it is open again.
       window.__myRgbProfileVisible = /Salvar/.test(
@@ -1132,6 +1219,7 @@ async function runSelfTest(): Promise<void> {
         cardsAligned: window.__myRgbCardsAligned === true,
         sensorsScroll: window.__myRgbSensorsScroll === true,
         pagesScroll: window.__myRgbPagesScroll === true,
+        logsUi: window.__myRgbLogsUi === true,
         zoneRail: /zonas/i.test(document.body.innerText),
         effects: /efeitos/i.test(document.body.innerText),
         gradient: /gradiente/i.test(document.body.innerText),
@@ -1146,6 +1234,13 @@ async function runSelfTest(): Promise<void> {
   report.shortcutRegistered = globalShortcut.isRegistered(
     instance.overlay.state().config.shortcut
   )
+
+  // The log is opened by the real bootstrap, before the window exists: a file
+  // with content proves the path, the folder creation and the writer wiring,
+  // which is the whole point of the feature.
+  const logFile = activeLogFile()
+  report.logFile = logFile
+  report.logReady = logFile !== null && statSync(logFile).size > 0
 
   console.log('SELFTEST ' + JSON.stringify(report, null, 2))
   const ok =
@@ -1166,10 +1261,12 @@ async function runSelfTest(): Promise<void> {
     report.bottleneckReady === true &&
     report.overlayReady === true &&
     report.shortcutRegistered === true &&
+    report.logReady === true &&
     report.sensorsReady === true &&
     report.cardsAligned === true &&
     report.sensorsScroll === true &&
-    report.pagesScroll === true
+    report.pagesScroll === true &&
+    report.logsUi === true
   console.log(ok ? 'SELFTEST PASS' : 'SELFTEST FAIL')
   app.exit(ok ? 0 : 1)
 }
@@ -1250,6 +1347,7 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('before-quit', () => {
+    logger.log('info', 'quitting')
     ;(globalThis as { __myRgbApp?: MyRgbApp }).__myRgbApp?.shutdown()
   })
 }

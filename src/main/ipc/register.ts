@@ -6,13 +6,14 @@
  * host, so a handler can still reach the engine, the stores and the window
  * without this module owning them.
  *
- * Feature channels (system, sensors, disks, network, games, overlay, light)
- * are registered here as they arrive, keeping one place to audit the surface.
+ * Feature channels (system, sensors, disks, network, games, overlay, light,
+ * logs) are registered here as they arrive, keeping one place to audit the
+ * surface.
  */
 
-import { dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { readFileSync, statSync, writeFileSync } from 'fs'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import type { EngineState } from '@shared/api'
 import type { DeviceInfo, EffectDefinition, Palette, Profile, ZoneConfig, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
@@ -36,6 +37,7 @@ import { GamesService } from '../features/games'
 import type { BottleneckService } from '../features/bottleneck'
 import type { OverlayService } from '../features/overlay/manager'
 import type { OverlayConfig } from '@shared/features/overlay'
+import { applyLogLevel, logDirectory } from '../logging'
 
 /** Largest profile file accepted on import; real ones are a few kilobytes. */
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024
@@ -275,7 +277,25 @@ export function registerIpc(host: IpcHost): void {
     if (patch.autostartAtLogin !== undefined) {
       host.applyAutostart(next.autostartAtLogin)
     }
+    // Applied live: switching to "Depuração" and having to restart to see the
+    // lines would defeat the point of the setting.
+    if (patch.logLevel !== undefined) applyLogLevel(next.logLevel ?? 'info')
     return next
+  })
+
+  // --- logs ---------------------------------------------------------------
+
+  ipcMain.handle(IPC.logsOpen, async () => {
+    const path = logDirectory(app.getPath('userData'))
+    try {
+      // The folder only exists after the first line; opening an inexistent
+      // path fails for the wrong reason.
+      mkdirSync(path, { recursive: true })
+    } catch {
+      /* `openPath` below reports the real failure, with the path returned */
+    }
+    const error = await shell.openPath(path)
+    return { path, error: error || null }
   })
 
   // --- system & drives ----------------------------------------------------

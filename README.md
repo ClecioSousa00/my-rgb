@@ -189,6 +189,14 @@ depende do que você conectou fisicamente. Por isso a quantidade é configuráve
 por zona (campo numérico na barra de zonas). O OpenRGB 1.0 faz exatamente o
 mesmo, pelo mesmo motivo. O padrão do MyRGB é 72.
 
+### Se algo der errado
+
+O app escreve um registo em `<dados do usuário>/logs/my-rgb.log`
+(`~/.config/my-rgb/logs/` no Linux, `%APPDATA%\my-rgb\logs\` no Windows), com
+rotação de 2 MB e três arquivos antigos. Em **⚙ Configurações → Diagnóstico** dá
+para escolher o nível (só erros até depuração) e abrir a pasta. Os relatórios de
+crash ficam em `logs/crash/` e **nunca são enviados** para nenhum servidor.
+
 ---
 
 ## Prova de paridade Linux ↔ Windows
@@ -226,7 +234,7 @@ garantir que as duas execuções usaram a mesma configuração.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest (295 testes, 17 arquivos)
+npm test             # vitest (318 testes, 18 arquivos)
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
@@ -291,6 +299,7 @@ src/
     platform/      detecção de conflito com Armoury Crate / OpenRGB
     features/      coletores: sistema, sensores, saúde, rede, jogos, gargalo, overlay
     ipc/           todos os canais (`register.ts`)
+    logging/       registo em ficheiro (nível + rotação) e relatório de crash
   preload/         ponte contextBridge (única ponte renderer ↔ main)
   renderer/
     src/           React: barra superior, zonas, preview, editor de gradiente e páginas

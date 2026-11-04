@@ -270,6 +270,9 @@ export class HelperBridge {
   }
 
   private fail(reason: string): void {
+    // A helper that dies on a user's machine is exactly the kind of failure
+    // nobody can reproduce here, so it goes to the file log as well.
+    if (this.failure !== reason) console.warn(`[helper] ${reason}`)
     if (!this.failure) this.failure = reason
     this.rejectPending(reason)
     this.socket?.destroy()

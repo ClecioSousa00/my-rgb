@@ -74,7 +74,7 @@ Windows e fica isolada em `src/main/features/overlay/` e no helper .NET.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev, com hot reload
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest — 295 testes em 17 arquivos
+npm test             # vitest — 318 testes em 18 arquivos
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 npm run selftest     # build + UI real, conferindo páginas, IPC e quadros
@@ -373,6 +373,48 @@ primeiro plano:
 
 ---
 
+## Como os registos funcionam
+
+O processo principal escreve tudo o que imprime (`console.log/warn/error`) num
+ficheiro em `<userData>/logs/my-rgb.log`. O espelho é instalado uma vez por
+`startLogging` (`src/main/logging/index.ts`), antes do `app.whenReady()`, para
+que uma falha no arranque também deixe rasto — o terminal não existe quando o
+programa é aberto pelo menu.
+
+Três decisões mantêm isto ligado sem risco:
+
+- **Rotação, não crescimento infinito.** Ao passar de 2 MB o arquivo vira
+  `my-rgb.log.1`; até três arquivos antigos são mantidos (`keep: 3`), sempre
+  menos de 8 MB no total.
+- **Registar nunca derruba o programa.** `append()` engole o erro e marca o
+  logger como quebrado; a partir daí o console continua sozinho, em vez de
+  tentar e falhar a cada linha.
+- **Nível filtrável.** `LogLevel` vive em `src/shared/logging.ts` e é usado
+  pelo escritor e pelo selector da interface. `MYRGB_LOG_LEVEL` sobrepõe a
+  configuração salva (é o escape para suporte); a opção da interface vale
+  imediatamente, sem reiniciar (`applyLogLevel`).
+
+Os eventos de ciclo de vida são registados explicitamente porque o console não
+os tem: conexão/desconexão do controlador (com firmware e número de zonas),
+início/paragem do motor pedidos pelo utilizador, `child-process-gone` e o
+`before-quit`. `uncaughtException` e `unhandledRejection` também vão para o
+ficheiro e **não** encerram o processo: as luzes continuam a funcionar e a
+causa fica escrita.
+
+O relatório de crash é opcional (`src/main/logging/crash.ts`). Quando ligado,
+`crashReporter.start({ uploadToServer: false })` corre antes do `app.whenReady()`
+— só processos criados depois disso são monitorados — e `app.setPath('crashDumps')`
+aponta os minidumps para `logs/crash/`, ao lado do registo. Nada é enviado para
+servidor nenhum: o app não tem um, e inventar um seria pior que o problema.
+`MYRGB_CRASH_REPORTER=0` ou `--no-crash-reporter` desligam-no, e uma falha ao
+iniciar não impede o arranque (devolve `false`).
+
+O `--selftest` confirma as duas pontas: `logReady` verifica que o ficheiro
+existe e tem conteúdo, e `logsUi` verifica que o selector de nível e o botão
+"Abrir pasta de registos" chegaram ao build.
+
+---
+
 ## Como a iluminação é roteada
 
 O motor não conhece hardware: ele renderiza o quadro e entrega cada zona ao
@@ -416,7 +458,7 @@ byte a byte o mesmo que aparece na prévia.
 
 ## Os testes
 
-295 testes em 17 arquivos, todos rodando em alguns segundos.
+318 testes em 18 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -437,6 +479,7 @@ byte a byte o mesmo que aparece na prévia.
 | `tests/overlay.test.ts` | O catálogo e a normalização do overlay, os quatro cantos, o formatador de métricas, o protocolo do helper e a contagem de referência/falhas do serviço de FPS |
 | `tests/light.test.ts` | Os alvos de iluminação, a migração implícita dos perfis antigos e as regras do roteador (throttle, acquire/release, isolamento de erro por backend) |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
+| `tests/logging.test.ts` | O nível filtra como esperado, a rotação mantém três arquivos, uma pasta sem permissão nunca derruba o programa, o relatório de crash não envia nada e as configurações reparam um nível inválido |
 
 ```bash
 npm test                  # tudo

@@ -5,6 +5,7 @@
 
 import type { LightTarget } from './features/light'
 import type { OverlayConfig } from './features/overlay'
+import type { LogLevel } from './logging'
 
 export interface RGB {
   r: number
@@ -206,6 +207,8 @@ export interface AppSettings {
   startWithLightingOff: boolean
   /** Profile to load on startup (overrides lastProfile if set). */
   startupProfile?: string | null
+  /** Threshold of the file log; `info` when absent. */
+  logLevel?: LogLevel
   /** Window state that is not a preference but should be remembered. */
   ui?: UiSettings
   /** On-screen display: switch, metrics, position and shortcut. */
@@ -315,5 +318,7 @@ export const IPC = {
   /** Pushed when the configuration or the FPS capability changes. */
   overlayState: 'overlay:state',
   /** Pushed every 500 ms while the overlay is open. */
-  overlayFrame: 'overlay:frame'
+  overlayFrame: 'overlay:frame',
+  /** Folder holding the log and the crash reports. */
+  logsOpen: 'logs:open'
 } as const

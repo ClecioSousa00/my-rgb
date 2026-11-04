@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { EngineState, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
+import type { EngineState, LogsFolderResult, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
 import type {
   AppSettings,
   DeviceInfo,
@@ -91,6 +91,7 @@ const api: MyRgbApi = {
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settingsGet),
   setSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IPC.settingsSet, patch),
+  openLogsFolder: (): Promise<LogsFolderResult> => ipcRenderer.invoke(IPC.logsOpen),
 
   // system & drives
   getSystem: (force = false): Promise<SystemSnapshot> => ipcRenderer.invoke(IPC.systemGet, force),

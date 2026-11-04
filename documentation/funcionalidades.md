@@ -555,6 +555,28 @@ escrever no hardware. Não desliga as luzes — para isso, use **Luzes desligada
 | **Iniciar com o sistema** | autostart no login do sistema (em modo oculto, `--hidden`) |
 | **Minimizar para a bandeja** | fechar a janela não encerra o programa |
 | **Abrir com as luzes apagadas** | começa com o output desligado |
+| **Nível de registo** | quanto vai para o ficheiro de registo: só erros, avisos, informação (padrão) ou depuração |
+| **Abrir pasta de registos** | abre, no gestor de ficheiros, a pasta com `my-rgb.log` e os relatórios de crash |
+
+### Registos e relatórios de crash
+
+O programa escreve um registo em texto em `logs/my-rgb.log`, dentro da pasta
+de dados do utilizador (`~/.config/my-rgb/` no Linux,
+`%APPDATA%\my-rgb\` no Windows). Ele guarda o que já aparecia no terminal:
+arranque, versão, conexão e desconexão do controlador, início e paragem do
+motor, erros de escrita e mensagens do renderer.
+
+- **Rotação:** o ficheiro vira `my-rgb.log.1` ao passar de 2 MB, e são mantidos
+  três arquivos antigos — no máximo ~8 MB, sem intervenção.
+- **Nunca derruba o programa:** se a pasta não puder ser escrita, o registo é
+  abandonado e o programa continua (o terminal continua a receber tudo).
+- **Relatórios de crash:** o Crashpad grava minidumps em `logs/crash/`. Nada é
+  enviado para nenhum servidor — os relatórios ficam na máquina e só saem se
+  você os anexar a um relato. Podem ser desligados com `MYRGB_CRASH_REPORTER=0`
+  ou com o argumento `--no-crash-reporter`.
+- **Nível por ambiente:** `MYRGB_LOG_LEVEL=debug npm run dev` sobrepõe a opção
+  da interface, o que é útil para acompanhar um problema sem mexer nas
+  configurações salvas.
 
 ---
 

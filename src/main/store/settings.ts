@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { AppSettings } from '@shared/types'
 import { DEFAULT_OVERLAY_CONFIG, normalizeOverlayConfig } from '@shared/features/overlay'
+import { DEFAULT_LOG_LEVEL, normalizeLogLevel } from '@shared/logging'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autoStart: true,
@@ -14,6 +15,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastProfile: 'Padrão',
   startWithLightingOff: false,
   startupProfile: null,
+  logLevel: DEFAULT_LOG_LEVEL,
   ui: { lastPage: 'lighting', collapsedGroups: [] },
   overlay: DEFAULT_OVERLAY_CONFIG
 }
@@ -46,7 +48,10 @@ export class SettingsStore {
       ui: patch.ui ? { ...this.data.ui, ...patch.ui } : this.data.ui,
       // The overlay is always stored whole and normalized, so a partial patch
       // from an older version cannot leave a corrupt shortcut or scale.
-      overlay: patch.overlay ? normalizeOverlayConfig(patch.overlay) : this.data.overlay
+      overlay: patch.overlay ? normalizeOverlayConfig(patch.overlay) : this.data.overlay,
+      // Same for the log level: an unknown value from the renderer must not
+      // reach the writer.
+      logLevel: patch.logLevel ? normalizeLogLevel(patch.logLevel) : this.data.logLevel
     }
     this.write()
     return this.data
@@ -60,7 +65,9 @@ export class SettingsStore {
         ...DEFAULT_SETTINGS,
         ...parsed,
         ui: { ...DEFAULT_SETTINGS.ui, ...(parsed.ui ?? {}) },
-        overlay: normalizeOverlayConfig(parsed.overlay)
+        overlay: normalizeOverlayConfig(parsed.overlay),
+        // A hand-edited or older settings file must not silence the log.
+        logLevel: normalizeLogLevel(parsed.logLevel)
       }
     } catch {
       this.data = { ...DEFAULT_SETTINGS }

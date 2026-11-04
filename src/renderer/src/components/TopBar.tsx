@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../store'
 import { pageTitle } from '../navigation'
 import type { AppSettings } from '@shared/types'
+import { LOG_LEVELS } from '@shared/logging'
 import { showToast } from './Toast'
 import { Modal } from './ui/Modal'
 
@@ -85,6 +86,18 @@ export function TopBar(): React.JSX.Element {
 
   const updateSetting = async (patch: Partial<AppSettings>): Promise<void> => {
     setSettings(await window.myrgb.setSettings(patch))
+  }
+
+  /** Open the folder holding the log and the crash reports. */
+  const openLogs = async (): Promise<void> => {
+    try {
+      const result = await window.myrgb.openLogsFolder()
+      // Success needs no message: the file manager is the answer. A failure
+      // still tells where the files are, which is the useful part.
+      if (result.error) showToast(`Não foi possível abrir a pasta. Registos em ${result.path}`)
+    } catch {
+      showToast('Não foi possível abrir a pasta de registos')
+    }
   }
 
   const connected = device?.connected ?? false
@@ -314,7 +327,7 @@ export function TopBar(): React.JSX.Element {
           <div
             role="dialog"
             aria-label="Configurações"
-            className="panel absolute right-0 top-9 z-10 w-72 p-3 shadow-2xl"
+            className="panel absolute right-0 top-9 z-10 max-h-[calc(100vh-5rem)] w-72 overflow-y-auto p-3 shadow-2xl"
           >
             <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
               Configurações
@@ -352,7 +365,7 @@ export function TopBar(): React.JSX.Element {
               </div>
             </div>
 
-            <div>
+            <div className="mb-2">
               <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">Perfis</div>
               <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
                 <div className="mb-1 text-[11px] text-ink-300">Perfil ao iniciar</div>
@@ -368,6 +381,36 @@ export function TopBar(): React.JSX.Element {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">
+                Diagnóstico
+              </div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <div className="mb-1 text-[11px] text-ink-300">Nível de registo</div>
+                <select
+                  className="field"
+                  aria-label="Nível de registo"
+                  value={settings.logLevel ?? 'info'}
+                  onChange={(e) =>
+                    void updateSetting({ logLevel: e.target.value as AppSettings['logLevel'] })
+                  }
+                >
+                  {LOG_LEVELS.map((level) => (
+                    <option key={level.id} value={level.id}>
+                      {level.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-ghost mt-2 w-full justify-start px-2 text-[11px]"
+                  onClick={() => void openLogs()}
+                  title="Pasta com o registo (my-rgb.log) e os relatórios de crash"
+                >
+                  Abrir pasta de registos
+                </button>
               </div>
             </div>
           </div>
