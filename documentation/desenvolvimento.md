@@ -325,6 +325,24 @@ O resultado é um array ordenado por tamanho, limitado a 300; o restante é
 somado numa nota. Apenas o nome do Steam é verificado no manifesto, lido depois
 da varredura para não atrasar o progresso.
 
+**Duplicados** (`src/main/features/storage/duplicates.ts`) são uma análise
+separada e opcional, executada num `utilityProcess` próprio
+(`duplicateWorker.js`, também em `asarUnpack`):
+
+- Etapa 1 (`sizing`): percorre a pasta e agrupa arquivos por tamanho. Grupos
+  com um único arquivo são descartados — nunca podem ser duplicados.
+- Etapa 2 (`partial-hash`): hash SHA-256 da cabeça e da cauda (4 KB cada) de
+  cada arquivo nos grupos restantes. Sobreviventes com o mesmo hash parcial
+  são candidatos.
+- Etapa 3 (`full-hash`): hash SHA-256 do conteúdo completo de cada candidato.
+  Grupos com mais de um arquivo com o mesmo hash completo são duplicados
+  confirmados.
+- O espaço recuperável é `(cópias - 1) × tamanho` por conjunto. Nada é apagado,
+  movido ou alterado.
+- O progresso é emitido a cada 250 ms com o estágio atual, arquivos lidos,
+  grupos por tamanho, candidatos e conjuntos confirmados. **Cancelar** encerra
+  o worker e resolve `null`.
+
 ---
 
 ## Como a rede é medida

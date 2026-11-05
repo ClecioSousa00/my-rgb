@@ -360,8 +360,14 @@ não há número inventado nem tela pela metade.
 - [x] Selftest varre uma biblioteca Steam real da árvore temporária e confere
       o nome vindo do manifesto na tela (`storageTab`).
 
-### 6. Duplicados (4.1) — pendente
+### 6. Duplicados (4.1) — concluído
 
-- [ ] Análise separada e opcional: tamanho → hash parcial → hash completo.
-- [ ] Mostrar cópias, locais e espaço potencialmente recuperável; nada é
-      apagado.
+- [x] Análise separada e opcional: tamanho → hash parcial (cabeça+cauda) → hash completo.
+- [x] Nome sozinho não prova nada: apenas arquivos com conteúdo idêntico são duplicados.
+- [x] Mostra conjuntos, caminhos, tamanho, número de cópias e espaço recuperável.
+- [x] Nada é apagado, movido ou alterado — cabe ao usuário decidir o que remover.
+- [x] Executa em `utilityProcess` próprio (`duplicateWorker`), sem roubar quadros ao motor.
+- [x] Cancelável; pastas sem permissão são ignoradas, não interrompem a análise.
+- [x] `tests/storage-duplicates.test.ts` (8 casos) cobre arquivos idênticos, mesmo
+      tamanho/conteúdo diferente, três cópias, ordenação por espaço recuperável e
+      cancelamento.

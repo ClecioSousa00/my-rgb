@@ -47,6 +47,7 @@ asar: true
 # unable to require its chunk.
 asarUnpack:
   - out/main/storageWorker.js
+  - out/main/duplicateWorker.js
   - out/main/chunks/**
 compression: maximum
 

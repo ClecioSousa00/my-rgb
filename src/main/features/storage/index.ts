@@ -16,7 +16,14 @@ import { lstat } from 'fs/promises'
 import { isAbsolute, join, resolve, sep } from 'path'
 import { app, utilityProcess } from 'electron'
 import type { UtilityProcess } from 'electron'
-import type { StorageProgress, StorageReport, StorageStatus } from '@shared/features/storage'
+import type {
+  StorageDuplicateProgress,
+  StorageDuplicateReport,
+  StorageDuplicateStatus,
+  StorageProgress,
+  StorageReport,
+  StorageStatus
+} from '@shared/features/storage'
 import type { DriveInfo } from '@shared/features/system'
 import { listDrives } from '../system/drives'
 import { diagnoseStorage } from './diagnose'
@@ -33,6 +40,17 @@ let lastReport: StorageReport | null = null
 /** Latest counters of the run in flight, shown again when the page remounts. */
 let lastProgress: StorageProgress | null = null
 
+/** Duplicate scan state, separate from the storage scan. */
+interface ActiveDuplicateScan {
+  root: string
+  promise: Promise<StorageDuplicateReport | null>
+  cancel: () => void
+}
+
+let activeDuplicate: ActiveDuplicateScan | null = null
+let lastDuplicateReport: StorageDuplicateReport | null = null
+let lastDuplicateProgress: StorageDuplicateProgress | null = null
+
 /** Whether a scan is running, and how far it got. */
 export function storageStatus(): StorageStatus {
   return {
@@ -45,6 +63,20 @@ export function storageStatus(): StorageStatus {
 /** Last completed report, kept in memory so reopening the page is instant. */
 export function lastStorageReport(): StorageReport | null {
   return lastReport
+}
+
+/** Whether a duplicate analysis is running, and how far it got. */
+export function storageDuplicateStatus(): StorageDuplicateStatus {
+  return {
+    running: activeDuplicate !== null,
+    progress: activeDuplicate ? lastDuplicateProgress : null,
+    root: activeDuplicate?.root
+  }
+}
+
+/** Last completed duplicate report, kept in memory. */
+export function lastStorageDuplicateReport(): StorageDuplicateReport | null {
+  return lastDuplicateReport
 }
 
 /**
@@ -218,7 +250,155 @@ async function run(
 }
 
 /**
- * Real path to the worker entry.
+ * Start a duplicate analysis, or attach to the one already running.
+ *
+ * `onProgress` is called a few times per second, never once per file.
+ */
+export function startStorageDuplicateScan(
+  root: string,
+  onProgress: (progress: StorageDuplicateProgress) => void
+): Promise<StorageDuplicateReport | null> {
+  if (activeDuplicate) return activeDuplicate.promise
+  const entry: ActiveDuplicateScan = {
+    root,
+    promise: Promise.resolve(null),
+    cancel: () => {}
+  }
+  entry.promise = runDuplicate(root, onProgress, entry)
+  activeDuplicate = entry
+  return entry.promise
+}
+
+/** Ask the running duplicate analysis to stop; its promise resolves to null. */
+export function cancelStorageDuplicateScan(): void {
+  activeDuplicate?.cancel()
+}
+
+async function runDuplicate(
+  root: string,
+  onProgress: (progress: StorageDuplicateProgress) => void,
+  entry: ActiveDuplicateScan
+): Promise<StorageDuplicateReport | null> {
+  let child: UtilityProcess | null = null
+  let canceled = false
+  try {
+    if (!root || !isAbsolute(root)) {
+      throw new Error('Escolha uma pasta pelo caminho completo.')
+    }
+    const target = resolve(root)
+    let stats: Stats
+    try {
+      stats = await lstat(target)
+    } catch {
+      throw new Error(`Não foi possível abrir ${target}.`)
+    }
+    if (!stats.isDirectory()) {
+      throw new Error(`${target} não é uma pasta.`)
+    }
+
+    child = utilityProcess.fork(duplicateWorkerEntry(), [], {
+      serviceName: 'MyRGB Duplicados'
+    })
+    const worker = child
+
+    entry.cancel = (): void => {
+      canceled = true
+      try {
+        worker.postMessage({ type: 'cancel' })
+      } catch {
+        // The process may already be gone; `exit` handles that case.
+      }
+    }
+
+    return await new Promise<StorageDuplicateReport | null>((resolveScan, rejectScan) => {
+      let settled = false
+      let answered = false
+      const settle = (finish: () => void): void => {
+        if (settled) return
+        settled = true
+        finish()
+      }
+
+      worker.on(
+        'message',
+        (message: {
+          type?: string
+          progress?: StorageDuplicateProgress
+          report?: StorageDuplicateReport
+          message?: string
+        }) => {
+          if (message?.type === 'progress' && message.progress) {
+            lastDuplicateProgress = message.progress
+            try {
+              onProgress(message.progress)
+            } catch {
+              // A closed window must not end the scan.
+            }
+            return
+          }
+          if (message?.type === 'done' && message.report) {
+            answered = true
+            const report = message.report
+            lastDuplicateReport = report
+            lastDuplicateProgress = null
+            settle(() => resolveScan(report))
+            return
+          }
+          if (message?.type === 'aborted') {
+            answered = true
+            lastDuplicateProgress = null
+            settle(() => resolveScan(null))
+            return
+          }
+          if (message?.type === 'error') {
+            answered = true
+            lastDuplicateProgress = null
+            settle(() => rejectScan(new Error(message.message ?? 'A busca de duplicados falhou.')))
+          }
+        }
+      )
+
+      worker.on('exit', (code) => {
+        if (answered) return
+        lastDuplicateProgress = null
+        if (canceled) {
+          settle(() => resolveScan(null))
+          return
+        }
+        settle(() =>
+          rejectScan(
+            new Error(`A busca de duplicados terminou inesperadamente (código ${code}).`)
+          )
+        )
+      })
+
+      worker.postMessage({ type: 'start', root: target })
+    })
+  } finally {
+    entry.cancel = (): void => {}
+    try {
+      child?.kill()
+    } catch {
+      /* already gone */
+    }
+    if (activeDuplicate === entry) activeDuplicate = null
+  }
+}
+
+/**
+ * Real path to the duplicate worker entry.
+ *
+ * `electron-builder` unpacks this one file (`asarUnpack`): a utilityProcess is
+ * an OS-level spawn, and a module inside `app.asar` is not a real file.
+ */
+function duplicateWorkerEntry(): string {
+  const bundled = join(__dirname, 'duplicateWorker.js')
+  if (!app.isPackaged) return bundled
+  return bundled.replace(`app.asar${sep}`, `app.asar.unpacked${sep}`)
+}
+
+/**
+ * Real path to the storage worker entry.
  *
  * `electron-builder` unpacks this one file (`asarUnpack`): a utilityProcess is
  * an OS-level spawn, and a module inside `app.asar` is not a real file.

@@ -336,5 +336,15 @@ export const IPC = {
   /** Show a path in the system file manager. */
   storageReveal: 'storage:reveal',
   /** Pushed a few times per second while the scan runs. */
-  storageProgress: 'storage:progress'
+  storageProgress: 'storage:progress',
+  /** Start a duplicate analysis under a folder. */
+  storageDuplicateStart: 'storage:duplicate:start',
+  /** Cancel the duplicate analysis in flight. */
+  storageDuplicateCancel: 'storage:duplicate:cancel',
+  /** Whether a duplicate analysis is running and how far it got. */
+  storageDuplicateStatus: 'storage:duplicate:status',
+  /** Last completed duplicate report, kept in memory. */
+  storageDuplicateReport: 'storage:duplicate:report',
+  /** Pushed a few times per second while the duplicate analysis runs. */
+  storageDuplicateProgress: 'storage:duplicate:progress'
 } as const

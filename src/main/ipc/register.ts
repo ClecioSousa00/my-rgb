@@ -39,10 +39,14 @@ import type { OverlayService } from '../features/overlay/manager'
 import type { OverlayConfig } from '@shared/features/overlay'
 import { applyLogLevel, logDirectory } from '../logging'
 import {
+  cancelStorageDuplicateScan,
   cancelStorageScan,
   joinStorageScan,
+  lastStorageDuplicateReport,
   lastStorageReport,
+  startStorageDuplicateScan,
   startStorageScan,
+  storageDuplicateStatus,
   storageStatus
 } from '../features/storage'
 
@@ -324,6 +328,20 @@ export function registerIpc(host: IpcHost): void {
     // Read-only: reveals the item, never opens or changes it.
     shell.showItemInFolder(path)
   })
+
+  // --- storage duplicates ---------------------------------------------------
+
+  ipcMain.handle(IPC.storageDuplicateStart, (_e, root: string) =>
+    startStorageDuplicateScan(root, (progress) => {
+      if (!host.window || host.window.isDestroyed()) return
+      host.window.webContents.send(IPC.storageDuplicateProgress, progress)
+    })
+  )
+  ipcMain.handle(IPC.storageDuplicateCancel, () => {
+    cancelStorageDuplicateScan()
+  })
+  ipcMain.handle(IPC.storageDuplicateStatus, () => storageDuplicateStatus())
+  ipcMain.handle(IPC.storageDuplicateReport, () => lastStorageDuplicateReport())
 
   ipcMain.handle(IPC.logsOpen, async () => {
     const path = logDirectory(app.getPath('userData'))

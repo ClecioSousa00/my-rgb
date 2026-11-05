@@ -17,6 +17,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DriveInfo } from '@shared/features/system'
 import type {
+  StorageDuplicateProgress,
+  StorageDuplicateReport,
   StorageFile,
   StorageGame,
   StorageNode,
@@ -88,6 +90,10 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
   const [canceled, setCanceled] = useState(false)
   /** Folder picked for the next scan (a drive or anything from the dialog). */
   const [target, setTarget] = useState<string | null>(null)
+  /** Duplicate scan state, separate from the storage scan. */
+  const [duplicateReport, setDuplicateReport] = useState<StorageDuplicateReport | null>(null)
+  const [duplicateProgress, setDuplicateProgress] = useState<StorageDuplicateProgress | null>(null)
+  const [duplicateRunning, setDuplicateRunning] = useState(false)
   const alive = useRef(true)
 
   useEffect(() => {
@@ -148,13 +154,67 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
     }
   }, [])
 
+  const startDuplicate = useCallback(async (root: string) => {
+    setDuplicateRunning(true)
+    setDuplicateProgress({
+      stage: 'sizing',
+      files: 0,
+      sizeGroups: 0,
+      candidates: 0,
+      confirmed: 0,
+      currentPath: root,
+      elapsedMs: 0
+    })
+    try {
+      const result = await window.myrgb.startStorageDuplicateScan(root)
+      if (!alive.current) return
+      if (result) setDuplicateReport(result)
+      else {
+        // It finished between the status and the join; show what it left.
+        const last = await window.myrgb.getStorageDuplicateReport()
+        if (alive.current && last) setDuplicateReport(last)
+      }
+    } catch (err) {
+      if (alive.current) setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      if (alive.current) {
+        setDuplicateRunning(false)
+        setDuplicateProgress(null)
+      }
+    }
+  }, [])
+
+  /** Reattach to a duplicate analysis already in flight. */
+  const attachDuplicate = useCallback(async (initial: StorageDuplicateProgress | null) => {
+    setDuplicateRunning(true)
+    setDuplicateProgress(initial)
+    try {
+      const result = await window.myrgb.getStorageDuplicateReport()
+      if (!alive.current) return
+      if (result) setDuplicateReport(result)
+      else {
+        const last = await window.myrgb.getStorageDuplicateReport()
+        if (alive.current && last) setDuplicateReport(last)
+      }
+    } catch {
+      // Ignore; the user can start a new scan.
+    } finally {
+      if (alive.current) {
+        setDuplicateRunning(false)
+        setDuplicateProgress(null)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     let mounted = true
     void (async () => {
       try {
-        const [last, status] = await Promise.all([
+        const [last, status, dupLast, dupStatus] = await Promise.all([
           window.myrgb.getStorageReport(),
-          window.myrgb.getStorageStatus()
+          window.myrgb.getStorageStatus(),
+          window.myrgb.getStorageDuplicateReport(),
+          window.myrgb.getStorageDuplicateStatus()
         ])
         if (!mounted) return
         if (last) {
@@ -166,6 +226,10 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
           if (status.root) setTarget(status.root)
           await attach(status.progress)
         }
+        if (dupLast) setDuplicateReport(dupLast)
+        if (dupStatus?.running) {
+          await attachDuplicate(dupStatus.progress)
+        }
       } catch {
         // The tab still works: the user can start a new scan.
       }
@@ -173,7 +237,7 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
     return () => {
       mounted = false
     }
-  }, [attach])
+  }, [attach, attachDuplicate])
 
   useEffect(
     () =>
@@ -184,9 +248,26 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
     []
   )
 
+  useEffect(
+    () =>
+      window.myrgb.onStorageDuplicateProgress((next) => {
+        if (!alive.current) return
+        setDuplicateProgress(next)
+      }),
+    []
+  )
+
   const cancel = useCallback(async () => {
     try {
       await window.myrgb.cancelStorageScan()
+    } catch {
+      // The pending start call already reports the cancellation.
+    }
+  }, [])
+
+  const cancelDuplicate = useCallback(async () => {
+    try {
+      await window.myrgb.cancelStorageDuplicateScan()
     } catch {
       // The pending start call already reports the cancellation.
     }
@@ -250,6 +331,14 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
           />
           <SuggestionsCard report={report} onReveal={reveal} />
           <GamesCard report={report} onReveal={reveal} />
+          <DuplicatesCard
+            report={duplicateReport}
+            running={duplicateRunning}
+            progress={duplicateProgress}
+            onStart={() => target && void startDuplicate(target)}
+            onCancel={() => void cancelDuplicate()}
+            onReveal={reveal}
+          />
           <div className="grid items-stretch gap-4 xl:grid-cols-2">
             <FilesCard report={report} onReveal={reveal} />
             <FoldersCard report={report} />
@@ -652,6 +741,144 @@ function GamesCard({
         pasta. Battle.net, Xbox/Microsoft Store e outras bibliotecas não são lidos — um jogo desses
         continua visível pelo tamanho nas maiores pastas.
       </p>
+    </Card>
+  )
+}
+
+function DuplicatesCard({
+  report,
+  running,
+  progress,
+  onStart,
+  onCancel,
+  onReveal
+}: {
+  report: StorageDuplicateReport | null
+  running: boolean
+  progress: StorageDuplicateProgress | null
+  onStart: () => void
+  onCancel: () => void
+  onReveal: (path: string) => void
+}): React.JSX.Element {
+  const stageLabel: Record<StorageDuplicateProgress['stage'], string> = {
+    idle: 'Aguardando',
+    'sizing': 'Agrupando por tamanho',
+    'partial-hash': 'Confirmação parcial',
+    'full-hash': 'Confirmação completa',
+    done: 'Concluído'
+  }
+
+  return (
+    <Card className="card-scroll max-w-4xl">
+      <div className="flex shrink-0 items-start justify-between gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-300">
+          Arquivos duplicados
+        </h2>
+        <span className="chip shrink-0">
+          {report ? `${formatCount(report.duplicates.length)} sets · ${formatBytes(report.totalRecoverableBytes)}` : '—'}
+        </span>
+      </div>
+
+      {running && (
+        <div className="mt-3 flex items-start gap-3">
+          <div className="min-w-0">
+            <div className="text-[12px] font-medium text-ink-100">
+              {stageLabel[progress?.stage ?? 'idle']}
+            </div>
+            <div className="mt-0.5 truncate font-mono text-[10px] text-ink-500" title={progress?.currentPath}>
+              {progress?.currentPath ?? 'preparando'}
+            </div>
+          </div>
+          <button className="btn shrink-0" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {!running && !report && (
+        <div className="mt-3 flex items-center gap-2">
+          <button className="btn" onClick={onStart}>
+            Procurar duplicados
+          </button>
+          <p className="text-[11px] text-ink-500">
+            Compara tamanho, depois hash parcial e hash completo. Nada é apagado.
+          </p>
+        </div>
+      )}
+
+      {running && progress && (
+        <div className="mt-3">
+          <MetricGrid columns={3}>
+            <Metric label="Arquivos" value={formatCount(progress.files)} />
+            <Metric label="Candidatos" value={formatCount(progress.candidates)} />
+            <Metric label="Confirmados" value={formatCount(progress.confirmed)} />
+          </MetricGrid>
+        </div>
+      )}
+
+      {!running && report && report.duplicates.length === 0 && (
+        <p className="mt-3 text-[12px] leading-relaxed text-ink-300">
+          Nenhum duplicado encontrado nesta pasta. Dois arquivos só são duplicados quando o conteúdo
+          é idêntico — o nome sozinho não basta.
+        </p>
+      )}
+
+      {!running && report && report.duplicates.length > 0 && (
+        <div className="card-scroll-body mt-3 pr-1">
+          {report.duplicates.map((dup) => (
+            <div
+              key={dup.hash}
+              className="flex items-start gap-2 border-b border-ink-800 py-2 last:border-0"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="truncate text-[12px] font-medium text-ink-100" title={dup.name}>
+                    {dup.name}
+                  </span>
+                  <span className="chip shrink-0">{formatBytes(dup.size)}</span>
+                </div>
+                <div className="mt-0.5 text-[10px] text-ink-500">
+                  {formatCount(dup.copies.length)} cópias · {formatBytes(dup.recoverableBytes)} recuperável
+                </div>
+                <ul className="mt-1 space-y-1">
+                  {dup.copies.map((copy) => (
+                    <li key={copy.path} className="flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0 text-ink-500">—</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[11px] text-ink-200" title={copy.path}>
+                          {copy.path}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn shrink-0 px-2 py-0.5 text-[10px]"
+                        title="Mostrar no gerenciador de arquivos"
+                        aria-label={`Mostrar ${copy.path} no gerenciador de arquivos`}
+                        onClick={() => onReveal(copy.path)}
+                      >
+                        ↗
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="font-mono text-[11.5px] text-ink-200">
+                  {formatBytes(dup.recoverableBytes)}
+                </div>
+                <div className="mt-0.5 text-[10px] text-ink-500">recuperável</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!running && report && report.duplicates.length > 0 && (
+        <p className="mt-2 shrink-0 text-[10px] leading-relaxed text-ink-500">
+          {formatBytes(report.totalRecoverableBytes)} poderiam ser liberados mantendo uma cópia de
+          cada conjunto. Nada é apagado — cabe a você decidir o que remover.
+        </p>
+      )}
     </Card>
   )
 }

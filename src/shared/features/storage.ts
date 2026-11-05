@@ -203,3 +203,73 @@ export interface StorageGame {
   /** Where `name` came from, so the page can say it. */
   nameSource: 'manifest' | 'folder'
 }
+
+/** One copy of a duplicated file; all copies have identical content. */
+export interface StorageDuplicateCopy {
+  /** Absolute path of the copy. */
+  path: string
+  /** Last modification, epoch milliseconds; absent when the stat failed. */
+  mtimeMs?: number
+}
+
+/**
+ * One set of duplicates. `copies` all have the same content, confirmed by a
+ * full hash. `recoverableBytes` is what keeping just one copy would free -
+ * never more than the real size of the duplicates.
+ */
+export interface StorageDuplicate {
+  /** File name (all copies share it, but the name alone never proves anything). */
+  name: string
+  /** Size of each copy, in bytes. */
+  size: number
+  /** All copies. */
+  copies: StorageDuplicateCopy[]
+  /** (copies.length - 1) * size. */
+  recoverableBytes: number
+  /** Full hash that confirmed the copies are identical. */
+  hash: string
+}
+
+/** Stage of the duplicate analysis, shown as progress. */
+export type StorageDuplicateStage =
+  | 'idle'
+  | 'sizing'
+  | 'partial-hash'
+  | 'full-hash'
+  | 'done'
+
+/** Progress pushed while the duplicate analysis runs. */
+export interface StorageDuplicateProgress {
+  stage: StorageDuplicateStage
+  /** Files seen so far. */
+  files: number
+  /** Size groups with more than one file (candidates). */
+  sizeGroups: number
+  /** Groups still possible after the partial hash. */
+  candidates: number
+  /** Confirmed duplicate sets. */
+  confirmed: number
+  /** File being read right now. */
+  currentPath: string
+  elapsedMs: number
+}
+
+/** Result of one completed duplicate analysis. */
+export interface StorageDuplicateReport {
+  root: string
+  at: number
+  durationMs: number
+  duplicates: StorageDuplicate[]
+  /** Sum of `recoverableBytes` across all sets. */
+  totalRecoverableBytes: number
+  /** What the totals exclude, in the user's language. */
+  notes: string[]
+}
+
+/** Whether a duplicate analysis is running and how far it got. */
+export interface StorageDuplicateStatus {
+  running: boolean
+  progress: StorageDuplicateProgress | null
+  /** Root of the run in flight, so the page can show what is being scanned. */
+  root?: string
+}

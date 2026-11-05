@@ -36,6 +36,9 @@ import type {
   OverlayState
 } from './features/overlay'
 import type {
+  StorageDuplicateProgress,
+  StorageDuplicateReport,
+  StorageDuplicateStatus,
   StorageProgress,
   StorageReport,
   StorageStatus
@@ -138,6 +141,21 @@ export interface MyRgbApi {
   revealStoragePath(path: string): Promise<void>
   /** Pushed a few times per second while a scan runs. */
   onStorageProgress(callback: (progress: StorageProgress) => void): Unsubscribe
+
+  // storage duplicates
+  /**
+   * Analyse duplicates under a folder: size grouping, partial hash, full hash.
+   * Resolves to null when canceled.
+   */
+  startStorageDuplicateScan(root: string): Promise<StorageDuplicateReport | null>
+  /** Ask the running duplicate analysis to stop. */
+  cancelStorageDuplicateScan(): Promise<void>
+  /** Whether a duplicate analysis is running and how far it got. */
+  getStorageDuplicateStatus(): Promise<StorageDuplicateStatus | null>
+  /** Last completed duplicate report, without scanning again. */
+  getStorageDuplicateReport(): Promise<StorageDuplicateReport | null>
+  /** Pushed a few times per second while the duplicate analysis runs. */
+  onStorageDuplicateProgress(callback: (progress: StorageDuplicateProgress) => void): Unsubscribe
 
   // system & drives
   /** Static hardware snapshot. Cached in the main process for a minute. */

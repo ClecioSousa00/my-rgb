@@ -312,6 +312,20 @@ A lista é limitada a 300 instalações; se houver mais, o relatório avisa quan
 ficaram de fora. Cada jogo mostra tamanho, número de arquivos, fonte do nome
 (manifesto ou pasta) e um botão para mostrá-lo no gerenciador de arquivos.
 
+**Duplicados** — análise separada e opcional, nunca disparada sozinha:
+
+- O usuário escolhe a pasta e inicia; nada é apagado, movido ou alterado.
+- A detecção ocorre em três estágios: agrupamento por tamanho, hash parcial
+  (cabeça + cauda do arquivo) e hash completo apenas nos candidatos. Arquivos
+  com tamanho único são descartados sem ler o conteúdo.
+- O nome sozinho não prova nada: dois arquivos só são duplicados quando o
+  conteúdo é idêntico, confirmado por hash.
+- O resultado mostra cada conjunto com caminhos, tamanho, número de cópias e
+  espaço que seria liberado mantendo apenas uma cópia. Cabe ao usuário decidir
+  o que remover.
+- Corre num `utilityProcess` próprio, com progresso ao vivo e **Cancelar**.
+  Pastas sem permissão são ignoradas e não interrompem a análise.
+
 ---
 
 ## A tela de Rede

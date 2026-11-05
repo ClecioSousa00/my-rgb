@@ -24,7 +24,14 @@ import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
 import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { DiskHealthSnapshot } from '@shared/features/health'
 import type { NetworkProgress, NetworkReport, NetworkStatus } from '@shared/features/network'
-import type { StorageProgress, StorageReport, StorageStatus } from '@shared/features/storage'
+import type {
+  StorageDuplicateProgress,
+  StorageDuplicateReport,
+  StorageDuplicateStatus,
+  StorageProgress,
+  StorageReport,
+  StorageStatus
+} from '@shared/features/storage'
 import type {
   GamesQuery,
   GamesReport,
@@ -106,6 +113,18 @@ const api: MyRgbApi = {
     ipcRenderer.invoke(IPC.storageReveal, path),
   onStorageProgress: (callback: (progress: StorageProgress) => void) =>
     subscribe(IPC.storageProgress, callback),
+
+  // storage duplicates
+  startStorageDuplicateScan: (root: string): Promise<StorageDuplicateReport | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateStart, root),
+  cancelStorageDuplicateScan: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.storageDuplicateCancel),
+  getStorageDuplicateStatus: (): Promise<StorageDuplicateStatus | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateStatus),
+  getStorageDuplicateReport: (): Promise<StorageDuplicateReport | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateReport),
+  onStorageDuplicateProgress: (callback: (progress: StorageDuplicateProgress) => void) =>
+    subscribe(IPC.storageDuplicateProgress, callback),
 
   // system & drives
   getSystem: (force = false): Promise<SystemSnapshot> => ipcRenderer.invoke(IPC.systemGet, force),
