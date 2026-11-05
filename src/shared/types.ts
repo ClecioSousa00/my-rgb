@@ -184,6 +184,7 @@ export type PageId =
   | 'bottleneck'
   | 'overlay'
   | 'integrations'
+  | 'logs'
 
 /** Navigation state that survives a restart. */
 export interface UiSettings {
@@ -320,5 +321,37 @@ export const IPC = {
   /** Pushed every 500 ms while the overlay is open. */
   overlayFrame: 'overlay:frame',
   /** Folder holding the log and the crash reports. */
-  logsOpen: 'logs:open'
+  logsOpen: 'logs:open',
+  /** List the log files on disk. */
+  logsList: 'logs:list',
+  /** Read one log file and parse its lines. */
+  logsRead: 'logs:read',
+  /** Save one log file as plain text somewhere the user chooses. */
+  logsExport: 'logs:export',
+  /** Start (or attach to) a storage scan. */
+  storageStart: 'storage:start',
+  /** Cancel the scan in flight; its call resolves to null. */
+  storageCancel: 'storage:cancel',
+  /** Whether a scan is running and how far it got. */
+  storageStatus: 'storage:status',
+  /** Last completed report, kept in memory. */
+  storageReport: 'storage:report',
+  /** Attach to the scan in flight without starting one. */
+  storageJoin: 'storage:join',
+  /** Native folder picker. */
+  storagePick: 'storage:pick',
+  /** Show a path in the system file manager. */
+  storageReveal: 'storage:reveal',
+  /** Pushed a few times per second while the scan runs. */
+  storageProgress: 'storage:progress',
+  /** Start a duplicate analysis under a folder. */
+  storageDuplicateStart: 'storage:duplicate:start',
+  /** Cancel the duplicate analysis in flight. */
+  storageDuplicateCancel: 'storage:duplicate:cancel',
+  /** Whether a duplicate analysis is running and how far it got. */
+  storageDuplicateStatus: 'storage:duplicate:status',
+  /** Last completed duplicate report, kept in memory. */
+  storageDuplicateReport: 'storage:duplicate:report',
+  /** Pushed a few times per second while the duplicate analysis runs. */
+  storageDuplicateProgress: 'storage:duplicate:progress'
 } as const

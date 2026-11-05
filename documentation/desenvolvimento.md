@@ -111,6 +111,7 @@ diagnóstico:
 | `--dump-frames <dir>` | grava os quadros em disco, para comparar entre sistemas |
 | `--dump-offline` | junto com o de cima, não abre o dispositivo |
 | `--gen-docs <arquivo>` | regera o catálogo de efeitos |
+| `--storage-bench <pasta>` | varre a pasta com o motor a rodar e imprime FPS antes/durante, tempo e progresso |
 | `--hidden` | sobe sem janela (usado pelo autostart) |
 
 ```bash
@@ -208,6 +209,139 @@ A coleta é sob demanda (a página pede, o main responde), sem poll:
 A leitura é cacheada por 60 s: `smartctl -a` acorda um HDD adormecido, e um
 refresh a cada abertura de página atrapalharia o disco. O botão **Atualizar**
 passa `force` e ignora o cache.
+
+---
+
+## Como o armazenamento é analisado
+
+A análise de armazenamento é a única coisa do app que percorre uma árvore
+inteira de arquivos. Por isso ela é dividida em três camadas, e nenhuma delas
+toca o dispositivo ou o banco de perfis:
+
+- `src/main/features/storage/walk.ts` — o percurso puro, sem Electron: uma
+  passada por pasta (`readdir`), um `lstat` por arquivo, os totais, os
+  contadores e o ranking. É o que os testes exercitam, com árvores reais em
+  `/tmp`.
+- `src/main/features/storage/worker.ts` — o entry do `utilityProcess`, um
+  processo do sistema separado (`out/main/storageWorker.js`, um segundo input
+  do build do main). É isso que impede um milhão de `lstat` de atrasar um
+  quadro do motor.
+- `src/main/features/storage/index.ts` — a scan única em voo: sobe o worker,
+  reencaminha o progresso, guarda o último relatório em memória e cancela.
+
+Regras que valem para qualquer análise:
+
+- **Só leitura.** Nada é criado, alterado, movido ou apagado.
+- **Links não são seguidos** (simbólicos e junctions do Windows): eles são
+  contados e nomeados numa nota. Um link de volta para a raiz tornaria a
+  varredura infinita e o total maior que o disco.
+- **Hard links contam uma vez**: a chave é `dev:ino`, porque o mesmo arquivo
+  ocupa espaço uma vez só.
+- **Outras unidades não são atravessadas**: um ponto de montagem dentro da
+  pasta escolhida entra em `mounts`, não nos totais.
+- **Permissão negada não interrompe**: a pasta entra em `denied`, até cinco
+  caminhos ficam em `deniedSamples` e o relatório leva a nota de que o total
+  está incompleto. Nada pede root.
+- **Limites de memória**: no máximo 20 subpastas por pasta
+  (`STORAGE_MAX_CHILDREN`), 200 mil pastas (`STORAGE_MAX_NODES`) e os 500
+  maiores arquivos (`STORAGE_TOP_FILES`). Ao estourar o limite de pastas, as
+  seguintes são percorridas *sem* nó — os totais e o ranking continuam
+  completos, só o detalhe por pasta desaparece.
+- **Progresso agrupado**: no máximo uma atualização a cada 250 ms, nunca uma
+  por arquivo. `fraction` só aparece quando a raiz é o ponto de montagem e o
+  espaço usado do volume é conhecido; um palpite errado seria pior que nenhuma
+  barra.
+- **Cancelar** aborta o percurso entre arquivos e pastas; a chamada resolve
+  `null` e o worker é encerrado.
+
+`--storage-bench <pasta>` sobe a interface e o motor de verdade, roda a scan e
+imprime `fpsBefore`, `fpsDuring` e três amostras de progresso. Na máquina de
+desenvolvimento (AULA3-AR32, 4 zonas, motor limitado pelo HID a ~8,6 FPS),
+varrer `/home/developer/Projects` — 378 mil arquivos, 56 mil pastas, 13,3 GB —
+levou 3,2 s e o FPS ficou em 8,6 antes e durante: a scan não custou quadro
+nenhum. O `fork` do `utilityProcess` custa cerca de 1 s além da varredura; é o
+preço de manter o motor no processo principal.
+
+Na interface (`src/renderer/src/components/StorageAnalysis.tsx`), a aba tem três
+estados: escolher (unidades + `storage:pick`), acompanhar (progresso, pasta atual
+e **Cancelar**) e ler o relatório. O relatório vem do processo principal, então
+reabrir a aba mostra o último resultado; uma varredura em andamento é **retomada**
+por `storage:join`, que espera a promessa existente em vez de iniciar outra.
+**Mostrar no gerenciador de arquivos** usa `storage:reveal` (`showItemInFolder`),
+que só revela — não abre nem altera nada. A busca, o filtro de extensão e a
+ordenação ficam em `src/shared/features/storage-view.ts`, sem React, cobertos
+por `tests/storage-view.test.ts`; a árvore já vem ordenada e limitada do
+percurso, e expandir uma pasta não toca no disco.
+
+No pacote, o entry do worker e os chunks que ele exige são retirados do
+`app.asar` (`asarUnpack` em `electron-builder.yml`): `utilityProcess.fork` é um
+spawn do sistema e precisa de um arquivo real, não de um caminho dentro do
+arquivo. O worker e o processo principal compartilham os contratos de
+armazenamento, então o Rollup emite um chunk comum em `out/main/chunks/`; tirar
+só o entry do arquivo deixa o worker sem conseguir carregar esse chunk — foi o
+que o `--storage-growth-bench` empacotado pegou. `npm run build:dir` seguido de
+`--storage-bench` (ou `--storage-growth-bench`) numa árvore pequena prova esse
+caminho.
+
+**Diagnóstico** (`src/main/features/storage/diagnose.ts`) é uma função pura que
+recebe o relatório, as unidades e o resumo da análise anterior e devolve a lista
+de sugestões; a tela só renderiza. As regras são constantes em
+`src/shared/features/storage.ts` (`STORAGE_LOW_SPACE_PERCENT`,
+`STORAGE_NOTABLE_BYTES`, `STORAGE_GROWTH_MIN_BYTES`,
+`STORAGE_GROWTH_PERCENT`) e aparecem escritas no rodapé do cartão, porque uma
+sugestão com regra escondida não pode ser conferida. Duas decisões evitam
+conselho inventado: uma pasta já nomeada por temporários/Downloads/caches não é
+contada outra vez (`claimed`), e crescimento exige a pasta presente nos **dois**
+resumos — uma pasta nova e uma que estava fora do top-1000 anterior são
+indistinguíveis, então nenhuma das duas é reportada.
+
+O histórico (`src/main/features/storage/history.ts`) guarda, por raiz, o total e
+as 1000 maiores pastas em `userData/storage/scans.json` — não o relatório
+inteiro, que teria centenas de milhares de nós. São 12 raízes, a mais antiga cai
+fora; a escrita é em arquivo temporário + `rename` e as gravações são
+serializadas numa fila, porque duas análises terminando juntas não podem
+sobrescrever uma à outra. Arquivo ausente ou corrompido é lido como "sem
+histórico", nunca como erro da análise. `complete()` no gestor espera a gravação
+antes de resolver o relatório: a próxima análise da mesma raiz precisa ver este
+resumo.
+
+`--storage-growth-bench` faz duas varreduras de uma pasta temporária com um
+arquivo esparso de 2 GB criado no meio e imprime as sugestões das duas — é a
+prova de ponta a ponta do histórico, atravessando o `utilityProcess` e o disco.
+
+**Jogos** (`src/main/features/storage/walk.ts`) são reconhecidos pelo layout de
+pastas, não por um banco de nomes:
+
+- Steam: `<biblioteca>/steamapps/common/<jogo>`; o nome vem de
+  `appmanifest_*.acf` quando existe e do nome da pasta caso contrário.
+- Epic Games: `<pasta>/Epic Games/<jogo>`.
+- Riot Games: `<pasta>/Riot Games/<jogo>`.
+- Não são jogos: Proton, SteamVR, Steamworks Shared, Launcher, Riot Client — a
+  lista é curta e literal para não inventar nomes.
+- Battle.net, Xbox/MS Store e outras bibliotecas não são lidos; um jogo delas
+  continua aparecendo nas maiores pastas pelo tamanho, sem nome de jogo.
+
+O resultado é um array ordenado por tamanho, limitado a 300; o restante é
+somado numa nota. Apenas o nome do Steam é verificado no manifesto, lido depois
+da varredura para não atrasar o progresso.
+
+**Duplicados** (`src/main/features/storage/duplicates.ts`) são uma análise
+separada e opcional, executada num `utilityProcess` próprio
+(`duplicateWorker.js`, também em `asarUnpack`):
+
+- Etapa 1 (`sizing`): percorre a pasta e agrupa arquivos por tamanho. Grupos
+  com um único arquivo são descartados — nunca podem ser duplicados.
+- Etapa 2 (`partial-hash`): hash SHA-256 da cabeça e da cauda (4 KB cada) de
+  cada arquivo nos grupos restantes. Sobreviventes com o mesmo hash parcial
+  são candidatos.
+- Etapa 3 (`full-hash`): hash SHA-256 do conteúdo completo de cada candidato.
+  Grupos com mais de um arquivo com o mesmo hash completo são duplicados
+  confirmados.
+- O espaço recuperável é `(cópias - 1) × tamanho` por conjunto. Nada é apagado,
+  movido ou alterado.
+- O progresso é emitido a cada 250 ms com o estágio atual, arquivos lidos,
+  grupos por tamanho, candidatos e conjuntos confirmados. **Cancelar** encerra
+  o worker e resolve `null`.
 
 ---
 

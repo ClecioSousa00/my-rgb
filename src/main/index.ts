@@ -6,7 +6,7 @@
  */
 
 import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron'
-import { mkdirSync, statSync, writeFileSync } from 'fs'
+import { closeSync, ftruncateSync, mkdirSync, openSync, rmSync, statSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
@@ -37,6 +37,8 @@ import type { BottleneckUpdate } from '@shared/features/bottleneck'
 import { applyLogLevel, activeLogFile, logDirectory, startLogging } from './logging'
 import { crashDumpDirectory, startCrashReporter } from './logging/crash'
 import { normalizeLogLevel } from '@shared/logging'
+import { startStorageScan } from './features/storage'
+import type { StorageReport } from '@shared/features/storage'
 
 const isDev = !app.isPackaged
 
@@ -720,6 +722,144 @@ async function runHeadlessDump(): Promise<void> {
 }
 
 /**
+ * Storage scan benchmark.
+ *
+ * The storage module is built on one claim: the walk runs in a utilityProcess,
+ * so reading a whole disk does not cost frames. This runs the real engine and
+ * the real scan together and prints both rates, which is the only way to know
+ * whether the claim holds on this machine.
+ */
+async function runStorageBench(): Promise<void> {
+  const root = argValue('--storage-bench') ?? process.cwd()
+  const instance = new MyRgbApp()
+  await instance.start()
+
+  const window = instance.mainWindow
+  if (window) {
+    await new Promise<void>((resolve) => {
+      if (!window.webContents.isLoading()) return resolve()
+      window.webContents.once('did-finish-load', () => resolve())
+      setTimeout(resolve, 5000)
+    })
+  }
+
+  // Let the engine reach its steady state before sampling.
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  const fpsOver = async (ms: number): Promise<number> => {
+    const start = instance.engineState.lastFrameSeq
+    const at = Date.now()
+    await new Promise((resolve) => setTimeout(resolve, ms))
+    const elapsed = (Date.now() - at) / 1000
+    return Math.round(((instance.engineState.lastFrameSeq - start) / elapsed) * 10) / 10
+  }
+
+  const fpsBefore = await fpsOver(2000)
+
+  const samples: Array<{ at: number; seq: number }> = []
+  const frames = setInterval(() => {
+    samples.push({ at: Date.now(), seq: instance.engineState.lastFrameSeq })
+  }, 250)
+  const updates: Array<{ files: number; bytes: number; fraction?: number }> = []
+  const startedAt = Date.now()
+  let report = null
+  try {
+    report = await startStorageScan(root, (progress) => {
+      updates.push({ files: progress.files, bytes: progress.bytes, fraction: progress.fraction })
+    })
+  } finally {
+    clearInterval(frames)
+  }
+
+  const first = samples[0]
+  const last = samples[samples.length - 1]
+  const fpsDuring =
+    first && last && last.at > first.at
+      ? Math.round(((last.seq - first.seq) / ((last.at - first.at) / 1000)) * 10) / 10
+      : 0
+
+  console.log(
+    JSON.stringify(
+      {
+        root,
+        scanSeconds: Math.round((Date.now() - startedAt) / 100) / 10,
+        fpsBefore,
+        fpsDuring,
+        progress: {
+          updates: updates.length,
+          // First third / middle / end, to show the bar moving instead of
+          // jumping from 0 to 100 when the walk ends.
+          first: updates[0] ?? null,
+          middle: updates.length > 1 ? updates[Math.floor(updates.length / 2)] : null,
+          last: updates[updates.length - 1] ?? null
+        },
+        report: report
+          ? {
+              durationMs: report.durationMs,
+              driveId: report.driveId,
+              files: report.files,
+              dirs: report.dirs,
+              bytes: report.bytes,
+              denied: report.denied,
+              links: report.links,
+              hardLinks: report.hardLinks,
+              mounts: report.mounts,
+              top: report.topFiles.slice(0, 5).map((file) => ({
+                path: file.path,
+                bytes: file.bytes
+              })),
+              notes: report.notes,
+              suggestions: report.suggestions,
+              games: report.games.slice(0, 5)
+            }
+          : null
+      },
+      null,
+      2
+    )
+  )
+  app.exit(report ? 0 : 1)
+}
+
+/**
+ * Growth advice, end to end.
+ *
+ * Two scans of the same temporary folder with a sparse file created between
+ * them: the snapshot written by the first scan has to be read by the second,
+ * across the real utilityProcess and the real file. A sparse file is measured
+ * as 2 GB and costs no disk, and the fixture lives in the temp folder, never
+ * in the user's data. The file goes inside `cache`, so the output must name
+ * the subfolder (not the root that contains it) and also show the cache rule.
+ */
+async function runStorageGrowthBench(): Promise<void> {
+  const root = join(app.getPath('temp'), 'myrgb-storage-growth')
+  rmSync(root, { recursive: true, force: true })
+  mkdirSync(join(root, 'cache'), { recursive: true })
+  writeFileSync(join(root, 'cache', 'a.bin'), Buffer.alloc(64 * 1024))
+  writeFileSync(join(root, 'nota.txt'), 'primeira analise')
+
+  const summarize = (
+    report: StorageReport | null
+  ): { bytes: number; files: number; suggestions: StorageReport['suggestions'] } | null =>
+    report ? { bytes: report.bytes, files: report.files, suggestions: report.suggestions } : null
+
+  const first = await startStorageScan(root, () => {})
+
+  const big = join(root, 'cache', 'cresceu.bin')
+  const fd = openSync(big, 'w')
+  ftruncateSync(fd, 2_000_000_000)
+  closeSync(fd)
+
+  const second = await startStorageScan(root, () => {})
+  rmSync(root, { recursive: true, force: true })
+
+  console.log(
+    JSON.stringify({ root, first: summarize(first), second: summarize(second) }, null, 2)
+  )
+  app.exit(second ? 0 : 1)
+}
+
+/**
  * Hardware smoke test: writes a rainbow gradient to every zone.
  *
  * This exercises the exact production code path - the same protocol module,
@@ -822,6 +962,25 @@ async function runSelfTest(): Promise<void> {
   // The diagnostic pages are visited too: their data arrives from the main
   // process, so this is the only place that proves the whole path (collector
   // -> IPC -> bridge -> card) works in a packaged app.
+  //
+  // The storage tab gets a small real tree: the scan has to cross the
+  // utilityProcess and the IPC, and walking a whole drive would make the self
+  // test take minutes.
+  const storageFixture = join(app.getPath('temp'), 'myrgb-selftest-storage')
+  rmSync(storageFixture, { recursive: true, force: true })
+  mkdirSync(join(storageFixture, 'sub'), { recursive: true })
+  writeFileSync(join(storageFixture, 'grande.bin'), Buffer.alloc(2 * 1024 * 1024))
+  writeFileSync(join(storageFixture, 'sub', 'pequeno.txt'), 'selftest')
+  // A Steam library with a manifest, so the game section is proven with the
+  // real shape and the real name source instead of an empty state.
+  const steamApps = join(storageFixture, 'SteamLibrary', 'steamapps')
+  mkdirSync(join(steamApps, 'common', 'Jogo de Teste'), { recursive: true })
+  writeFileSync(join(steamApps, 'common', 'Jogo de Teste', 'dados.bin'), Buffer.alloc(512 * 1024))
+  writeFileSync(
+    join(steamApps, 'appmanifest_42.acf'),
+    '"AppState"\n{\n\t"appid"\t\t"42"\n\t"name"\t\t"Jogo de Teste Completo"\n\t"installdir"\t\t"Jogo de Teste"\n}\n'
+  )
+
   await window.webContents.executeJavaScript(`
     (async () => {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -947,6 +1106,37 @@ async function runSelfTest(): Promise<void> {
       await waitFor(() => document.querySelectorAll('.disk-health').length >= 1, 15000)
       window.__myRgbHealthTab =
         document.querySelectorAll('.disk-health').length >= 1 && /Saúde/.test(text())
+
+      // Análise: one real scan of the fixture, then the report on screen.
+      const storageReport = await window.myrgb
+        .startStorageScan(${JSON.stringify(storageFixture)})
+        .catch(() => null)
+      const analysisTab = Array.from(document.querySelectorAll('[role="tab"]')).find((tab) =>
+        /Análise/.test(tab.textContent ?? '')
+      )
+      if (analysisTab instanceof HTMLElement) analysisTab.click()
+      // The card titles are uppercased by CSS, so the text check must ignore
+      // case; innerText returns what the user sees.
+      await waitFor(
+        () =>
+          /maiores arquivos/i.test(text()) &&
+          /maiores pastas/i.test(text()) &&
+          /sugestões/i.test(text()),
+        15000
+      )
+      // The footnote always renders, empty list or not; the suggestion itself
+      // depends on the machine's free space, so it is not asserted here. The
+      // game comes from the fixture's Steam library and must carry the name
+      // from appmanifest_42.acf, not the folder name.
+      window.__myRgbStorageTab =
+        storageReport !== null &&
+        /maiores arquivos/i.test(text()) &&
+        /maiores pastas/i.test(text()) &&
+        /sugestões/i.test(text()) &&
+        /são sugestões/i.test(text()) &&
+        /reconhecidos pela pasta de instalação/i.test(text()) &&
+        /jogo de teste completo/i.test(text()) &&
+        text().includes('grande.bin')
 
       // Rede: the full test saturates the link for ~30 s, too long for the
       // self test. Starting it and cancelling proves the IPC, the progress
@@ -1211,6 +1401,7 @@ async function runSelfTest(): Promise<void> {
         systemReady: window.__myRgbSystemReady === true,
         drivesReady: window.__myRgbDrivesReady === true,
         healthTab: window.__myRgbHealthTab === true,
+        storageTab: window.__myRgbStorageTab === true,
         networkReady: window.__myRgbNetworkReady === true,
         gamesReady: window.__myRgbGamesReady === true,
         bottleneckReady: window.__myRgbBottleneckReady === true,
@@ -1228,6 +1419,7 @@ async function runSelfTest(): Promise<void> {
       }
     })()
   `)
+  rmSync(storageFixture, { recursive: true, force: true })
 
   // The global shortcut is what toggles the overlay over a game; registering
   // it is the part that can silently fail when another app owns the combo.
@@ -1256,6 +1448,7 @@ async function runSelfTest(): Promise<void> {
     report.systemReady === true &&
     report.drivesReady === true &&
     report.healthTab === true &&
+    report.storageTab === true &&
     report.networkReady === true &&
     report.gamesReady === true &&
     report.bottleneckReady === true &&
@@ -1314,6 +1507,14 @@ if (!app.requestSingleInstanceLock()) {
       }
       if (process.argv.includes('--gen-docs')) {
         await runDocGeneration()
+        return
+      }
+      if (process.argv.includes('--storage-bench')) {
+        await runStorageBench()
+        return
+      }
+      if (process.argv.includes('--storage-growth-bench')) {
+        await runStorageGrowthBench()
         return
       }
 

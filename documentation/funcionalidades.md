@@ -46,7 +46,7 @@ navegação e depois detalha cada tela.
 | Visão geral | Hardware, limitador ao vivo, discos, saúde, rede e atalhos — **pronta** |
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
-| Discos | Unidades e Saúde — **pronta** |
+| Discos | Unidades, Saúde e Análise — **prontas** |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
 | Jogos | FPS medido ou estimado por jogo, com fonte e confiança — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
@@ -211,7 +211,7 @@ escondida.
 
 ## A tela de Discos
 
-Duas abas.
+Três abas.
 
 **Unidades** — um cartão por volume, com anel de ocupação (branco = usado,
 cinza = livre), o ponto de montagem (`/`, `/home`, `C:`), o tipo (SSD, HDD, USB,
@@ -252,6 +252,79 @@ De onde vêm os números:
 - Um disco que não responde (pendrive com bridge USB sem suporte, disco sem
   permissão) fica como **sem dados** — nunca como saudável. No Windows o
   "Healthy" que ele dá para qualquer pendrive não conta como métrica.
+
+**Análise** — a varredura é sob demanda, nunca no arranque: escolhe-se uma
+unidade ou uma pasta (diálogo do sistema) e ela roda num processo separado
+(`utilityProcess`), com progresso agrupado (arquivos, pastas, bytes e pasta
+atual), estimativa de andamento quando a pasta é a raiz da unidade e botão
+**Cancelar**. Sair da aba não interrompe a análise; voltar mostra o progresso ou
+o último resultado. É estritamente de leitura: não segue links simbólicos nem
+junctions, não atravessa outras unidades e conta um hard link uma vez só. Pasta
+sem permissão não interrompe nada — entra na contagem de ignoradas, fica
+nomeada numa nota e o relatório avisa que o total está incompleto.
+
+O resumo mostra o tamanho analisado, arquivos, pastas, duração, o percentual do
+espaço usado na unidade e quantas pastas ficaram sem permissão. Abaixo, duas
+listas: os **maiores arquivos** (nome, caminho, tamanho, extensão, data e um
+botão para mostrar no gerenciador de arquivos), com busca pelo nome, filtro por
+extensão e ordenação por tamanho ou nome; e as **maiores pastas**, com tamanho,
+percentual do total, quantidade de arquivos e subpastas e data, que se expandem
+na própria tela sem reler o disco. Para caber na memória, a árvore guarda as 20
+maiores subpastas por pasta e no máximo 200 mil pastas, além dos 500 maiores
+arquivos; passando disso, os totais continuam completos e só o detalhe por pasta
+desaparece.
+
+**Sugestões** — o diagnóstico não aponta problemas obrigatórios, e sim o que
+vale olhar, com a regra escrita ao lado para você poder discordar dela:
+
+- unidade com menos de 10% de espaço livre (o aviso também aparece no cartão da
+  unidade, antes da varredura);
+- arquivos de 1 GB ou mais entre os 500 maiores;
+- pastas temporárias, de Downloads ou de cache com 1 GB ou mais — uma pasta já
+  nomeada por uma categoria não entra de novo em outra;
+- pasta que cresceu pelo menos 1 GB **e** 10% desde a análise anterior da mesma
+  pasta. Isso exige um resumo guardado da varredura anterior
+  (`userData/storage/scans.json`); na primeira análise a linha não aparece, e
+  uma pasta que estava fora das 1000 maiores da vez anterior não é comparada.
+  A pasta analisada só aparece quando o crescimento não está numa subpasta —
+  o total dela já está no resumo — e, quando uma pasta e uma subpasta dela
+  cresceram, só a de cima é listada, para o mesmo espaço não aparecer duas
+  vezes.
+
+Cada sugestão mostra caminho, tamanho e um botão para mostrá-la no gerenciador
+de arquivos. Uma lista vazia significa "nada a apontar por estas regras", nunca
+"o disco está saudável".
+
+**Jogos** — instalações reconhecidas pelo layout de pastas, sem banco de nomes:
+
+- Steam: `<biblioteca>/steamapps/common/<jogo>`, com o nome do `appmanifest_*.acf`
+  quando existe; sem ele, o nome da pasta (não um nome inventado).
+- Epic Games: `Program Files/Epic Games/<jogo>` (ou qualquer pasta
+  `Epic Games/`).
+- Riot Games: `Riot Games/<jogo>`.
+- Layouts que não são jogo — Proton, SteamVR, Steamworks Shared, Launcher,
+  Riot Client — não são listados.
+- Battle.net, Xbox/Microsoft Store e outras bibliotecas não são lidos: um jogo
+  instalado por elas continua aparecendo nas maiores pastas pelo tamanho, mas
+  sem nome de jogo.
+
+A lista é limitada a 300 instalações; se houver mais, o relatório avisa quantas
+ficaram de fora. Cada jogo mostra tamanho, número de arquivos, fonte do nome
+(manifesto ou pasta) e um botão para mostrá-lo no gerenciador de arquivos.
+
+**Duplicados** — análise separada e opcional, nunca disparada sozinha:
+
+- O usuário escolhe a pasta e inicia; nada é apagado, movido ou alterado.
+- A detecção ocorre em três estágios: agrupamento por tamanho, hash parcial
+  (cabeça + cauda do arquivo) e hash completo apenas nos candidatos. Arquivos
+  com tamanho único são descartados sem ler o conteúdo.
+- O nome sozinho não prova nada: dois arquivos só são duplicados quando o
+  conteúdo é idêntico, confirmado por hash.
+- O resultado mostra cada conjunto com caminhos, tamanho, número de cópias e
+  espaço que seria liberado mantendo apenas uma cópia. Cabe ao usuário decidir
+  o que remover.
+- Corre num `utilityProcess` próprio, com progresso ao vivo e **Cancelar**.
+  Pastas sem permissão são ignoradas e não interrompem a análise.
 
 ---
 

@@ -38,6 +38,18 @@ import type { BottleneckService } from '../features/bottleneck'
 import type { OverlayService } from '../features/overlay/manager'
 import type { OverlayConfig } from '@shared/features/overlay'
 import { applyLogLevel, logDirectory } from '../logging'
+import { listLogs, readLog } from '../features/logs'
+import {
+  cancelStorageDuplicateScan,
+  cancelStorageScan,
+  joinStorageScan,
+  lastStorageDuplicateReport,
+  lastStorageReport,
+  startStorageDuplicateScan,
+  startStorageScan,
+  storageDuplicateStatus,
+  storageStatus
+} from '../features/storage'
 
 /** Largest profile file accepted on import; real ones are a few kilobytes. */
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024
@@ -285,6 +297,53 @@ export function registerIpc(host: IpcHost): void {
 
   // --- logs ---------------------------------------------------------------
 
+  // --- storage ------------------------------------------------------------
+
+  ipcMain.handle(IPC.storageStart, (_e, root: string) =>
+    startStorageScan(root, (progress) => {
+      if (!host.window || host.window.isDestroyed()) return
+      host.window.webContents.send(IPC.storageProgress, progress)
+    })
+  )
+  ipcMain.handle(IPC.storageCancel, () => {
+    cancelStorageScan()
+  })
+  ipcMain.handle(IPC.storageStatus, () => storageStatus())
+  ipcMain.handle(IPC.storageReport, () => lastStorageReport())
+  ipcMain.handle(IPC.storageJoin, () => joinStorageScan())
+  ipcMain.handle(IPC.storagePick, async () => {
+    const options = {
+      title: 'Escolher pasta para analisar',
+      properties: ['openDirectory' as const]
+    }
+    // Without a parent the dialog is not modal on Linux; with one it follows
+    // the window the user is looking at.
+    const parent = host.window && !host.window.isDestroyed() ? host.window : null
+    const result = parent
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  })
+  ipcMain.handle(IPC.storageReveal, (_e, path: string) => {
+    if (typeof path !== 'string' || path.length === 0) return
+    // Read-only: reveals the item, never opens or changes it.
+    shell.showItemInFolder(path)
+  })
+
+  // --- storage duplicates ---------------------------------------------------
+
+  ipcMain.handle(IPC.storageDuplicateStart, (_e, root: string) =>
+    startStorageDuplicateScan(root, (progress) => {
+      if (!host.window || host.window.isDestroyed()) return
+      host.window.webContents.send(IPC.storageDuplicateProgress, progress)
+    })
+  )
+  ipcMain.handle(IPC.storageDuplicateCancel, () => {
+    cancelStorageDuplicateScan()
+  })
+  ipcMain.handle(IPC.storageDuplicateStatus, () => storageDuplicateStatus())
+  ipcMain.handle(IPC.storageDuplicateReport, () => lastStorageDuplicateReport())
+
   ipcMain.handle(IPC.logsOpen, async () => {
     const path = logDirectory(app.getPath('userData'))
     try {
@@ -296,6 +355,30 @@ export function registerIpc(host: IpcHost): void {
     }
     const error = await shell.openPath(path)
     return { path, error: error || null }
+  })
+  ipcMain.handle(IPC.logsList, () => listLogs())
+  ipcMain.handle(IPC.logsRead, (_e, name: string) => readLog(name))
+  ipcMain.handle(IPC.logsExport, async (_e, name: string) => {
+    const read = readLog(name)
+    const content = read.entries
+      .map((entry) => `${entry.at} ${entry.level.toUpperCase()} ${entry.message}`)
+      .join('\n')
+    const options = {
+      title: 'Exportar registo de erros',
+      defaultPath: name.replace('.log', '.txt'),
+      filters: [{ name: 'Texto', extensions: ['txt'] }]
+    }
+    const parent = host.window && !host.window.isDestroyed() ? host.window : undefined
+    const result = parent
+      ? await dialog.showSaveDialog(parent, options)
+      : await dialog.showSaveDialog(options)
+    if (result.canceled || result.filePath.length === 0) return null
+    try {
+      writeFileSync(result.filePath, content, 'utf8')
+      return result.filePath
+    } catch {
+      return null
+    }
   })
 
   // --- system & drives ----------------------------------------------------

@@ -25,6 +25,15 @@ import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { DiskHealthSnapshot } from '@shared/features/health'
 import type { NetworkProgress, NetworkReport, NetworkStatus } from '@shared/features/network'
 import type {
+  StorageDuplicateProgress,
+  StorageDuplicateReport,
+  StorageDuplicateStatus,
+  StorageProgress,
+  StorageReport,
+  StorageStatus
+} from '@shared/features/storage'
+import type { LogList, LogRead } from '@shared/features/log'
+import type {
   GamesQuery,
   GamesReport,
   GpuMatch
@@ -92,6 +101,35 @@ const api: MyRgbApi = {
   setSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IPC.settingsSet, patch),
   openLogsFolder: (): Promise<LogsFolderResult> => ipcRenderer.invoke(IPC.logsOpen),
+  listLogs: (): Promise<LogList> => ipcRenderer.invoke(IPC.logsList),
+  readLog: (name: string): Promise<LogRead> => ipcRenderer.invoke(IPC.logsRead, name),
+  exportLog: (name: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.logsExport, name),
+
+  // storage
+  startStorageScan: (root: string): Promise<StorageReport | null> =>
+    ipcRenderer.invoke(IPC.storageStart, root),
+  cancelStorageScan: (): Promise<void> => ipcRenderer.invoke(IPC.storageCancel),
+  getStorageStatus: (): Promise<StorageStatus> => ipcRenderer.invoke(IPC.storageStatus),
+  getStorageReport: (): Promise<StorageReport | null> => ipcRenderer.invoke(IPC.storageReport),
+  joinStorageScan: (): Promise<StorageReport | null> => ipcRenderer.invoke(IPC.storageJoin),
+  pickStorageFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.storagePick),
+  revealStoragePath: (path: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.storageReveal, path),
+  onStorageProgress: (callback: (progress: StorageProgress) => void) =>
+    subscribe(IPC.storageProgress, callback),
+
+  // storage duplicates
+  startStorageDuplicateScan: (root: string): Promise<StorageDuplicateReport | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateStart, root),
+  cancelStorageDuplicateScan: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.storageDuplicateCancel),
+  getStorageDuplicateStatus: (): Promise<StorageDuplicateStatus | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateStatus),
+  getStorageDuplicateReport: (): Promise<StorageDuplicateReport | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateReport),
+  onStorageDuplicateProgress: (callback: (progress: StorageDuplicateProgress) => void) =>
+    subscribe(IPC.storageDuplicateProgress, callback),
 
   // system & drives
   getSystem: (force = false): Promise<SystemSnapshot> => ipcRenderer.invoke(IPC.systemGet, force),

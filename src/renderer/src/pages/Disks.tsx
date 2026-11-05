@@ -1,13 +1,15 @@
 /**
  * Discos.
  *
- * Two tabs: the volumes the user can fill ("Unidades") and the health of the
- * physical disks ("Saúde").
+ * Three tabs: the volumes the user can fill ("Unidades"), the health of the
+ * physical disks ("Saúde") and what is filling a folder ("Análise").
  *
  * The volume card is built around the occupancy ring, because that is the one
  * number a person checks. The health card is built around the verdict: the
  * reasons come first, the metrics that were actually read come next, and a
- * disk that answers nothing says "sem dados" instead of "saudável".
+ * disk that answers nothing says "sem dados" instead of "saudável". The
+ * analysis tab starts nothing on its own - a disk walk is expensive and only
+ * runs when the user asks.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -17,11 +19,12 @@ import { Card } from '../components/ui/Card'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Ring } from '../components/ui/Ring'
 import { Section } from '../components/ui/Section'
+import { StorageAnalysis } from '../components/StorageAnalysis'
 import { Tabs } from '../components/ui/Tabs'
 import { Metric, MetricGrid } from '../components/ui/Metric'
 import { formatBytes, formatCount, formatPercent, formatSensor } from '@shared/format'
 
-type DiskTab = 'drives' | 'health'
+type DiskTab = 'drives' | 'health' | 'analysis'
 
 const KIND_LABEL: Record<DriveKind, string> = {
   ssd: 'SSD',
@@ -381,19 +384,27 @@ export function DisksPage(): React.JSX.Element {
         )} de ${formatBytes(total)} usados`
       : undefined
 
-  const subtitle = tab === 'drives' ? drivesSummary : healthSummary(health)
-  const busy = tab === 'drives' ? loading : loadingHealth || elevating
+  const subtitle =
+    tab === 'drives'
+      ? drivesSummary
+      : tab === 'health'
+        ? healthSummary(health)
+        : 'Sob demanda · leitura apenas'
+  const busy =
+    tab === 'drives' ? loading : tab === 'health' ? loadingHealth || elevating : false
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
       <PageHeader page="disks" subtitle={subtitle}>
-        <button
-          className="btn"
-          onClick={() => void (tab === 'drives' ? load() : loadHealth(true))}
-          disabled={busy}
-        >
-          {busy ? 'Lendo…' : 'Atualizar'}
-        </button>
+        {tab !== 'analysis' && (
+          <button
+            className="btn"
+            onClick={() => void (tab === 'drives' ? load() : loadHealth(true))}
+            disabled={busy}
+          >
+            {busy ? 'Lendo…' : 'Atualizar'}
+          </button>
+        )}
       </PageHeader>
 
       <div className="mt-5">
@@ -403,12 +414,15 @@ export function DisksPage(): React.JSX.Element {
           onChange={setTab}
           items={[
             { id: 'drives', label: 'Unidades', count: drives?.length },
-            { id: 'health', label: 'Saúde', count: health?.cards.length }
+            { id: 'health', label: 'Saúde', count: health?.cards.length },
+            { id: 'analysis', label: 'Análise' }
           ]}
         />
       </div>
 
       <div className="mt-5">
+        {tab === 'analysis' && <StorageAnalysis drives={drives ?? []} />}
+
         {tab === 'health' && (
           <HealthTab
             snapshot={health}

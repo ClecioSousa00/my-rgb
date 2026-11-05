@@ -35,6 +35,15 @@ import type {
   OverlayFrame,
   OverlayState
 } from './features/overlay'
+import type {
+  StorageDuplicateProgress,
+  StorageDuplicateReport,
+  StorageDuplicateStatus,
+  StorageProgress,
+  StorageReport,
+  StorageStatus
+} from './features/storage'
+import type { LogList, LogRead } from './features/log'
 
 export type Unsubscribe = () => void
 
@@ -106,6 +115,56 @@ export interface MyRgbApi {
    * can show the user where the file is instead of only saying it failed.
    */
   openLogsFolder(): Promise<LogsFolderResult>
+
+  // storage
+  /**
+   * Analyse a folder. Starting a second scan while one runs returns the call
+   * already in flight. Resolves to null when canceled.
+   */
+  startStorageScan(root: string): Promise<StorageReport | null>
+  /** Ask the running scan to stop. */
+  cancelStorageScan(): Promise<void>
+  /** Whether a scan is running, and its latest counters. */
+  getStorageStatus(): Promise<StorageStatus>
+  /** Last completed report, without scanning again. */
+  getStorageReport(): Promise<StorageReport | null>
+  /**
+   * Wait for the scan already in flight, without starting one.
+   *
+   * Used when the page opens mid-scan: unlike `startStorageScan`, a scan that
+   * finishes between the status check and this call cannot start a second read
+   * of the same disk.
+   */
+  joinStorageScan(): Promise<StorageReport | null>
+  /** Native folder picker; resolves to null when the user cancels. */
+  pickStorageFolder(): Promise<string | null>
+  /** Show a file or folder in the system file manager (read-only). */
+  revealStoragePath(path: string): Promise<void>
+  /** Pushed a few times per second while a scan runs. */
+  onStorageProgress(callback: (progress: StorageProgress) => void): Unsubscribe
+
+  // storage duplicates
+  /**
+   * Analyse duplicates under a folder: size grouping, partial hash, full hash.
+   * Resolves to null when canceled.
+   */
+  startStorageDuplicateScan(root: string): Promise<StorageDuplicateReport | null>
+  /** Ask the running duplicate analysis to stop. */
+  cancelStorageDuplicateScan(): Promise<void>
+  /** Whether a duplicate analysis is running and how far it got. */
+  getStorageDuplicateStatus(): Promise<StorageDuplicateStatus | null>
+  /** Last completed duplicate report, without scanning again. */
+  getStorageDuplicateReport(): Promise<StorageDuplicateReport | null>
+  /** Pushed a few times per second while the duplicate analysis runs. */
+  onStorageDuplicateProgress(callback: (progress: StorageDuplicateProgress) => void): Unsubscribe
+
+  // logs
+  /** List the log files on disk, newest first. */
+  listLogs(): Promise<LogList>
+  /** Read one log file and parse its lines. */
+  readLog(name: string): Promise<LogRead>
+  /** Save one log file as plain text where the user chooses; resolves to the saved path or null. */
+  exportLog(name: string): Promise<string | null>
 
   // system & drives
   /** Static hardware snapshot. Cached in the main process for a minute. */

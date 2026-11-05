@@ -38,6 +38,17 @@ extraResources:
       - '*.png'
 
 asar: true
+
+# The storage walk runs in a utilityProcess, which is an OS-level spawn: it has
+# to be real files on disk, not paths inside app.asar. The worker entry *and*
+# the shared chunks it requires are unpacked (`out/main/chunks/**`): the worker
+# and the main process share the storage contracts, and Rollup emits them once
+# in a chunk instead of duplicating. Unpacking only the entry left the worker
+# unable to require its chunk.
+asarUnpack:
+  - out/main/storageWorker.js
+  - out/main/duplicateWorker.js
+  - out/main/chunks/**
 compression: maximum
 
 linux:
