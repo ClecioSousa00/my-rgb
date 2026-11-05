@@ -17,11 +17,13 @@
  *  - one hard-linked file is counted once: it occupies space once.
  */
 
-import { lstat, readdir } from 'fs/promises'
+import { lstat, readdir, readFile } from 'fs/promises'
 import type { Dirent } from 'fs'
-import { extname, join, resolve } from 'path'
+import { basename, dirname, extname, join, resolve } from 'path'
 import type {
   StorageFile,
+  StorageGame,
+  StorageGamePlatform,
   StorageLimits,
   StorageNode,
   StorageProgress,
@@ -29,6 +31,7 @@ import type {
 } from '@shared/features/storage'
 import {
   STORAGE_MAX_CHILDREN,
+  STORAGE_MAX_GAMES,
   STORAGE_MAX_NODES,
   STORAGE_TOP_FILES
 } from '@shared/features/storage'
@@ -65,6 +68,25 @@ const CONCURRENCY = 16
 
 /** Directory entries read at once, so a 50k-entry folder does not stall. */
 const PROGRESS_MS = 250
+
+/** Steam manifests read at the end, enough for any real library. */
+const MANIFEST_LIMIT = 500
+
+/**
+ * Folders that live inside a launcher's layout but are not games.
+ *
+ * Naming a runtime as a game would be an invented name, so these are skipped.
+ * The list is intentionally tiny and literal: a folder not listed here is
+ * shown with the name it has on disk, which the user can check.
+ */
+const NON_GAME_FOLDERS: Record<StorageGamePlatform, Set<string>> = {
+  steam: new Set(['steamworks shared', 'steamvr', 'steam controller configs']),
+  epic: new Set(['launcher', 'unrealengine', 'unreal engine']),
+  riot: new Set(['riot client'])
+}
+
+/** Prefixes that are runtimes under `steamapps/common`. */
+const STEAM_RUNTIME_PREFIXES = ['proton', 'steamlinuxruntime']
 
 class Semaphore {
   private free: number
@@ -173,6 +195,10 @@ export async function walkStorage(options: WalkOptions): Promise<StorageReport> 
   const semaphore = new Semaphore(CONCURRENCY)
   const top = new TopFiles(limits.topFiles)
   const seen = new Set<string>()
+  /** Game installs found so far; sizes are filled as their folders close. */
+  const games: StorageGame[] = []
+  /** `appmanifest_*.acf` files, read after the walk for the real names. */
+  const manifests: string[] = []
   const totals: Totals = {
     bytes: 0,
     files: 0,
@@ -340,6 +366,9 @@ export async function walkStorage(options: WalkOptions): Promise<StorageReport> 
     currentPath = path
     const node: StorageNode = { name, path, bytes: 0, files: 0, dirs: 0, children: [] }
     totals.nodes += 1
+    // Steam keeps `appmanifest_<appid>.acf` next to `common/`; the manifest is
+    // the only trustworthy source for the game's display name.
+    const isSteamApps = basename(path).toLowerCase() === 'steamapps'
 
     let entries: Dirent[]
     try {
@@ -367,6 +396,13 @@ export async function walkStorage(options: WalkOptions): Promise<StorageReport> 
         continue
       }
       if (entry.isFile()) {
+        if (
+          isSteamApps &&
+          entry.name.startsWith('appmanifest_') &&
+          entry.name.endsWith('.acf')
+        ) {
+          manifests.push(full)
+        }
         files.push({ path: full, name: entry.name })
         continue
       }
@@ -473,6 +509,19 @@ export async function walkStorage(options: WalkOptions): Promise<StorageReport> 
         node.files += result.node.files
         node.dirs += result.node.dirs + 1
         totals.dirs += 1
+        // The size is taken here, before pruning: a game folder stays exact
+        // even when it is not among the 20 biggest children of its parent.
+        const platform = gamePlatform(path, result.node.name)
+        if (platform) {
+          games.push({
+            name: result.node.name,
+            platform,
+            path: result.node.path,
+            bytes: result.node.bytes,
+            files: result.node.files,
+            nameSource: 'folder'
+          })
+        }
       }
       checkpoint()
     }
@@ -486,6 +535,19 @@ export async function walkStorage(options: WalkOptions): Promise<StorageReport> 
   // `countDir` subtrees the tree is smaller by design, and the live progress
   // needs real numbers before the end.
   checkpoint(true)
+
+  // Steam is the only launcher that stores the display name next to the
+  // install folder; the manifests are small and read after the walk so the
+  // page never waits on them. For Epic and Riot the folder name is the name.
+  await applyManifestNames(games, manifests.slice(0, MANIFEST_LIMIT), semaphore)
+  games.sort((a, b) => b.bytes - a.bytes)
+  const listedGames = games.slice(0, STORAGE_MAX_GAMES)
+  const notes = buildNotes(totals, limits)
+  if (games.length > listedGames.length) {
+    notes.push(
+      `Foram encontradas ${games.length} pastas de jogos; a lista mostra as ${listedGames.length} maiores.`
+    )
+  }
 
   return {
     root,
@@ -502,11 +564,83 @@ export async function walkStorage(options: WalkOptions): Promise<StorageReport> 
     mountSamples: totals.mountSamples,
     topFiles: top.sorted(),
     tree,
-    notes: buildNotes(totals, limits),
+    games: listedGames,
+    notes,
     // Advice needs the drives and the previous scan, which live in the main
     // process; the walk only reports what it measured.
     suggestions: []
   }
+}
+
+/**
+ * Launcher platform a child folder belongs to, or null.
+ *
+ * Steam: `<...>/steamapps/common/<game>`. Epic: `<...>/Epic Games/<game>`.
+ * Riot: `<...>/Riot Games/<game>`. No other shape is guessed: a folder that
+ * does not match is simply not a game.
+ */
+function gamePlatform(parent: string, child: string): StorageGamePlatform | null {
+  const parentName = basename(parent).toLowerCase()
+  if (parentName === 'common' && basename(dirname(parent)).toLowerCase() === 'steamapps') {
+    return isGameFolder('steam', child) ? 'steam' : null
+  }
+  if (parentName === 'epic games') return isGameFolder('epic', child) ? 'epic' : null
+  if (parentName === 'riot games') return isGameFolder('riot', child) ? 'riot' : null
+  return null
+}
+
+function isGameFolder(platform: StorageGamePlatform, name: string): boolean {
+  const key = name.trim().toLowerCase()
+  if (!key) return false
+  if (platform === 'steam' && STEAM_RUNTIME_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+    return false
+  }
+  return !NON_GAME_FOLDERS[platform].has(key)
+}
+
+/**
+ * Replaces folder names with the name from `appmanifest_*.acf`.
+ *
+ * Best effort: a manifest that cannot be read or does not name a folder we
+ * found changes nothing. `nameSource` tells the page which name it is showing.
+ */
+async function applyManifestNames(
+  games: StorageGame[],
+  manifests: string[],
+  semaphore: Semaphore
+): Promise<void> {
+  if (games.length === 0 || manifests.length === 0) return
+  const byPath = new Map(games.map((game) => [pathKey(game.path), game]))
+
+  for (const manifest of manifests) {
+    let text: string
+    try {
+      text = await semaphore.use(() => readFile(manifest, 'utf8'))
+    } catch {
+      continue
+    }
+    const installDir = acfValue(text, 'installdir')
+    const name = acfValue(text, 'name')
+    if (!installDir || !name) continue
+
+    const folder = join(dirname(manifest), 'common', installDir)
+    const game = byPath.get(pathKey(folder))
+    if (!game || game.platform !== 'steam') continue
+    game.name = name
+    game.nameSource = 'manifest'
+  }
+}
+
+/** One quoted value of a Valve KeyValues (`.acf`) file. */
+function acfValue(text: string, key: string): string | undefined {
+  const match = new RegExp(`"${key}"\\s+"([^"]*)"`).exec(text)
+  const value = match?.[1]?.trim()
+  return value ? value : undefined
+}
+
+/** Windows paths are case-insensitive; the disk and the manifest can differ. */
+function pathKey(value: string): string {
+  return process.platform === 'win32' ? value.toLowerCase() : value
 }
 
 /** Keeps the biggest children of every node and drops the rest. */

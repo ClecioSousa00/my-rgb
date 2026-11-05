@@ -62,6 +62,7 @@ function report(overrides: Partial<StorageReport> = {}): StorageReport {
     mountSamples: [],
     topFiles: [],
     tree: rootNode(),
+    games: [],
     notes: [],
     suggestions: [],
     ...overrides

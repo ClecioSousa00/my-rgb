@@ -809,7 +809,8 @@ async function runStorageBench(): Promise<void> {
                 bytes: file.bytes
               })),
               notes: report.notes,
-              suggestions: report.suggestions
+              suggestions: report.suggestions,
+              games: report.games.slice(0, 5)
             }
           : null
       },
@@ -970,6 +971,15 @@ async function runSelfTest(): Promise<void> {
   mkdirSync(join(storageFixture, 'sub'), { recursive: true })
   writeFileSync(join(storageFixture, 'grande.bin'), Buffer.alloc(2 * 1024 * 1024))
   writeFileSync(join(storageFixture, 'sub', 'pequeno.txt'), 'selftest')
+  // A Steam library with a manifest, so the game section is proven with the
+  // real shape and the real name source instead of an empty state.
+  const steamApps = join(storageFixture, 'SteamLibrary', 'steamapps')
+  mkdirSync(join(steamApps, 'common', 'Jogo de Teste'), { recursive: true })
+  writeFileSync(join(steamApps, 'common', 'Jogo de Teste', 'dados.bin'), Buffer.alloc(512 * 1024))
+  writeFileSync(
+    join(steamApps, 'appmanifest_42.acf'),
+    '"AppState"\n{\n\t"appid"\t\t"42"\n\t"name"\t\t"Jogo de Teste Completo"\n\t"installdir"\t\t"Jogo de Teste"\n}\n'
+  )
 
   await window.webContents.executeJavaScript(`
     (async () => {
@@ -1115,13 +1125,17 @@ async function runSelfTest(): Promise<void> {
         15000
       )
       // The footnote always renders, empty list or not; the suggestion itself
-      // depends on the machine's free space, so it is not asserted here.
+      // depends on the machine's free space, so it is not asserted here. The
+      // game comes from the fixture's Steam library and must carry the name
+      // from appmanifest_42.acf, not the folder name.
       window.__myRgbStorageTab =
         storageReport !== null &&
         /maiores arquivos/i.test(text()) &&
         /maiores pastas/i.test(text()) &&
         /sugestões/i.test(text()) &&
         /são sugestões/i.test(text()) &&
+        /reconhecidos pela pasta de instalação/i.test(text()) &&
+        /jogo de teste completo/i.test(text()) &&
         text().includes('grande.bin')
 
       // Rede: the full test saturates the link for ~30 s, too long for the

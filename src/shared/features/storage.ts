@@ -122,6 +122,12 @@ export interface StorageReport {
   topFiles: StorageFile[]
   /** Aggregated tree, pruned to `STORAGE_MAX_CHILDREN` per folder. */
   tree: StorageNode
+  /**
+   * Game installs recognised inside the root (Steam, Epic, Riot), biggest
+   * first. Empty when the folder holds none - it is not a statement about the
+   * machine's games.
+   */
+  games: StorageGame[]
   /** What the totals exclude, in the user's language. */
   notes: string[]
   /**
@@ -170,4 +176,30 @@ export interface StorageLimits {
   maxChildren: number
   maxNodes: number
   topFiles: number
+}
+
+/** Game folders listed in one report, biggest first. */
+export const STORAGE_MAX_GAMES = 300
+
+/** Launchers whose install layout is recognised by folder shape. */
+export type StorageGamePlatform = 'steam' | 'epic' | 'riot'
+
+/**
+ * One game installation found inside the analysed folder.
+ *
+ * It is always "the folder", never a guess about what the game is called: the
+ * name comes from the Steam manifest when there is one, and from the install
+ * folder otherwise. A folder that looks like a game but is a runtime or a
+ * launcher is not listed at all.
+ */
+export interface StorageGame {
+  /** Manifest name when available, else the install folder name. */
+  name: string
+  platform: StorageGamePlatform
+  /** Install folder (what is measured below `bytes`). */
+  path: string
+  bytes: number
+  files: number
+  /** Where `name` came from, so the page can say it. */
+  nameSource: 'manifest' | 'folder'
 }

@@ -344,11 +344,21 @@ não há número inventado nem tela pela metade.
 - [x] `--storage-growth-bench` faz duas varreduras com um arquivo esparso de
       2 GB no meio e prova o crescimento de ponta a ponta.
 
-### 5. Jogos (3.1) — pendente
+### 5. Jogos (3.1) — concluído
 
-- [ ] Steam, Epic e Riot por pasta, com tamanho e localização.
-- [ ] Battle.net e Xbox/MS Store ficam de fora (ACL de `WindowsApps` e formato
-      interno não documentado); a tela diz isso em vez de inventar nomes.
+- [x] Steam, Epic e Riot por pasta, com tamanho e localização.
+      Steam usa o `appmanifest_*.acf` para o nome verdadeiro; sem manifesto,
+      mostra o nome da pasta (não inventa). Battle.net, Xbox/MS Store e outras
+      bibliotecas não são lidos — o jogo continua visível nas maiores pastas.
+- [x] Deteção pelo layout de instalação (`steamapps/common`,
+      `Epic Games/`, `Riot Games/`), nunca por banco de nomes.
+- [x] Limite de 300 jogos, lista ao lado dos maiores arquivos e das sugestões,
+      com botão para mostrar no gerenciador de arquivos.
+- [x] `tests/storage-games.test.ts` (13 casos) cobre tamanho, ordem, limite,
+      pastas que não são jogo (Proton, SteamVR, launcher, runtimes) e o teto de
+      300.
+- [x] Selftest varre uma biblioteca Steam real da árvore temporária e confere
+      o nome vindo do manifesto na tela (`storageTab`).
 
 ### 6. Duplicados (4.1) — pendente
 

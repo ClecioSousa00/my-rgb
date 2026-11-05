@@ -309,6 +309,22 @@ resumo.
 arquivo esparso de 2 GB criado no meio e imprime as sugestões das duas — é a
 prova de ponta a ponta do histórico, atravessando o `utilityProcess` e o disco.
 
+**Jogos** (`src/main/features/storage/walk.ts`) são reconhecidos pelo layout de
+pastas, não por um banco de nomes:
+
+- Steam: `<biblioteca>/steamapps/common/<jogo>`; o nome vem de
+  `appmanifest_*.acf` quando existe e do nome da pasta caso contrário.
+- Epic Games: `<pasta>/Epic Games/<jogo>`.
+- Riot Games: `<pasta>/Riot Games/<jogo>`.
+- Não são jogos: Proton, SteamVR, Steamworks Shared, Launcher, Riot Client — a
+  lista é curta e literal para não inventar nomes.
+- Battle.net, Xbox/MS Store e outras bibliotecas não são lidos; um jogo delas
+  continua aparecendo nas maiores pastas pelo tamanho, sem nome de jogo.
+
+O resultado é um array ordenado por tamanho, limitado a 300; o restante é
+somado numa nota. Apenas o nome do Steam é verificado no manifesto, lido depois
+da varredura para não atrasar o progresso.
+
 ---
 
 ## Como a rede é medida

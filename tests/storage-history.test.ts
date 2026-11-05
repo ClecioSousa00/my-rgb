@@ -55,6 +55,7 @@ function report(root: string, tree: StorageNode, bytes = tree.bytes): StorageRep
     mountSamples: [],
     topFiles: [],
     tree,
+    games: [],
     notes: [],
     suggestions: []
   }

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DriveInfo } from '@shared/features/system'
 import type {
   StorageFile,
+  StorageGame,
   StorageNode,
   StorageProgress,
   StorageReport
@@ -248,6 +249,7 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
             }}
           />
           <SuggestionsCard report={report} onReveal={reveal} />
+          <GamesCard report={report} onReveal={reveal} />
           <div className="grid items-stretch gap-4 xl:grid-cols-2">
             <FilesCard report={report} onReveal={reveal} />
             <FoldersCard report={report} />
@@ -566,6 +568,89 @@ function SuggestionsCard({
         {formatBytes(STORAGE_NOTABLE_BYTES)} ou mais; pasta que cresceu{' '}
         {formatBytes(STORAGE_GROWTH_MIN_BYTES)} e {STORAGE_GROWTH_PERCENT}% desde a análise
         anterior desta mesma pasta.
+      </p>
+    </Card>
+  )
+}
+
+const PLATFORM_LABEL: Record<StorageGame['platform'], string> = {
+  steam: 'Steam',
+  epic: 'Epic',
+  riot: 'Riot'
+}
+
+function GamesCard({
+  report,
+  onReveal
+}: {
+  report: StorageReport
+  onReveal: (path: string) => void
+}): React.JSX.Element {
+  const games = report.games
+  const total = games.reduce((sum, game) => sum + game.bytes, 0)
+
+  return (
+    <Card className="card-scroll max-w-4xl">
+      <div className="flex shrink-0 items-start justify-between gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-300">
+          Jogos
+        </h2>
+        <span className="chip shrink-0">
+          {games.length === 0 ? 'nenhum' : `${formatCount(games.length)} · ${formatBytes(total)}`}
+        </span>
+      </div>
+
+      <div className="card-scroll-body mt-3 pr-1">
+        {games.length === 0 ? (
+          <p className="text-[12px] leading-relaxed text-ink-300">
+            Nenhuma instalação conhecida nesta pasta. Os jogos aparecem quando a análise inclui a
+            pasta de instalação do launcher.
+          </p>
+        ) : (
+          games.map((game) => (
+            <div
+              key={`${game.platform}:${game.path}`}
+              className="flex items-start gap-2 border-b border-ink-800 py-2 last:border-0"
+            >
+              <span className="mt-0.5 shrink-0">
+                <span className="chip">{PLATFORM_LABEL[game.platform]}</span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12px] text-ink-100" title={game.name}>
+                  {game.name}
+                </div>
+                <div className="mt-0.5 truncate font-mono text-[10px] text-ink-500" title={game.path}>
+                  {game.path}
+                </div>
+                {game.nameSource === 'folder' && (
+                  <div className="mt-0.5 text-[10px] text-ink-500">nome pelo nome da pasta</div>
+                )}
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="font-mono text-[11.5px] text-ink-200">{formatBytes(game.bytes)}</div>
+                <div className="mt-0.5 text-[10px] text-ink-500">
+                  {formatCount(game.files)} arquivos
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn shrink-0 px-2 py-1"
+                title="Mostrar no gerenciador de arquivos"
+                aria-label={`Mostrar ${game.name} no gerenciador de arquivos`}
+                onClick={() => onReveal(game.path)}
+              >
+                ↗
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <p className="mt-2 shrink-0 text-[10px] leading-relaxed text-ink-500">
+        Reconhecidos pela pasta de instalação: Steam (<code>steamapps/common</code>), Epic Games e
+        Riot Games. O nome vem do manifesto do Steam quando existe; sem manifesto, é o nome da
+        pasta. Battle.net, Xbox/Microsoft Store e outras bibliotecas não são lidos — um jogo desses
+        continua visível pelo tamanho nas maiores pastas.
       </p>
     </Card>
   )

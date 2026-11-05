@@ -295,6 +295,23 @@ Cada sugestão mostra caminho, tamanho e um botão para mostrá-la no gerenciado
 de arquivos. Uma lista vazia significa "nada a apontar por estas regras", nunca
 "o disco está saudável".
 
+**Jogos** — instalações reconhecidas pelo layout de pastas, sem banco de nomes:
+
+- Steam: `<biblioteca>/steamapps/common/<jogo>`, com o nome do `appmanifest_*.acf`
+  quando existe; sem ele, o nome da pasta (não um nome inventado).
+- Epic Games: `Program Files/Epic Games/<jogo>` (ou qualquer pasta
+  `Epic Games/`).
+- Riot Games: `Riot Games/<jogo>`.
+- Layouts que não são jogo — Proton, SteamVR, Steamworks Shared, Launcher,
+  Riot Client — não são listados.
+- Battle.net, Xbox/Microsoft Store e outras bibliotecas não são lidos: um jogo
+  instalado por elas continua aparecendo nas maiores pastas pelo tamanho, mas
+  sem nome de jogo.
+
+A lista é limitada a 300 instalações; se houver mais, o relatório avisa quantas
+ficaram de fora. Cada jogo mostra tamanho, número de arquivos, fonte do nome
+(manifesto ou pasta) e um botão para mostrá-lo no gerenciador de arquivos.
+
 ---
 
 ## A tela de Rede
