@@ -32,6 +32,7 @@ import type {
   StorageReport,
   StorageStatus
 } from '@shared/features/storage'
+import type { LogList, LogRead } from '@shared/features/log'
 import type {
   GamesQuery,
   GamesReport,
@@ -100,6 +101,10 @@ const api: MyRgbApi = {
   setSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IPC.settingsSet, patch),
   openLogsFolder: (): Promise<LogsFolderResult> => ipcRenderer.invoke(IPC.logsOpen),
+  listLogs: (): Promise<LogList> => ipcRenderer.invoke(IPC.logsList),
+  readLog: (name: string): Promise<LogRead> => ipcRenderer.invoke(IPC.logsRead, name),
+  exportLog: (name: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.logsExport, name),
 
   // storage
   startStorageScan: (root: string): Promise<StorageReport | null> =>

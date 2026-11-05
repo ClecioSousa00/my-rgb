@@ -27,7 +27,7 @@ export interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
   { id: 'myrgb', label: 'MyRGB', items: ['overview', 'lighting'] },
-  { id: 'diagnostico', label: 'Diagnóstico', items: ['system', 'sensors', 'disks', 'network'] },
+  { id: 'diagnostico', label: 'Diagnóstico', items: ['system', 'sensors', 'disks', 'network', 'logs'] },
   { id: 'desempenho', label: 'Desempenho', items: ['games', 'bottleneck', 'overlay'] },
   { id: 'integracoes', label: 'Integrações', items: ['integrations'] }
 ]
@@ -85,6 +85,12 @@ export const PAGE_META: Record<PageId, PageMeta> = {
       'Latência sob carga (bufferbloat) e veredito'
     ],
     phase: 'Fase 4'
+  },
+  logs: {
+    title: 'Registos',
+    subtitle: 'Erros e avisos do MyRGB, com data e hora, para anexar a um relatório.',
+    planned: [],
+    phase: ''
   },
   games: {
     title: 'Jogos',

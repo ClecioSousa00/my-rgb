@@ -184,6 +184,7 @@ export type PageId =
   | 'bottleneck'
   | 'overlay'
   | 'integrations'
+  | 'logs'
 
 /** Navigation state that survives a restart. */
 export interface UiSettings {
@@ -321,6 +322,12 @@ export const IPC = {
   overlayFrame: 'overlay:frame',
   /** Folder holding the log and the crash reports. */
   logsOpen: 'logs:open',
+  /** List the log files on disk. */
+  logsList: 'logs:list',
+  /** Read one log file and parse its lines. */
+  logsRead: 'logs:read',
+  /** Save one log file as plain text somewhere the user chooses. */
+  logsExport: 'logs:export',
   /** Start (or attach to) a storage scan. */
   storageStart: 'storage:start',
   /** Cancel the scan in flight; its call resolves to null. */

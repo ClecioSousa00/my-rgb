@@ -13,6 +13,7 @@ import { GamesPage } from './pages/Games'
 import { BottleneckPage } from './pages/Bottleneck'
 import { OverlayPage } from './pages/Overlay'
 import { IntegrationsPage } from './pages/Integrations'
+import { LogsPage } from './pages/Logs'
 import type { PageId } from '@shared/types'
 
 const PAGES: Record<PageId, () => React.JSX.Element> = {
@@ -25,7 +26,8 @@ const PAGES: Record<PageId, () => React.JSX.Element> = {
   games: GamesPage,
   bottleneck: BottleneckPage,
   overlay: OverlayPage,
-  integrations: IntegrationsPage
+  integrations: IntegrationsPage,
+  logs: LogsPage
 }
 
 export default function App(): React.JSX.Element {

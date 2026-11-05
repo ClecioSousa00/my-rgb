@@ -38,6 +38,7 @@ import type { BottleneckService } from '../features/bottleneck'
 import type { OverlayService } from '../features/overlay/manager'
 import type { OverlayConfig } from '@shared/features/overlay'
 import { applyLogLevel, logDirectory } from '../logging'
+import { listLogs, readLog } from '../features/logs'
 import {
   cancelStorageDuplicateScan,
   cancelStorageScan,
@@ -354,6 +355,30 @@ export function registerIpc(host: IpcHost): void {
     }
     const error = await shell.openPath(path)
     return { path, error: error || null }
+  })
+  ipcMain.handle(IPC.logsList, () => listLogs())
+  ipcMain.handle(IPC.logsRead, (_e, name: string) => readLog(name))
+  ipcMain.handle(IPC.logsExport, async (_e, name: string) => {
+    const read = readLog(name)
+    const content = read.entries
+      .map((entry) => `${entry.at} ${entry.level.toUpperCase()} ${entry.message}`)
+      .join('\n')
+    const options = {
+      title: 'Exportar registo de erros',
+      defaultPath: name.replace('.log', '.txt'),
+      filters: [{ name: 'Texto', extensions: ['txt'] }]
+    }
+    const parent = host.window && !host.window.isDestroyed() ? host.window : undefined
+    const result = parent
+      ? await dialog.showSaveDialog(parent, options)
+      : await dialog.showSaveDialog(options)
+    if (result.canceled || result.filePath.length === 0) return null
+    try {
+      writeFileSync(result.filePath, content, 'utf8')
+      return result.filePath
+    } catch {
+      return null
+    }
   })
 
   // --- system & drives ----------------------------------------------------

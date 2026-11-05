@@ -43,6 +43,7 @@ import type {
   StorageReport,
   StorageStatus
 } from './features/storage'
+import type { LogList, LogRead } from './features/log'
 
 export type Unsubscribe = () => void
 
@@ -156,6 +157,14 @@ export interface MyRgbApi {
   getStorageDuplicateReport(): Promise<StorageDuplicateReport | null>
   /** Pushed a few times per second while the duplicate analysis runs. */
   onStorageDuplicateProgress(callback: (progress: StorageDuplicateProgress) => void): Unsubscribe
+
+  // logs
+  /** List the log files on disk, newest first. */
+  listLogs(): Promise<LogList>
+  /** Read one log file and parse its lines. */
+  readLog(name: string): Promise<LogRead>
+  /** Save one log file as plain text where the user chooses; resolves to the saved path or null. */
+  exportLog(name: string): Promise<string | null>
 
   // system & drives
   /** Static hardware snapshot. Cached in the main process for a minute. */
