@@ -100,6 +100,10 @@ const api: MyRgbApi = {
   cancelStorageScan: (): Promise<void> => ipcRenderer.invoke(IPC.storageCancel),
   getStorageStatus: (): Promise<StorageStatus> => ipcRenderer.invoke(IPC.storageStatus),
   getStorageReport: (): Promise<StorageReport | null> => ipcRenderer.invoke(IPC.storageReport),
+  joinStorageScan: (): Promise<StorageReport | null> => ipcRenderer.invoke(IPC.storageJoin),
+  pickStorageFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.storagePick),
+  revealStoragePath: (path: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.storageReveal, path),
   onStorageProgress: (callback: (progress: StorageProgress) => void) =>
     subscribe(IPC.storageProgress, callback),
 

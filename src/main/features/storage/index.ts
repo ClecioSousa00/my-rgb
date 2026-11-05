@@ -13,8 +13,8 @@
 
 import type { Stats } from 'fs'
 import { lstat } from 'fs/promises'
-import { isAbsolute, join, resolve } from 'path'
-import { utilityProcess } from 'electron'
+import { isAbsolute, join, resolve, sep } from 'path'
+import { app, utilityProcess } from 'electron'
 import type { UtilityProcess } from 'electron'
 import type { StorageProgress, StorageReport, StorageStatus } from '@shared/features/storage'
 import { listDrives } from '../system/drives'
@@ -42,6 +42,17 @@ export function storageStatus(): StorageStatus {
 /** Last completed report, kept in memory so reopening the page is instant. */
 export function lastStorageReport(): StorageReport | null {
   return lastReport
+}
+
+/**
+ * Wait for the scan in flight, without starting one.
+ *
+ * The page uses this when it opens mid-scan: `startStorageScan` would begin a
+ * second scan if the first finished in the gap between the status check and
+ * the call.
+ */
+export function joinStorageScan(): Promise<StorageReport | null> {
+  return active?.promise ?? Promise.resolve(null)
 }
 
 /** Ask the running scan to stop; its promise resolves to null. */
@@ -77,7 +88,7 @@ async function run(
     // `prepare` runs before the worker exists; an invalid folder must clear
     // `active` too, or the page would wait forever for a scan that never began.
     const target = await prepare(root)
-    child = utilityProcess.fork(join(__dirname, 'storageWorker.js'), [], {
+    child = utilityProcess.fork(workerEntry(), [], {
       serviceName: 'MyRGB Armazenamento'
     })
     const worker = child
@@ -167,6 +178,18 @@ async function run(
     }
     if (active === entry) active = null
   }
+}
+
+/**
+ * Real path to the worker entry.
+ *
+ * `electron-builder` unpacks this one file (`asarUnpack`): a utilityProcess is
+ * an OS-level spawn, and a module inside `app.asar` is not a real file.
+ */
+function workerEntry(): string {
+  const bundled = join(__dirname, 'storageWorker.js')
+  if (!app.isPackaged) return bundled
+  return bundled.replace(`app.asar${sep}`, `app.asar.unpacked${sep}`)
 }
 
 /**

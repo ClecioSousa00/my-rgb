@@ -288,21 +288,34 @@ não há número inventado nem tela pela metade.
 - [x] Medição com `--storage-bench`: 378 mil arquivos / 56 mil pastas / 13,3 GB
       em 3,2 s, FPS 8,6 → 8,6 (motor limitado pelo HID). O `fork` do worker
       custa ~1 s.
-- [ ] Interface da aba **Análise**: navegar pela árvore, percentual da unidade,
-      data de modificação — entra na secção 2.3, junto do ranking.
-- [ ] Escolha da pasta pela interface (hoje só pela API/linha de comando) —
-      mesma secção.
+- [x] Entry do worker em `asarUnpack`, porque `utilityProcess.fork` precisa de
+      um arquivo real (validado com `npm run build:dir`).
 
-### 2. Maiores arquivos (2.2) — pendente
+### 2. Maiores arquivos (2.2) — concluído
 
-- [ ] Lista com nome, caminho, tamanho, extensão, data e unidade.
-- [ ] Ordenar por tamanho/nome, filtrar por extensão, pesquisar por nome.
-- [ ] Abrir a localização no gerenciador de arquivos.
+- [x] Lista com nome, caminho, tamanho, extensão e data; a unidade aparece no
+      resumo da análise (todos os arquivos vêm da mesma varredura).
+- [x] Ordenar por tamanho/nome, filtrar por extensão e pesquisar pelo nome
+      (sem diferenciar maiúsculas nem acentos).
+- [x] Abrir a localização no gerenciador de arquivos (`storage:reveal`,
+      somente leitura).
+- [x] Lista limitada aos 500 maiores, com o limite escrito na própria tela.
+- [x] `tests/storage-view.test.ts` cobre busca, filtro, ordenação natural e o
+      percentual sem alterar o relatório.
 
-### 3. Maiores pastas (2.3) — pendente
+### 3. Maiores pastas (2.3) — concluído
 
-- [ ] Ranking com expandir/recolher por pasta (a árvore do núcleo já tem os
-      totais; falta só a tela).
+- [x] Ranking com expandir/recolher por pasta, tamanho, percentual do total,
+      quantidade de arquivos/subpastas e data de modificação.
+- [x] Navegação dentro da própria tela, sem abrir o gerenciador de arquivos e
+      sem reler o disco.
+- [x] Escolha da pasta pela interface (`storage:pick`) e reanálise da mesma
+      raiz pelo botão **Atualizar**.
+- [x] Aba **Análise** em Discos com progresso, tempo, pasta atual e
+      **Cancelar**; reabrir a aba retoma a varredura em andamento em vez de
+      iniciar outra.
+- [x] Selftest varre uma árvore temporária real e confere o relatório na tela
+      (`storageTab`).
 
 ### 4. Diagnóstico de espaço (4) — pendente
 

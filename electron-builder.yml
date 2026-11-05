@@ -38,6 +38,12 @@ extraResources:
       - '*.png'
 
 asar: true
+
+# The storage walk runs in a utilityProcess, which is an OS-level spawn: the
+# entry has to be a real file, not a path inside app.asar. Unpacking just this
+# one file keeps the rest of the app archived.
+asarUnpack:
+  - out/main/storageWorker.js
 compression: maximum
 
 linux:

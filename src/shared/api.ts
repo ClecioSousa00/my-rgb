@@ -124,6 +124,18 @@ export interface MyRgbApi {
   getStorageStatus(): Promise<StorageStatus>
   /** Last completed report, without scanning again. */
   getStorageReport(): Promise<StorageReport | null>
+  /**
+   * Wait for the scan already in flight, without starting one.
+   *
+   * Used when the page opens mid-scan: unlike `startStorageScan`, a scan that
+   * finishes between the status check and this call cannot start a second read
+   * of the same disk.
+   */
+  joinStorageScan(): Promise<StorageReport | null>
+  /** Native folder picker; resolves to null when the user cancels. */
+  pickStorageFolder(): Promise<string | null>
+  /** Show a file or folder in the system file manager (read-only). */
+  revealStoragePath(path: string): Promise<void>
   /** Pushed a few times per second while a scan runs. */
   onStorageProgress(callback: (progress: StorageProgress) => void): Unsubscribe
 

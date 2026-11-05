@@ -40,6 +40,7 @@ import type { OverlayConfig } from '@shared/features/overlay'
 import { applyLogLevel, logDirectory } from '../logging'
 import {
   cancelStorageScan,
+  joinStorageScan,
   lastStorageReport,
   startStorageScan,
   storageStatus
@@ -304,6 +305,25 @@ export function registerIpc(host: IpcHost): void {
   })
   ipcMain.handle(IPC.storageStatus, () => storageStatus())
   ipcMain.handle(IPC.storageReport, () => lastStorageReport())
+  ipcMain.handle(IPC.storageJoin, () => joinStorageScan())
+  ipcMain.handle(IPC.storagePick, async () => {
+    const options = {
+      title: 'Escolher pasta para analisar',
+      properties: ['openDirectory' as const]
+    }
+    // Without a parent the dialog is not modal on Linux; with one it follows
+    // the window the user is looking at.
+    const parent = host.window && !host.window.isDestroyed() ? host.window : null
+    const result = parent
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  })
+  ipcMain.handle(IPC.storageReveal, (_e, path: string) => {
+    if (typeof path !== 'string' || path.length === 0) return
+    // Read-only: reveals the item, never opens or changes it.
+    shell.showItemInFolder(path)
+  })
 
   ipcMain.handle(IPC.logsOpen, async () => {
     const path = logDirectory(app.getPath('userData'))

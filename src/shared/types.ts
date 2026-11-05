@@ -329,6 +329,12 @@ export const IPC = {
   storageStatus: 'storage:status',
   /** Last completed report, kept in memory. */
   storageReport: 'storage:report',
+  /** Attach to the scan in flight without starting one. */
+  storageJoin: 'storage:join',
+  /** Native folder picker. */
+  storagePick: 'storage:pick',
+  /** Show a path in the system file manager. */
+  storageReveal: 'storage:reveal',
   /** Pushed a few times per second while the scan runs. */
   storageProgress: 'storage:progress'
 } as const

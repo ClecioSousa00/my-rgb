@@ -262,6 +262,22 @@ levou 3,2 s e o FPS ficou em 8,6 antes e durante: a scan não custou quadro
 nenhum. O `fork` do `utilityProcess` custa cerca de 1 s além da varredura; é o
 preço de manter o motor no processo principal.
 
+Na interface (`src/renderer/src/components/StorageAnalysis.tsx`), a aba tem três
+estados: escolher (unidades + `storage:pick`), acompanhar (progresso, pasta atual
+e **Cancelar**) e ler o relatório. O relatório vem do processo principal, então
+reabrir a aba mostra o último resultado; uma varredura em andamento é **retomada**
+por `storage:join`, que espera a promessa existente em vez de iniciar outra.
+**Mostrar no gerenciador de arquivos** usa `storage:reveal` (`showItemInFolder`),
+que só revela — não abre nem altera nada. A busca, o filtro de extensão e a
+ordenação ficam em `src/shared/features/storage-view.ts`, sem React, cobertos
+por `tests/storage-view.test.ts`; a árvore já vem ordenada e limitada do
+percurso, e expandir uma pasta não toca no disco.
+
+No pacote, o entry do worker é retirado do `app.asar` (`asarUnpack` em
+`electron-builder.yml`): `utilityProcess.fork` é um spawn do sistema e precisa
+de um arquivo real, não de um caminho dentro do arquivo. `npm run build:dir`
+seguido de `--storage-bench` numa árvore pequena prova esse caminho.
+
 ---
 
 ## Como a rede é medida

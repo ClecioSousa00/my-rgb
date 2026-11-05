@@ -46,7 +46,7 @@ navegação e depois detalha cada tela.
 | Visão geral | Hardware, limitador ao vivo, discos, saúde, rede e atalhos — **pronta** |
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
-| Discos | Unidades e Saúde — **prontas**; Análise em construção |
+| Discos | Unidades, Saúde e Análise — **prontas** |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
 | Jogos | FPS medido ou estimado por jogo, com fonte e confiança — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
@@ -211,7 +211,7 @@ escondida.
 
 ## A tela de Discos
 
-Duas abas de leitura e uma terceira em construção.
+Três abas.
 
 **Unidades** — um cartão por volume, com anel de ocupação (branco = usado,
 cinza = livre), o ponto de montagem (`/`, `/home`, `C:`), o tipo (SSD, HDD, USB,
@@ -253,17 +253,26 @@ De onde vêm os números:
   permissão) fica como **sem dados** — nunca como saudável. No Windows o
   "Healthy" que ele dá para qualquer pendrive não conta como métrica.
 
-**Análise** (em construção — o núcleo já existe e é medido, a interface ainda
-não) — a varredura é sob demanda, nunca no arranque: escolhe-se uma pasta e ela
-roda num processo separado (`utilityProcess`), com progresso agrupado (arquivos,
-pastas, bytes e pasta atual), estimativa de andamento quando o volume é
-conhecido e botão **Cancelar**. É estritamente de leitura: não segue links
-simbólicos nem junctions, não atravessa outras unidades e conta um hard link uma
-vez só. Pasta sem permissão não interrompe nada — entra na contagem de
-ignoradas, fica nomeada numa nota e o relatório avisa que o total está
-incompleto. Para caber na memória, a árvore guarda as 20 maiores subpastas por
-pasta e no máximo 200 mil pastas, além dos 500 maiores arquivos; passando disso,
-os totais continuam completos e só o detalhe por pasta desaparece.
+**Análise** — a varredura é sob demanda, nunca no arranque: escolhe-se uma
+unidade ou uma pasta (diálogo do sistema) e ela roda num processo separado
+(`utilityProcess`), com progresso agrupado (arquivos, pastas, bytes e pasta
+atual), estimativa de andamento quando a pasta é a raiz da unidade e botão
+**Cancelar**. Sair da aba não interrompe a análise; voltar mostra o progresso ou
+o último resultado. É estritamente de leitura: não segue links simbólicos nem
+junctions, não atravessa outras unidades e conta um hard link uma vez só. Pasta
+sem permissão não interrompe nada — entra na contagem de ignoradas, fica
+nomeada numa nota e o relatório avisa que o total está incompleto.
+
+O resumo mostra o tamanho analisado, arquivos, pastas, duração, o percentual do
+espaço usado na unidade e quantas pastas ficaram sem permissão. Abaixo, duas
+listas: os **maiores arquivos** (nome, caminho, tamanho, extensão, data e um
+botão para mostrar no gerenciador de arquivos), com busca pelo nome, filtro por
+extensão e ordenação por tamanho ou nome; e as **maiores pastas**, com tamanho,
+percentual do total, quantidade de arquivos e subpastas e data, que se expandem
+na própria tela sem reler o disco. Para caber na memória, a árvore guarda as 20
+maiores subpastas por pasta e no máximo 200 mil pastas, além dos 500 maiores
+arquivos; passando disso, os totais continuam completos e só o detalhe por pasta
+desaparece.
 
 ---
 

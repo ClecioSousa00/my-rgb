@@ -6,7 +6,7 @@
  */
 
 import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron'
-import { mkdirSync, statSync, writeFileSync } from 'fs'
+import { mkdirSync, rmSync, statSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
@@ -921,6 +921,16 @@ async function runSelfTest(): Promise<void> {
   // The diagnostic pages are visited too: their data arrives from the main
   // process, so this is the only place that proves the whole path (collector
   // -> IPC -> bridge -> card) works in a packaged app.
+  //
+  // The storage tab gets a small real tree: the scan has to cross the
+  // utilityProcess and the IPC, and walking a whole drive would make the self
+  // test take minutes.
+  const storageFixture = join(app.getPath('temp'), 'myrgb-selftest-storage')
+  rmSync(storageFixture, { recursive: true, force: true })
+  mkdirSync(join(storageFixture, 'sub'), { recursive: true })
+  writeFileSync(join(storageFixture, 'grande.bin'), Buffer.alloc(2 * 1024 * 1024))
+  writeFileSync(join(storageFixture, 'sub', 'pequeno.txt'), 'selftest')
+
   await window.webContents.executeJavaScript(`
     (async () => {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -1046,6 +1056,26 @@ async function runSelfTest(): Promise<void> {
       await waitFor(() => document.querySelectorAll('.disk-health').length >= 1, 15000)
       window.__myRgbHealthTab =
         document.querySelectorAll('.disk-health').length >= 1 && /Saúde/.test(text())
+
+      // Análise: one real scan of the fixture, then the report on screen.
+      const storageReport = await window.myrgb
+        .startStorageScan(${JSON.stringify(storageFixture)})
+        .catch(() => null)
+      const analysisTab = Array.from(document.querySelectorAll('[role="tab"]')).find((tab) =>
+        /Análise/.test(tab.textContent ?? '')
+      )
+      if (analysisTab instanceof HTMLElement) analysisTab.click()
+      // The card titles are uppercased by CSS, so the text check must ignore
+      // case; innerText returns what the user sees.
+      await waitFor(
+        () => /maiores arquivos/i.test(text()) && /maiores pastas/i.test(text()),
+        15000
+      )
+      window.__myRgbStorageTab =
+        storageReport !== null &&
+        /maiores arquivos/i.test(text()) &&
+        /maiores pastas/i.test(text()) &&
+        text().includes('grande.bin')
 
       // Rede: the full test saturates the link for ~30 s, too long for the
       // self test. Starting it and cancelling proves the IPC, the progress
@@ -1310,6 +1340,7 @@ async function runSelfTest(): Promise<void> {
         systemReady: window.__myRgbSystemReady === true,
         drivesReady: window.__myRgbDrivesReady === true,
         healthTab: window.__myRgbHealthTab === true,
+        storageTab: window.__myRgbStorageTab === true,
         networkReady: window.__myRgbNetworkReady === true,
         gamesReady: window.__myRgbGamesReady === true,
         bottleneckReady: window.__myRgbBottleneckReady === true,
@@ -1327,6 +1358,7 @@ async function runSelfTest(): Promise<void> {
       }
     })()
   `)
+  rmSync(storageFixture, { recursive: true, force: true })
 
   // The global shortcut is what toggles the overlay over a game; registering
   // it is the part that can silently fail when another app owns the combo.
@@ -1355,6 +1387,7 @@ async function runSelfTest(): Promise<void> {
     report.systemReady === true &&
     report.drivesReady === true &&
     report.healthTab === true &&
+    report.storageTab === true &&
     report.networkReady === true &&
     report.gamesReady === true &&
     report.bottleneckReady === true &&
