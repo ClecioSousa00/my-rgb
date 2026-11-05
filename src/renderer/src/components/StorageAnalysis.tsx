@@ -456,14 +456,14 @@ function RunningCard({
 
   return (
     <Card className="max-w-3xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-nowrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[13px] font-medium text-ink-100">Analisando…</div>
           <div className="mt-0.5 truncate font-mono text-[10.5px] text-ink-500" title={progress?.currentPath}>
             {progress?.currentPath ?? 'preparando a varredura'}
           </div>
         </div>
-        <button className="btn shrink-0" onClick={onCancel}>
+        <button className="btn shrink-0 whitespace-nowrap" onClick={onCancel}>
           Cancelar
         </button>
       </div>
@@ -521,7 +521,7 @@ function SummaryCard({
 
   return (
     <Card className="max-w-4xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-nowrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-[13.5px] font-medium text-ink-100" title={report.root}>
             {report.root}
@@ -780,7 +780,7 @@ function DuplicatesCard({
       </div>
 
       {running && (
-        <div className="mt-3 flex items-start gap-3">
+        <div className="mt-3 flex flex-nowrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[12px] font-medium text-ink-100">
               {stageLabel[progress?.stage ?? 'idle']}
@@ -789,7 +789,7 @@ function DuplicatesCard({
               {progress?.currentPath ?? 'preparando'}
             </div>
           </div>
-          <button className="btn shrink-0" onClick={onCancel}>
+          <button className="btn shrink-0 whitespace-nowrap" onClick={onCancel}>
             Cancelar
           </button>
         </div>
