@@ -37,6 +37,7 @@ import type { BottleneckUpdate } from '@shared/features/bottleneck'
 import { applyLogLevel, activeLogFile, logDirectory, startLogging } from './logging'
 import { crashDumpDirectory, startCrashReporter } from './logging/crash'
 import { normalizeLogLevel } from '@shared/logging'
+import { startStorageScan } from './features/storage'
 
 const isDev = !app.isPackaged
 
@@ -720,6 +721,104 @@ async function runHeadlessDump(): Promise<void> {
 }
 
 /**
+ * Storage scan benchmark.
+ *
+ * The storage module is built on one claim: the walk runs in a utilityProcess,
+ * so reading a whole disk does not cost frames. This runs the real engine and
+ * the real scan together and prints both rates, which is the only way to know
+ * whether the claim holds on this machine.
+ */
+async function runStorageBench(): Promise<void> {
+  const root = argValue('--storage-bench') ?? process.cwd()
+  const instance = new MyRgbApp()
+  await instance.start()
+
+  const window = instance.mainWindow
+  if (window) {
+    await new Promise<void>((resolve) => {
+      if (!window.webContents.isLoading()) return resolve()
+      window.webContents.once('did-finish-load', () => resolve())
+      setTimeout(resolve, 5000)
+    })
+  }
+
+  // Let the engine reach its steady state before sampling.
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  const fpsOver = async (ms: number): Promise<number> => {
+    const start = instance.engineState.lastFrameSeq
+    const at = Date.now()
+    await new Promise((resolve) => setTimeout(resolve, ms))
+    const elapsed = (Date.now() - at) / 1000
+    return Math.round(((instance.engineState.lastFrameSeq - start) / elapsed) * 10) / 10
+  }
+
+  const fpsBefore = await fpsOver(2000)
+
+  const samples: Array<{ at: number; seq: number }> = []
+  const frames = setInterval(() => {
+    samples.push({ at: Date.now(), seq: instance.engineState.lastFrameSeq })
+  }, 250)
+  const updates: Array<{ files: number; bytes: number; fraction?: number }> = []
+  const startedAt = Date.now()
+  let report = null
+  try {
+    report = await startStorageScan(root, (progress) => {
+      updates.push({ files: progress.files, bytes: progress.bytes, fraction: progress.fraction })
+    })
+  } finally {
+    clearInterval(frames)
+  }
+
+  const first = samples[0]
+  const last = samples[samples.length - 1]
+  const fpsDuring =
+    first && last && last.at > first.at
+      ? Math.round(((last.seq - first.seq) / ((last.at - first.at) / 1000)) * 10) / 10
+      : 0
+
+  console.log(
+    JSON.stringify(
+      {
+        root,
+        scanSeconds: Math.round((Date.now() - startedAt) / 100) / 10,
+        fpsBefore,
+        fpsDuring,
+        progress: {
+          updates: updates.length,
+          // First third / middle / end, to show the bar moving instead of
+          // jumping from 0 to 100 when the walk ends.
+          first: updates[0] ?? null,
+          middle: updates.length > 1 ? updates[Math.floor(updates.length / 2)] : null,
+          last: updates[updates.length - 1] ?? null
+        },
+        report: report
+          ? {
+              durationMs: report.durationMs,
+              driveId: report.driveId,
+              files: report.files,
+              dirs: report.dirs,
+              bytes: report.bytes,
+              denied: report.denied,
+              links: report.links,
+              hardLinks: report.hardLinks,
+              mounts: report.mounts,
+              top: report.topFiles.slice(0, 5).map((file) => ({
+                path: file.path,
+                bytes: file.bytes
+              })),
+              notes: report.notes
+            }
+          : null
+      },
+      null,
+      2
+    )
+  )
+  app.exit(report ? 0 : 1)
+}
+
+/**
  * Hardware smoke test: writes a rainbow gradient to every zone.
  *
  * This exercises the exact production code path - the same protocol module,
@@ -1314,6 +1413,10 @@ if (!app.requestSingleInstanceLock()) {
       }
       if (process.argv.includes('--gen-docs')) {
         await runDocGeneration()
+        return
+      }
+      if (process.argv.includes('--storage-bench')) {
+        await runStorageBench()
         return
       }
 

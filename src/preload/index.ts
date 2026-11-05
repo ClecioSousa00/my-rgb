@@ -24,6 +24,7 @@ import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
 import type { SensorsSnapshot } from '@shared/features/sensors'
 import type { DiskHealthSnapshot } from '@shared/features/health'
 import type { NetworkProgress, NetworkReport, NetworkStatus } from '@shared/features/network'
+import type { StorageProgress, StorageReport, StorageStatus } from '@shared/features/storage'
 import type {
   GamesQuery,
   GamesReport,
@@ -92,6 +93,15 @@ const api: MyRgbApi = {
   setSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IPC.settingsSet, patch),
   openLogsFolder: (): Promise<LogsFolderResult> => ipcRenderer.invoke(IPC.logsOpen),
+
+  // storage
+  startStorageScan: (root: string): Promise<StorageReport | null> =>
+    ipcRenderer.invoke(IPC.storageStart, root),
+  cancelStorageScan: (): Promise<void> => ipcRenderer.invoke(IPC.storageCancel),
+  getStorageStatus: (): Promise<StorageStatus> => ipcRenderer.invoke(IPC.storageStatus),
+  getStorageReport: (): Promise<StorageReport | null> => ipcRenderer.invoke(IPC.storageReport),
+  onStorageProgress: (callback: (progress: StorageProgress) => void) =>
+    subscribe(IPC.storageProgress, callback),
 
   // system & drives
   getSystem: (force = false): Promise<SystemSnapshot> => ipcRenderer.invoke(IPC.systemGet, force),

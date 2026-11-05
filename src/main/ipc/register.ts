@@ -38,6 +38,12 @@ import type { BottleneckService } from '../features/bottleneck'
 import type { OverlayService } from '../features/overlay/manager'
 import type { OverlayConfig } from '@shared/features/overlay'
 import { applyLogLevel, logDirectory } from '../logging'
+import {
+  cancelStorageScan,
+  lastStorageReport,
+  startStorageScan,
+  storageStatus
+} from '../features/storage'
 
 /** Largest profile file accepted on import; real ones are a few kilobytes. */
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024
@@ -284,6 +290,20 @@ export function registerIpc(host: IpcHost): void {
   })
 
   // --- logs ---------------------------------------------------------------
+
+  // --- storage ------------------------------------------------------------
+
+  ipcMain.handle(IPC.storageStart, (_e, root: string) =>
+    startStorageScan(root, (progress) => {
+      if (!host.window || host.window.isDestroyed()) return
+      host.window.webContents.send(IPC.storageProgress, progress)
+    })
+  )
+  ipcMain.handle(IPC.storageCancel, () => {
+    cancelStorageScan()
+  })
+  ipcMain.handle(IPC.storageStatus, () => storageStatus())
+  ipcMain.handle(IPC.storageReport, () => lastStorageReport())
 
   ipcMain.handle(IPC.logsOpen, async () => {
     const path = logDirectory(app.getPath('userData'))

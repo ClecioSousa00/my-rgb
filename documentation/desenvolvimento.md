@@ -111,6 +111,7 @@ diagnóstico:
 | `--dump-frames <dir>` | grava os quadros em disco, para comparar entre sistemas |
 | `--dump-offline` | junto com o de cima, não abre o dispositivo |
 | `--gen-docs <arquivo>` | regera o catálogo de efeitos |
+| `--storage-bench <pasta>` | varre a pasta com o motor a rodar e imprime FPS antes/durante, tempo e progresso |
 | `--hidden` | sobe sem janela (usado pelo autostart) |
 
 ```bash
@@ -208,6 +209,58 @@ A coleta é sob demanda (a página pede, o main responde), sem poll:
 A leitura é cacheada por 60 s: `smartctl -a` acorda um HDD adormecido, e um
 refresh a cada abertura de página atrapalharia o disco. O botão **Atualizar**
 passa `force` e ignora o cache.
+
+---
+
+## Como o armazenamento é analisado
+
+A análise de armazenamento é a única coisa do app que percorre uma árvore
+inteira de arquivos. Por isso ela é dividida em três camadas, e nenhuma delas
+toca o dispositivo ou o banco de perfis:
+
+- `src/main/features/storage/walk.ts` — o percurso puro, sem Electron: uma
+  passada por pasta (`readdir`), um `lstat` por arquivo, os totais, os
+  contadores e o ranking. É o que os testes exercitam, com árvores reais em
+  `/tmp`.
+- `src/main/features/storage/worker.ts` — o entry do `utilityProcess`, um
+  processo do sistema separado (`out/main/storageWorker.js`, um segundo input
+  do build do main). É isso que impede um milhão de `lstat` de atrasar um
+  quadro do motor.
+- `src/main/features/storage/index.ts` — a scan única em voo: sobe o worker,
+  reencaminha o progresso, guarda o último relatório em memória e cancela.
+
+Regras que valem para qualquer análise:
+
+- **Só leitura.** Nada é criado, alterado, movido ou apagado.
+- **Links não são seguidos** (simbólicos e junctions do Windows): eles são
+  contados e nomeados numa nota. Um link de volta para a raiz tornaria a
+  varredura infinita e o total maior que o disco.
+- **Hard links contam uma vez**: a chave é `dev:ino`, porque o mesmo arquivo
+  ocupa espaço uma vez só.
+- **Outras unidades não são atravessadas**: um ponto de montagem dentro da
+  pasta escolhida entra em `mounts`, não nos totais.
+- **Permissão negada não interrompe**: a pasta entra em `denied`, até cinco
+  caminhos ficam em `deniedSamples` e o relatório leva a nota de que o total
+  está incompleto. Nada pede root.
+- **Limites de memória**: no máximo 20 subpastas por pasta
+  (`STORAGE_MAX_CHILDREN`), 200 mil pastas (`STORAGE_MAX_NODES`) e os 500
+  maiores arquivos (`STORAGE_TOP_FILES`). Ao estourar o limite de pastas, as
+  seguintes são percorridas *sem* nó — os totais e o ranking continuam
+  completos, só o detalhe por pasta desaparece.
+- **Progresso agrupado**: no máximo uma atualização a cada 250 ms, nunca uma
+  por arquivo. `fraction` só aparece quando a raiz é o ponto de montagem e o
+  espaço usado do volume é conhecido; um palpite errado seria pior que nenhuma
+  barra.
+- **Cancelar** aborta o percurso entre arquivos e pastas; a chamada resolve
+  `null` e o worker é encerrado.
+
+`--storage-bench <pasta>` sobe a interface e o motor de verdade, roda a scan e
+imprime `fpsBefore`, `fpsDuring` e três amostras de progresso. Na máquina de
+desenvolvimento (AULA3-AR32, 4 zonas, motor limitado pelo HID a ~8,6 FPS),
+varrer `/home/developer/Projects` — 378 mil arquivos, 56 mil pastas, 13,3 GB —
+levou 3,2 s e o FPS ficou em 8,6 antes e durante: a scan não custou quadro
+nenhum. O `fork` do `utilityProcess` custa cerca de 1 s além da varredura; é o
+preço de manter o motor no processo principal.
 
 ---
 

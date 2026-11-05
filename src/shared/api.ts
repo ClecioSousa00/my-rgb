@@ -35,6 +35,11 @@ import type {
   OverlayFrame,
   OverlayState
 } from './features/overlay'
+import type {
+  StorageProgress,
+  StorageReport,
+  StorageStatus
+} from './features/storage'
 
 export type Unsubscribe = () => void
 
@@ -106,6 +111,21 @@ export interface MyRgbApi {
    * can show the user where the file is instead of only saying it failed.
    */
   openLogsFolder(): Promise<LogsFolderResult>
+
+  // storage
+  /**
+   * Analyse a folder. Starting a second scan while one runs returns the call
+   * already in flight. Resolves to null when canceled.
+   */
+  startStorageScan(root: string): Promise<StorageReport | null>
+  /** Ask the running scan to stop. */
+  cancelStorageScan(): Promise<void>
+  /** Whether a scan is running, and its latest counters. */
+  getStorageStatus(): Promise<StorageStatus>
+  /** Last completed report, without scanning again. */
+  getStorageReport(): Promise<StorageReport | null>
+  /** Pushed a few times per second while a scan runs. */
+  onStorageProgress(callback: (progress: StorageProgress) => void): Unsubscribe
 
   // system & drives
   /** Static hardware snapshot. Cached in the main process for a minute. */

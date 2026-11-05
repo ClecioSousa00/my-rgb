@@ -46,7 +46,7 @@ navegação e depois detalha cada tela.
 | Visão geral | Hardware, limitador ao vivo, discos, saúde, rede e atalhos — **pronta** |
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
-| Discos | Unidades e Saúde — **pronta** |
+| Discos | Unidades e Saúde — **prontas**; Análise em construção |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
 | Jogos | FPS medido ou estimado por jogo, com fonte e confiança — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
@@ -211,7 +211,7 @@ escondida.
 
 ## A tela de Discos
 
-Duas abas.
+Duas abas de leitura e uma terceira em construção.
 
 **Unidades** — um cartão por volume, com anel de ocupação (branco = usado,
 cinza = livre), o ponto de montagem (`/`, `/home`, `C:`), o tipo (SSD, HDD, USB,
@@ -252,6 +252,18 @@ De onde vêm os números:
 - Um disco que não responde (pendrive com bridge USB sem suporte, disco sem
   permissão) fica como **sem dados** — nunca como saudável. No Windows o
   "Healthy" que ele dá para qualquer pendrive não conta como métrica.
+
+**Análise** (em construção — o núcleo já existe e é medido, a interface ainda
+não) — a varredura é sob demanda, nunca no arranque: escolhe-se uma pasta e ela
+roda num processo separado (`utilityProcess`), com progresso agrupado (arquivos,
+pastas, bytes e pasta atual), estimativa de andamento quando o volume é
+conhecido e botão **Cancelar**. É estritamente de leitura: não segue links
+simbólicos nem junctions, não atravessa outras unidades e conta um hard link uma
+vez só. Pasta sem permissão não interrompe nada — entra na contagem de
+ignoradas, fica nomeada numa nota e o relatório avisa que o total está
+incompleto. Para caber na memória, a árvore guarda as 20 maiores subpastas por
+pasta e no máximo 200 mil pastas, além dos 500 maiores arquivos; passando disso,
+os totais continuam completos e só o detalhe por pasta desaparece.
 
 ---
 

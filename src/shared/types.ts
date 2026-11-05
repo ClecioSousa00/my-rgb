@@ -320,5 +320,15 @@ export const IPC = {
   /** Pushed every 500 ms while the overlay is open. */
   overlayFrame: 'overlay:frame',
   /** Folder holding the log and the crash reports. */
-  logsOpen: 'logs:open'
+  logsOpen: 'logs:open',
+  /** Start (or attach to) a storage scan. */
+  storageStart: 'storage:start',
+  /** Cancel the scan in flight; its call resolves to null. */
+  storageCancel: 'storage:cancel',
+  /** Whether a scan is running and how far it got. */
+  storageStatus: 'storage:status',
+  /** Last completed report, kept in memory. */
+  storageReport: 'storage:report',
+  /** Pushed a few times per second while the scan runs. */
+  storageProgress: 'storage:progress'
 } as const

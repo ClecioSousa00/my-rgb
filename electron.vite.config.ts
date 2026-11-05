@@ -16,7 +16,12 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        input: { index: resolve(root, 'src/main/index.ts') }
+        input: {
+          index: resolve(root, 'src/main/index.ts'),
+          // The storage walk runs in its own utilityProcess, so it needs its
+          // own entry file (out/main/storageWorker.js).
+          storageWorker: resolve(root, 'src/main/features/storage/worker.ts')
+        }
       }
     }
   },
