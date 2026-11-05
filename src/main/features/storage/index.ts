@@ -17,7 +17,10 @@ import { isAbsolute, join, resolve, sep } from 'path'
 import { app, utilityProcess } from 'electron'
 import type { UtilityProcess } from 'electron'
 import type { StorageProgress, StorageReport, StorageStatus } from '@shared/features/storage'
+import type { DriveInfo } from '@shared/features/system'
 import { listDrives } from '../system/drives'
+import { diagnoseStorage } from './diagnose'
+import { loadStorageSnapshot, saveStorageSnapshot, snapshotFromReport } from './history'
 
 interface ActiveScan {
   root: string
@@ -104,10 +107,37 @@ async function run(
 
     return await new Promise<StorageReport | null>((resolveScan, rejectScan) => {
       let settled = false
+      // Set as soon as the worker reports a result. The exit that follows (a
+      // crash between `done` and the settle, or the kill below) must not turn
+      // a finished scan into an error while the snapshot is being written.
+      let answered = false
       const settle = (finish: () => void): void => {
         if (settled) return
         settled = true
         finish()
+      }
+
+      /**
+       * Attach the advice and remember the scan for the growth comparison.
+       *
+       * Both steps are best effort: a history file that cannot be read or
+       * written must not turn a completed scan into an error.
+       */
+      const complete = async (report: StorageReport): Promise<void> => {
+        const userData = app.getPath('userData')
+        const previous = await loadStorageSnapshot(userData, report.root).catch(() => null)
+        report.suggestions = diagnoseStorage({
+          report,
+          drives: target.drives,
+          previous
+        })
+        lastReport = report
+        lastProgress = null
+        // Awaited: the next scan of the same root must see this snapshot, or
+        // the growth comparison would silently compare against nothing.
+        await saveStorageSnapshot(userData, snapshotFromReport(report)).catch((err) => {
+          console.warn('Não foi possível guardar o histórico de armazenamento:', err)
+        })
       }
 
       worker.on(
@@ -128,20 +158,26 @@ async function run(
             return
           }
           if (message?.type === 'done' && message.report) {
+            answered = true
             // The volume match is decided here (it needs `listDrives`), but it
             // belongs in the report so the page can say which drive was read.
             const report: StorageReport = { ...message.report, driveId: target.driveId }
-            lastReport = report
-            lastProgress = null
-            settle(() => resolveScan(report))
+            // Advice is built in the main process: it needs the volume list and
+            // the previous scan, neither of which the walk (or the page) has.
+            // It awaits a small JSON read, so the settle is guarded.
+            void complete(report).finally(() => {
+              settle(() => resolveScan(report))
+            })
             return
           }
           if (message?.type === 'aborted') {
+            answered = true
             lastProgress = null
             settle(() => resolveScan(null))
             return
           }
           if (message?.type === 'error') {
+            answered = true
             lastProgress = null
             settle(() => rejectScan(new Error(message.message ?? 'A busca falhou.')))
           }
@@ -151,6 +187,7 @@ async function run(
       // A crash is not a normal end: the report is incomplete, so there is
       // none to hand back and the page must say so.
       worker.on('exit', (code) => {
+        if (answered) return
         lastProgress = null
         if (canceled) {
           settle(() => resolveScan(null))
@@ -201,7 +238,7 @@ function workerEntry(): string {
  */
 async function prepare(
   root: string
-): Promise<{ root: string; driveId?: string; expectedBytes?: number }> {
+): Promise<{ root: string; driveId?: string; expectedBytes?: number; drives: DriveInfo[] }> {
   if (!root || !isAbsolute(root)) {
     throw new Error('Escolha uma pasta pelo caminho completo.')
   }
@@ -218,8 +255,9 @@ async function prepare(
 
   let driveId: string | undefined
   let expectedBytes: number | undefined
+  let drives: DriveInfo[] = []
   try {
-    const drives = await listDrives()
+    drives = await listDrives()
     // The most specific mount wins: on Linux both "/" and "/home" can match.
     const match = drives
       .filter((drive) => isInside(target, drive.mount))
@@ -229,10 +267,11 @@ async function prepare(
       if (samePath(target, match.mount)) expectedBytes = match.usedBytes
     }
   } catch {
-    // The scan does not depend on the volume list; it only feeds the bar.
+    // The scan does not depend on the volume list; it only feeds the bar and
+    // the low-space advice.
   }
 
-  return { root: target, driveId, expectedBytes }
+  return { root: target, driveId, expectedBytes, drives }
 }
 
 function isInside(target: string, mount: string): boolean {

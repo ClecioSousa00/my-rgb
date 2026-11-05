@@ -317,12 +317,32 @@ não há número inventado nem tela pela metade.
 - [x] Selftest varre uma árvore temporária real e confere o relatório na tela
       (`storageTab`).
 
-### 4. Diagnóstico de espaço (4) — pendente
+### 4. Diagnóstico de espaço (4) — concluído
 
-- [ ] Disco com menos de 10% livre (já dá para calcular com `listDrives`).
-- [ ] Arquivos muito grandes e pastas temporárias/Downloads/caches.
-- [ ] Crescimento entre análises — exige guardar o resumo do scan anterior em
-      `userData`; sem scan anterior a linha não aparece.
+- [x] Disco com menos de 10% livre (`STORAGE_LOW_SPACE_PERCENT`), com a
+      porcentagem livre ao lado do caminho; o mesmo aviso aparece no cartão da
+      unidade antes da varredura.
+- [x] Arquivos de 1 GB ou mais entre os 500 maiores e pastas temporárias,
+      Downloads e caches com 1 GB ou mais (`STORAGE_NOTABLE_BYTES`). Uma pasta
+      já nomeada por uma categoria não é contada de novo em outra.
+- [x] Crescimento entre análises: 1 GB **e** 10% (`STORAGE_GROWTH_MIN_BYTES`,
+      `STORAGE_GROWTH_PERCENT`). O resumo de cada raiz fica em
+      `userData/storage/scans.json` (total + 1000 maiores pastas, 12 raízes,
+      escrita atômica); sem análise anterior a sugestão não aparece, e pastas
+      fora do top-1000 anterior não são comparadas. A raiz analisada só entra
+      quando o crescimento não está numa subpasta (o total dela já está no
+      resumo), e uma pasta não é contada junto com a subpasta dela.
+- [x] Sugestões calculadas no processo principal (`diagnose.ts`) e anexadas ao
+      relatório; a tela não recalcula nada.
+- [x] Cartão **Sugestões** com caminho, tamanho e botão para mostrar no
+      gerenciador de arquivos, mais as regras escritas no rodapé: é conselho,
+      não obrigação.
+- [x] `tests/storage-diagnose.test.ts` (20 casos) fixa os limites, a ordem, a
+      deduplicação e a ausência de sugestão; `tests/storage-history.test.ts`
+      (12 casos) cobre round-trip, substituição por raiz, limite de 12,
+      ficheiro corrompido e gravações concorrentes.
+- [x] `--storage-growth-bench` faz duas varreduras com um arquivo esparso de
+      2 GB no meio e prova o crescimento de ponta a ponta.
 
 ### 5. Jogos (3.1) — pendente
 

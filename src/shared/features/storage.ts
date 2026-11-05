@@ -17,6 +17,23 @@ export const STORAGE_TOP_FILES = 500
 /** Subfolders kept per folder in the tree (the biggest ones). */
 export const STORAGE_MAX_CHILDREN = 20
 
+/** A drive with less than this share of free space gets a suggestion. */
+export const STORAGE_LOW_SPACE_PERCENT = 10
+
+/**
+ * A file, or a group of folders of the same kind, worth mentioning.
+ *
+ * One gigabyte, not "whatever looks big": a suggestion with a hidden rule
+ * cannot be checked by the user.
+ */
+export const STORAGE_NOTABLE_BYTES = 1_000_000_000
+
+/** Growth below this is not worth a suggestion. */
+export const STORAGE_GROWTH_MIN_BYTES = 1_000_000_000
+
+/** Growth also needs to be at least this share of the previous size. */
+export const STORAGE_GROWTH_PERCENT = 10
+
 /**
  * Directory nodes kept in memory. A disk can have more folders than the tree
  * can hold; past this point totals keep counting but no nodes are attached,
@@ -107,6 +124,45 @@ export interface StorageReport {
   tree: StorageNode
   /** What the totals exclude, in the user's language. */
   notes: string[]
+  /**
+   * Advice built from the report, the drives and the previous scan of the
+   * same root. Always a suggestion: nothing here is an obligation, and an
+   * empty list is not a guarantee that the disk is healthy.
+   */
+  suggestions: StorageSuggestion[]
+}
+
+/** What kind of advice a suggestion carries. */
+export type StorageSuggestionKind =
+  | 'drive-low-space'
+  | 'large-files'
+  | 'temp-folders'
+  | 'downloads'
+  | 'caches'
+  | 'growth'
+
+/** One path shown inside a suggestion. */
+export interface StorageSuggestionItem {
+  /** Absolute path, revealed in the file manager by the UI. */
+  path: string
+  /** Short right-side note, e.g. "1,2 GB" or "8,4% livres". */
+  note?: string
+}
+
+/**
+ * One piece of advice about the analysed storage.
+ *
+ * `detail` is a whole sentence because the rule matters: the user has to know
+ * that "grande" means "1 GB or more", not whatever felt large that day.
+ */
+export interface StorageSuggestion {
+  kind: StorageSuggestionKind
+  title: string
+  detail: string
+  /** Total bytes involved, when the suggestion has a number. */
+  bytes?: number
+  /** Paths to show, biggest first; the UI caps what it renders. */
+  items: StorageSuggestionItem[]
 }
 
 /** Caps used by the walk; the page does not need to know them. */

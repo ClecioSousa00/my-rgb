@@ -274,6 +274,27 @@ maiores subpastas por pasta e no máximo 200 mil pastas, além dos 500 maiores
 arquivos; passando disso, os totais continuam completos e só o detalhe por pasta
 desaparece.
 
+**Sugestões** — o diagnóstico não aponta problemas obrigatórios, e sim o que
+vale olhar, com a regra escrita ao lado para você poder discordar dela:
+
+- unidade com menos de 10% de espaço livre (o aviso também aparece no cartão da
+  unidade, antes da varredura);
+- arquivos de 1 GB ou mais entre os 500 maiores;
+- pastas temporárias, de Downloads ou de cache com 1 GB ou mais — uma pasta já
+  nomeada por uma categoria não entra de novo em outra;
+- pasta que cresceu pelo menos 1 GB **e** 10% desde a análise anterior da mesma
+  pasta. Isso exige um resumo guardado da varredura anterior
+  (`userData/storage/scans.json`); na primeira análise a linha não aparece, e
+  uma pasta que estava fora das 1000 maiores da vez anterior não é comparada.
+  A pasta analisada só aparece quando o crescimento não está numa subpasta —
+  o total dela já está no resumo — e, quando uma pasta e uma subpasta dela
+  cresceram, só a de cima é listada, para o mesmo espaço não aparecer duas
+  vezes.
+
+Cada sugestão mostra caminho, tamanho e um botão para mostrá-la no gerenciador
+de arquivos. Uma lista vazia significa "nada a apontar por estas regras", nunca
+"o disco está saudável".
+
 ---
 
 ## A tela de Rede

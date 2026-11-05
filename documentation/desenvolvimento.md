@@ -273,10 +273,41 @@ ordenação ficam em `src/shared/features/storage-view.ts`, sem React, cobertos
 por `tests/storage-view.test.ts`; a árvore já vem ordenada e limitada do
 percurso, e expandir uma pasta não toca no disco.
 
-No pacote, o entry do worker é retirado do `app.asar` (`asarUnpack` em
-`electron-builder.yml`): `utilityProcess.fork` é um spawn do sistema e precisa
-de um arquivo real, não de um caminho dentro do arquivo. `npm run build:dir`
-seguido de `--storage-bench` numa árvore pequena prova esse caminho.
+No pacote, o entry do worker e os chunks que ele exige são retirados do
+`app.asar` (`asarUnpack` em `electron-builder.yml`): `utilityProcess.fork` é um
+spawn do sistema e precisa de um arquivo real, não de um caminho dentro do
+arquivo. O worker e o processo principal compartilham os contratos de
+armazenamento, então o Rollup emite um chunk comum em `out/main/chunks/`; tirar
+só o entry do arquivo deixa o worker sem conseguir carregar esse chunk — foi o
+que o `--storage-growth-bench` empacotado pegou. `npm run build:dir` seguido de
+`--storage-bench` (ou `--storage-growth-bench`) numa árvore pequena prova esse
+caminho.
+
+**Diagnóstico** (`src/main/features/storage/diagnose.ts`) é uma função pura que
+recebe o relatório, as unidades e o resumo da análise anterior e devolve a lista
+de sugestões; a tela só renderiza. As regras são constantes em
+`src/shared/features/storage.ts` (`STORAGE_LOW_SPACE_PERCENT`,
+`STORAGE_NOTABLE_BYTES`, `STORAGE_GROWTH_MIN_BYTES`,
+`STORAGE_GROWTH_PERCENT`) e aparecem escritas no rodapé do cartão, porque uma
+sugestão com regra escondida não pode ser conferida. Duas decisões evitam
+conselho inventado: uma pasta já nomeada por temporários/Downloads/caches não é
+contada outra vez (`claimed`), e crescimento exige a pasta presente nos **dois**
+resumos — uma pasta nova e uma que estava fora do top-1000 anterior são
+indistinguíveis, então nenhuma das duas é reportada.
+
+O histórico (`src/main/features/storage/history.ts`) guarda, por raiz, o total e
+as 1000 maiores pastas em `userData/storage/scans.json` — não o relatório
+inteiro, que teria centenas de milhares de nós. São 12 raízes, a mais antiga cai
+fora; a escrita é em arquivo temporário + `rename` e as gravações são
+serializadas numa fila, porque duas análises terminando juntas não podem
+sobrescrever uma à outra. Arquivo ausente ou corrompido é lido como "sem
+histórico", nunca como erro da análise. `complete()` no gestor espera a gravação
+antes de resolver o relatório: a próxima análise da mesma raiz precisa ver este
+resumo.
+
+`--storage-growth-bench` faz duas varreduras de uma pasta temporária com um
+arquivo esparso de 2 GB criado no meio e imprime as sugestões das duas — é a
+prova de ponta a ponta do histórico, atravessando o `utilityProcess` e o disco.
 
 ---
 

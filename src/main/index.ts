@@ -6,7 +6,7 @@
  */
 
 import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron'
-import { mkdirSync, rmSync, statSync, writeFileSync } from 'fs'
+import { closeSync, ftruncateSync, mkdirSync, openSync, rmSync, statSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { AuraUsbDevice } from './aura/auraDevice'
 import { EffectEngine } from './engine/engine'
@@ -38,6 +38,7 @@ import { applyLogLevel, activeLogFile, logDirectory, startLogging } from './logg
 import { crashDumpDirectory, startCrashReporter } from './logging/crash'
 import { normalizeLogLevel } from '@shared/logging'
 import { startStorageScan } from './features/storage'
+import type { StorageReport } from '@shared/features/storage'
 
 const isDev = !app.isPackaged
 
@@ -807,7 +808,8 @@ async function runStorageBench(): Promise<void> {
                 path: file.path,
                 bytes: file.bytes
               })),
-              notes: report.notes
+              notes: report.notes,
+              suggestions: report.suggestions
             }
           : null
       },
@@ -816,6 +818,44 @@ async function runStorageBench(): Promise<void> {
     )
   )
   app.exit(report ? 0 : 1)
+}
+
+/**
+ * Growth advice, end to end.
+ *
+ * Two scans of the same temporary folder with a sparse file created between
+ * them: the snapshot written by the first scan has to be read by the second,
+ * across the real utilityProcess and the real file. A sparse file is measured
+ * as 2 GB and costs no disk, and the fixture lives in the temp folder, never
+ * in the user's data. The file goes inside `cache`, so the output must name
+ * the subfolder (not the root that contains it) and also show the cache rule.
+ */
+async function runStorageGrowthBench(): Promise<void> {
+  const root = join(app.getPath('temp'), 'myrgb-storage-growth')
+  rmSync(root, { recursive: true, force: true })
+  mkdirSync(join(root, 'cache'), { recursive: true })
+  writeFileSync(join(root, 'cache', 'a.bin'), Buffer.alloc(64 * 1024))
+  writeFileSync(join(root, 'nota.txt'), 'primeira analise')
+
+  const summarize = (
+    report: StorageReport | null
+  ): { bytes: number; files: number; suggestions: StorageReport['suggestions'] } | null =>
+    report ? { bytes: report.bytes, files: report.files, suggestions: report.suggestions } : null
+
+  const first = await startStorageScan(root, () => {})
+
+  const big = join(root, 'cache', 'cresceu.bin')
+  const fd = openSync(big, 'w')
+  ftruncateSync(fd, 2_000_000_000)
+  closeSync(fd)
+
+  const second = await startStorageScan(root, () => {})
+  rmSync(root, { recursive: true, force: true })
+
+  console.log(
+    JSON.stringify({ root, first: summarize(first), second: summarize(second) }, null, 2)
+  )
+  app.exit(second ? 0 : 1)
 }
 
 /**
@@ -1068,13 +1108,20 @@ async function runSelfTest(): Promise<void> {
       // The card titles are uppercased by CSS, so the text check must ignore
       // case; innerText returns what the user sees.
       await waitFor(
-        () => /maiores arquivos/i.test(text()) && /maiores pastas/i.test(text()),
+        () =>
+          /maiores arquivos/i.test(text()) &&
+          /maiores pastas/i.test(text()) &&
+          /sugestões/i.test(text()),
         15000
       )
+      // The footnote always renders, empty list or not; the suggestion itself
+      // depends on the machine's free space, so it is not asserted here.
       window.__myRgbStorageTab =
         storageReport !== null &&
         /maiores arquivos/i.test(text()) &&
         /maiores pastas/i.test(text()) &&
+        /sugestões/i.test(text()) &&
+        /são sugestões/i.test(text()) &&
         text().includes('grande.bin')
 
       // Rede: the full test saturates the link for ~30 s, too long for the
@@ -1450,6 +1497,10 @@ if (!app.requestSingleInstanceLock()) {
       }
       if (process.argv.includes('--storage-bench')) {
         await runStorageBench()
+        return
+      }
+      if (process.argv.includes('--storage-growth-bench')) {
+        await runStorageGrowthBench()
         return
       }
 

@@ -22,7 +22,13 @@ import type {
   StorageProgress,
   StorageReport
 } from '@shared/features/storage'
-import { STORAGE_TOP_FILES } from '@shared/features/storage'
+import {
+  STORAGE_GROWTH_MIN_BYTES,
+  STORAGE_GROWTH_PERCENT,
+  STORAGE_LOW_SPACE_PERCENT,
+  STORAGE_NOTABLE_BYTES,
+  STORAGE_TOP_FILES
+} from '@shared/features/storage'
 import {
   filterStorageFiles,
   storageExtensions,
@@ -241,6 +247,7 @@ export function StorageAnalysis({ drives }: AnalysisProps): React.JSX.Element {
               setReport(null)
             }}
           />
+          <SuggestionsCard report={report} onReveal={reveal} />
           <div className="grid items-stretch gap-4 xl:grid-cols-2">
             <FilesCard report={report} onReveal={reveal} />
             <FoldersCard report={report} />
@@ -285,6 +292,11 @@ function Chooser({
           {drives.map((drive) => {
             const selected = target === drive.mount
             const title = drive.label ?? (drive.mount === '/' ? 'Sistema' : drive.mount)
+            // Same rule the suggestion card uses: the warning is a fact about
+            // the volume, so it is shown before the scan, not only after it.
+            const lowSpace =
+              drive.totalBytes > 0 &&
+              (drive.freeBytes / drive.totalBytes) * 100 < STORAGE_LOW_SPACE_PERCENT
             return (
               <button
                 key={drive.id}
@@ -297,7 +309,17 @@ function Chooser({
                     : 'border-ink-700 bg-ink-900 text-ink-300 hover:border-ink-500'
                 }`}
               >
-                <span className="block truncate text-[12.5px] font-medium">{title}</span>
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate text-[12.5px] font-medium">{title}</span>
+                  {lowSpace && (
+                    <span
+                      className="chip shrink-0"
+                      title={`Menos de ${STORAGE_LOW_SPACE_PERCENT}% de espaço livre`}
+                    >
+                      pouco espaço
+                    </span>
+                  )}
+                </span>
                 <span className="mt-0.5 block truncate font-mono text-[10.5px] text-ink-500">
                   {drive.mount} · {formatBytes(drive.freeBytes)} livres
                 </span>
@@ -461,6 +483,90 @@ function SummaryCard({
           ))}
         </ul>
       )}
+    </Card>
+  )
+}
+
+function SuggestionsCard({
+  report,
+  onReveal
+}: {
+  report: StorageReport
+  onReveal: (path: string) => void
+}): React.JSX.Element {
+  const suggestions = report.suggestions
+
+  return (
+    <Card className="max-w-4xl">
+      <div className="flex shrink-0 items-start justify-between gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-300">
+          Sugestões
+        </h2>
+        <span className="chip shrink-0">
+          {suggestions.length === 0 ? 'nada a apontar' : formatCount(suggestions.length)}
+        </span>
+      </div>
+
+      {suggestions.length === 0 ? (
+        <p className="mt-3 text-[12px] leading-relaxed text-ink-300">
+          Nada a apontar nesta análise. Isso não atesta que o disco está saudável: as regras abaixo
+          são as únicas verificações feitas.
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y divide-ink-800">
+          {suggestions.map((suggestion) => (
+            <li key={suggestion.kind} className="py-3 first:pt-0 last:pb-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-[12.5px] font-medium text-ink-100">{suggestion.title}</div>
+                {suggestion.bytes !== undefined && (
+                  <span className="shrink-0 font-mono text-[11.5px] text-ink-200">
+                    {formatBytes(suggestion.bytes)}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-ink-300">{suggestion.detail}</p>
+
+              {suggestion.items.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {suggestion.items.map((item) => (
+                    <li key={item.path} className="flex items-center gap-2">
+                      <span
+                        className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-ink-400"
+                        title={item.path}
+                      >
+                        {item.path}
+                      </span>
+                      {item.note && (
+                        <span className="shrink-0 font-mono text-[10.5px] text-ink-300">
+                          {item.note}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="btn shrink-0 px-2 py-0.5 text-[10.5px]"
+                        title="Mostrar no gerenciador de arquivos"
+                        aria-label={`Mostrar ${item.path} no gerenciador de arquivos`}
+                        onClick={() => onReveal(item.path)}
+                      >
+                        ↗
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-3 border-t border-ink-800 pt-3 text-[10.5px] leading-relaxed text-ink-500">
+        São sugestões, não problemas obrigatórios. Regras: unidade com menos de{' '}
+        {STORAGE_LOW_SPACE_PERCENT}% livre; arquivo de {formatBytes(STORAGE_NOTABLE_BYTES)} ou mais
+        entre os 500 maiores; pasta temporária, de downloads ou de cache com{' '}
+        {formatBytes(STORAGE_NOTABLE_BYTES)} ou mais; pasta que cresceu{' '}
+        {formatBytes(STORAGE_GROWTH_MIN_BYTES)} e {STORAGE_GROWTH_PERCENT}% desde a análise
+        anterior desta mesma pasta.
+      </p>
     </Card>
   )
 }

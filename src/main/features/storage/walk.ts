@@ -502,7 +502,10 @@ export async function walkStorage(options: WalkOptions): Promise<StorageReport> 
     mountSamples: totals.mountSamples,
     topFiles: top.sorted(),
     tree,
-    notes: buildNotes(totals, limits)
+    notes: buildNotes(totals, limits),
+    // Advice needs the drives and the previous scan, which live in the main
+    // process; the walk only reports what it measured.
+    suggestions: []
   }
 }
 
