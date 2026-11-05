@@ -11,14 +11,14 @@ operacionais.
 ![MyRGB](build/icon-256.png)
 
 > **Documentação:** a pasta [`documentation/`](documentation/) explica o
-> programa por dentro, o que cada parte da interface faz, o catálogo dos 34
+> programa por dentro, o que cada parte da interface faz, o catálogo dos 50
 > efeitos, as zonas e os perfis, e como desenvolver.
 
 ---
 
 ## O que ele faz
 
-- **34 efeitos prontos**, organizados em 6 categorias (mais que o OpenRGB oferece).
+- **50 efeitos prontos**, organizados em 6 categorias (mais que o OpenRGB oferece).
 - **Autoria visual de efeitos**: escolha um padrão, um gradiente e ajuste
   parâmetros por sliders — sem scripting, sem timeline.
 - **Gradientes multi-parada** com interpolação em RGB ou HSV, editáveis
@@ -36,6 +36,34 @@ operacionais.
 - **Detecção de conflito contínua**: avisa quando outro programa (Armoury Crate,
   OpenRGB) também está controlando o mesmo controlador — inclusive se ele
   começou a rodar depois do app.
+- **Dashboard de diagnóstico**: navegação lateral com Visão geral, Sistema,
+  Sensores, Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual
+  monocromático do Reset Explode. A Visão geral junta hardware, limitador ao
+  vivo, discos, rede e o que precisa de atenção em uma tela; Integrações é a
+  única que ainda diz o que vai conter, em vez de mostrar um número inventado.
+- **Overlay sobre o jogo**: janela transparente, sempre no topo, que ignora o
+  mouse e não aparece na barra de tarefas. Mostra FPS, frametime, 1% low e os
+  sensores que você escolher; liga e desliga com um atalho global.
+
+### Estado do dashboard
+
+| Página | Estado |
+|---|---|
+| Iluminação | pronta (tela original) |
+| Sistema | pronto: SO, placa-mãe/BIOS, CPU, memória, GPU e discos físicos |
+| Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx, histórico e o cartão de refrigeração (RPM da bomba e das ventoinhas) |
+| Discos | pronta: abas Unidades e Saúde (S.M.A.R.T. / CIM) |
+| Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
+| Jogos | pronta: base offline com 17 mil jogos, FPS medido ou estimado, com fonte e confiança ([metodologia](documentation/jogos.md)) |
+| Gargalo | pronto: equilíbrio GPU × CPU, limitador ao vivo e sessão de 1/3/5 min |
+| Overlay | pronto: métricas sobre o jogo, atalho global e escolha do que mostrar; FPS real no Windows, "indisponível" no Linux |
+| Visão geral | pronta: hardware resumido, limitador ao vivo, discos, saúde, rede e atalhos para o que precisa de atenção |
+| Integrações | **não implementada**: o motivo e o plano estão em [documentation/planejamento-iluminacao-externa.md](documentation/planejamento-iluminacao-externa.md) |
+
+O roteador de iluminação já existe e aceita outros backends sem tocar no motor;
+OpenRGB, Razer e Corsair ficaram para depois, e a página Integrações é a única
+que ainda não tem conteúdo.
+
 
 ## Requisitos
 
@@ -60,7 +88,7 @@ root consegue abri-lo.
 O `.deb` instala a regra sozinho durante o `dpkg -i`:
 
 ```bash
-sudo dpkg -i release/my-rgb_0.1.0_amd64.deb
+sudo dpkg -i release/my-rgb_0.2.0_amd64.deb
 ```
 
 Depois, **desligue e religue o cabo do controlador** (ou reinicie) para que a
@@ -100,6 +128,24 @@ npm run build:linux  # AppImage + .deb em release/
 O instalador NSIS registra a entrada de autostart do Windows quando a opção
 "Iniciar com o sistema" está ligada nas configurações do MyRGB.
 
+### FPS no overlay
+
+O FPS real do jogo vem de um helper (.NET, ETW) que precisa de permissão de
+administrador. Ele é iniciado sob demanda: a primeira vez que você liga o
+overlay (ou o FPS) o Windows mostra **um** pedido de UAC; recusar não quebra
+nada, o overlay continua mostrando os sensores e a página Overlay diz o que
+faltou.
+
+O instalador só inclui o helper se ele tiver sido gerado antes:
+
+```bash
+npm run build:helper     # precisa do .NET 8 SDK, no Windows
+npm run build:win
+```
+
+Sem o helper, a página Overlay mostra "indisponível" e oferece **Tentar
+novamente** — nenhum FPS é inventado.
+
 ---
 
 ## Usando
@@ -125,14 +171,14 @@ tem um **?** ao lado do rótulo que explica aquela controle. O catálogo
 completo dos efeitos está em
 [documentation/efeitos.md](documentation/efeitos.md).
 
-### Os 34 efeitos
+### Os 50 efeitos
 
 | Categoria | Efeitos |
 |---|---|
-| **Básicos** | Sólido · Gradiente · Gradiente pulsante · Respiração · Fade · Ciclo de cores |
-| **Ondulação** | Onda · Onda dupla · Interferência · Água · Plasma · Pulso · Pulso central |
-| **Movimento** | Chase · Chase suave · Cometa · Meteoros · Chuva · Ponta a ponta · Varredura · Túnel · Espiral |
-| **Atmosfera** | Aurora · Fogo · Campo de estrelas · Cintilação · Dissolve · Névoa |
+| **Básicos** | Sólido · Gradiente · Gradiente pulsante · Respiração · Fade · Ciclo de cores · Batida · Estrobo · Preenchimento |
+| **Ondulação** | Onda · Onda dupla · Interferência · Água · Plasma · Pulso · Pulso central · Ondulações · Onda de gradiente · Mapa de ruído |
+| **Movimento** | Chase · Chase suave · Cometa · Meteoros · Chuva · Ponta a ponta · Varredura · Túnel · Espiral · Bola quicando · Visor · Letreiro · Sinelon · Pipoca · Bolhas |
+| **Atmosfera** | Aurora · Fogo · Campo de estrelas · Cintilação · Dissolve · Névoa · Relâmpago · Fogos de artifício · Vela · Amanhecer |
 | **Espectro** | Arco-íris · Arco-íris pulsante · Varredura de matiz |
 | **Pontos** | Dot chase · Caça aos pontos · Rastro |
 
@@ -142,6 +188,14 @@ O controlador **não informa** quantos LEDs há em cada header endereçável —
 depende do que você conectou fisicamente. Por isso a quantidade é configurável
 por zona (campo numérico na barra de zonas). O OpenRGB 1.0 faz exatamente o
 mesmo, pelo mesmo motivo. O padrão do MyRGB é 72.
+
+### Se algo der errado
+
+O app escreve um registo em `<dados do usuário>/logs/my-rgb.log`
+(`~/.config/my-rgb/logs/` no Linux, `%APPDATA%\my-rgb\logs\` no Windows), com
+rotação de 2 MB e três arquivos antigos. Em **⚙ Configurações → Diagnóstico** dá
+para escolher o nível (só erros até depuração) e abrir a pasta. Os relatórios de
+crash ficam em `logs/crash/` e **nunca são enviados** para nenhum servidor.
 
 ---
 
@@ -180,8 +234,10 @@ garantir que as duas execuções usaram a mesma configuração.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest
+npm test             # vitest (318 testes, 18 arquivos)
 npm run build        # build de produção em out/
+npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
+npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
 ```
 
 ### Ferramentas
@@ -190,6 +246,7 @@ npm run build        # build de produção em out/
 |---|---|
 | `node tools/probe-aura.mjs` | Lê a config table do hardware real e mostra o layout |
 | `node tools/gen-icons.mjs` | Regenera os ícones do app e da bandeja |
+| `npm run games:data` | Baixa e normaliza a base de FPS (PCGameBenchmarks + Open GPU Benchmarks) |
 | `node tools/compare-frames.mjs <a> <b>` | Compara dois dumps de frames |
 | `node tools/check-hid-binary.mjs` | Confere se o binário nativo do node-hid existe para esta plataforma |
 | `npx electron . --write-test` | Escreve um arco-íris em todas as zonas (teste de hardware) |
@@ -220,7 +277,7 @@ desinstalador, e isso exige o `wine` no Linux.
 
 ```bash
 # no Windows
-npm run build:win        # release/MyRGB-0.1.0-setup.exe
+npm run build:win        # release/MyRGB-0.2.0-setup.exe
 ```
 
 O `build:win:dir` funciona em qualquer sistema e serve para conferir o
@@ -233,16 +290,24 @@ o Windows.
 
 ```
 src/
-  shared/          tipos + matemática de cor (usados pelos dois lados)
+  shared/          tipos, matemática de cor e contratos das páginas de diagnóstico
   main/            processo principal
     aura/          protocolo (puro) + transporte HID
-    engine/        motor de efeitos + os 34 padrões
+    light/         roteador de saída + backend AURA (o lugar dos futuros backends)
+    engine/        motor de efeitos + os 50 padrões
     store/         perfis e configurações em JSON
     platform/      detecção de conflito com Armoury Crate / OpenRGB
+    features/      coletores: sistema, sensores, saúde, rede, jogos, gargalo, overlay
+    ipc/           todos os canais (`register.ts`)
+    logging/       registo em ficheiro (nível + rotação) e relatório de crash
   preload/         ponte contextBridge (única ponte renderer ↔ main)
-  renderer/        React: barra superior, zonas, preview, editor de gradiente
+  renderer/
+    src/           React: barra superior, zonas, preview, editor de gradiente e páginas
+    overlay.html   bundle separado da janela do overlay
+helper/            helper .NET 8 do Windows (FPS por ETW)
 tests/             vitest
 tools/             scripts de linha de comando
+documentation/     a referência do projeto
 ```
 
 O renderer **nunca** fala com o HID. Ele só chama a API exposta pelo preload,
@@ -281,4 +346,6 @@ que compara os dois, pacote a pacote.
 
 ## Licença
 
-MIT
+MIT — o texto está em [LICENSE](LICENSE). O que veio de fora (a lógica derivada
+do Reset Explode, as dependências de runtime e suas licenças) está em
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

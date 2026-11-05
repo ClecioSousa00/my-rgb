@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev, main, 'feat/**']
   pull_request:
     branches: [dev, main]
 
@@ -23,10 +23,76 @@ jobs:
         run: npm ci
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
+      # `conflict.test.ts` is skipped on CI: it inspects real processes and is
+      # unreliable on a shared runner. It still runs locally.
       - name: Run tests
-        run: npx vitest run tests/store.test.ts tests/patterns.test.ts tests/palette.test.ts tests/color.test.ts tests/protocol.test.ts tests/effects.test.ts tests/documentation.test.ts tests/zone-apply.test.ts
+        run: >
+          npx vitest run
+          tests/store.test.ts
+          tests/patterns.test.ts
+          tests/palette.test.ts
+          tests/protocol.test.ts
+          tests/documentation.test.ts
+          tests/engine.test.ts
+          tests/output.test.ts
+          tests/format.test.ts
+          tests/system.test.ts
+          tests/sensors.test.ts
+          tests/health.test.ts
+          tests/network.test.ts
+          tests/games.test.ts
+          tests/bottleneck.test.ts
+          tests/overlay.test.ts
+          tests/light.test.ts
 
       - name: Build
         run: npm run build
+
+  # Proves the Windows side still packages: the .NET helper compiles, the
+  # native HID prebuild lands in the right place and the app directory is
+  # produced. The NSIS installer itself needs a Windows machine (or wine) and
+  # is left to `npm run build:win`.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the FPS helper
+        run: npm run build:helper
+
+      - name: Build the Windows app directory
+        run: npm run build:win:dir
+
+      - name: Check the packaged layout
+        shell: pwsh
+        run: |
+          $root = 'release/win-unpacked'
+          $required = @(
+            "$root/MyRGB.exe",
+            "$root/resources/helper/MyRgb.Helper.exe",
+            "$root/resources/build/icon.png",
+            "$root/resources/build/tray.png"
+          )
+          $missing = $required | Where-Object { -not (Test-Path $_) }
+          if ($missing) {
+            Write-Error "Missing from the package:`n$($missing -join "`n")"
+            exit 1
+          }
+          Write-Host 'Windows package layout OK'

@@ -11,8 +11,8 @@ import { describe, expect, it } from 'vitest'
 import { ALL_PATTERNS, defaultParams, patternCategories, patternMetadata } from '@main/engine/patterns'
 
 describe('pattern metadata', () => {
-  it('ships 34 patterns', () => {
-    expect(ALL_PATTERNS).toHaveLength(34)
+  it('ships 50 patterns', () => {
+    expect(ALL_PATTERNS).toHaveLength(50)
   })
 
   it('gives every pattern a name, a category and a description', () => {
@@ -26,6 +26,12 @@ describe('pattern metadata', () => {
   it('uses unique pattern ids', () => {
     const ids = ALL_PATTERNS.map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('lets the breathing effect choose its gradient colour', () => {
+    const breathe = ALL_PATTERNS.find((p) => p.id === 'breathe')
+    expect(breathe?.params.some((param) => param.key === 'point')).toBe(true)
+    expect(defaultParams('breathe').point).toBe(0)
   })
 
   it('gives every parameter a label and a description', () => {
@@ -59,7 +65,7 @@ describe('pattern metadata', () => {
 
   it('sends the descriptions to the renderer', () => {
     const metadata = patternMetadata()
-    expect(metadata).toHaveLength(34)
+    expect(metadata).toHaveLength(50)
     for (const pattern of metadata) {
       for (const spec of pattern.params) {
         expect(spec.description, `${pattern.id}/${spec.key}`).toBeTruthy()

@@ -3,6 +3,10 @@
  * Kept dependency-free so it can be imported from any of the three.
  */
 
+import type { LightTarget } from './features/light'
+import type { OverlayConfig } from './features/overlay'
+import type { LogLevel } from './logging'
+
 export interface RGB {
   r: number
   g: number
@@ -147,6 +151,8 @@ export interface GlobalSettings {
   fps: number
   /** When false the engine renders but never touches the hardware. */
   outputEnabled: boolean
+  /** Apply effect changes to every zone at once. */
+  applyToAllZones?: boolean
 }
 
 export interface Profile {
@@ -155,6 +161,37 @@ export interface Profile {
   zones: ZoneConfig[]
   palettes: Palette[]
   global: GlobalSettings
+  /**
+   * Where each zone is written.
+   *
+   * Optional on purpose: a profile saved before the lighting router existed
+   * has no targets, and `reconcileProfile` synthesizes the AURA ones from the
+   * hardware layout, so it opens exactly as it did. `ZoneConfig.zoneId` is
+   * still the key that ties a config to its target.
+   */
+  targets?: LightTarget[]
+}
+
+/** Pages reachable from the sidebar. */
+export type PageId =
+  | 'overview'
+  | 'lighting'
+  | 'system'
+  | 'sensors'
+  | 'disks'
+  | 'network'
+  | 'games'
+  | 'bottleneck'
+  | 'overlay'
+  | 'integrations'
+  | 'logs'
+
+/** Navigation state that survives a restart. */
+export interface UiSettings {
+  /** Page shown on the next start. */
+  lastPage?: PageId
+  /** Sidebar groups the user collapsed. */
+  collapsedGroups?: string[]
 }
 
 /** Application level preferences, stored outside the profiles. */
@@ -169,6 +206,14 @@ export interface AppSettings {
   lastProfile: string
   /** Start with the lighting off. */
   startWithLightingOff: boolean
+  /** Profile to load on startup (overrides lastProfile if set). */
+  startupProfile?: string | null
+  /** Threshold of the file log; `info` when absent. */
+  logLevel?: LogLevel
+  /** Window state that is not a preference but should be remembered. */
+  ui?: UiSettings
+  /** On-screen display: switch, metrics, position and shortcut. */
+  overlay?: OverlayConfig
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +263,95 @@ export const IPC = {
   engineStop: 'engine:stop',
   engineFrame: 'engine:frame',
   engineState: 'engine:state',
+  /** Pushed when something outside the engine fails (disk write, ...). */
+  appError: 'app:error',
   settingsGet: 'settings:get',
-  settingsSet: 'settings:set'
+  settingsSet: 'settings:set',
+  systemGet: 'system:get',
+  drivesList: 'drives:list',
+  /** Subscribe to the live sensor stream (starts the poll in the main). */
+  sensorsStart: 'sensors:start',
+  sensorsStop: 'sensors:stop',
+  /** Pushed once per collection, with session min/max/history attached. */
+  sensorsBatch: 'sensors:batch',
+  /** S.M.A.R.T. health of the physical disks. */
+  healthList: 'health:list',
+  /** One privileged read (pkexec) for disks smartctl cannot open. */
+  healthElevated: 'health:elevated',
+  /** Runs the full network diagnostic and resolves with the report. */
+  netDiagnose: 'net:diagnose',
+  /** Aborts the diagnostic; the pending call resolves to null. */
+  netCancel: 'net:cancel',
+  /** Last completed report, without running the test again. */
+  netLast: 'net:last',
+  /** Whether a diagnostic is running, and how far it got. */
+  netStatus: 'net:status',
+  /** Attach to the run in flight without starting another one. */
+  netJoin: 'net:join',
+  /** Pushed while the diagnostic runs. */
+  netProgress: 'net:progress',
+  /** Resolve the catalog for a search, the options and (optionally) a GPU. */
+  gamesList: 'games:list',
+  /** Search the GPU table for the manual picker. */
+  gamesGpus: 'games:gpus',
+  /** Subscribe to the bottleneck stream (starts the shared sensor poll). */
+  bottleneckStart: 'bottleneck:start',
+  /** Remove the page subscription. A running session keeps the poll alive. */
+  bottleneckStop: 'bottleneck:stop',
+  /** Start a 1, 3 or 5 minute analysis. */
+  bottleneckSessionStart: 'bottleneck:sessionStart',
+  /** Cancel the running analysis. */
+  bottleneckSessionStop: 'bottleneck:sessionStop',
+  /** Last finished report, kept in memory. */
+  bottleneckReport: 'bottleneck:report',
+  /** Pushed once per sensor batch, plus once when a session finishes. */
+  bottleneckSample: 'bottleneck:sample',
+  /** Current overlay configuration and capabilities. */
+  overlayGet: 'overlay:get',
+  /** Apply a partial change and return the new state. */
+  overlayUpdate: 'overlay:update',
+  /** Flip the switch (used by the page and by the global shortcut path). */
+  overlayToggle: 'overlay:toggle',
+  /** Try the FPS helper again after a failure. */
+  overlayRetryFps: 'overlay:retryFps',
+  /** Content size reported by the overlay bundle, for the window bounds. */
+  overlayResize: 'overlay:resize',
+  /** Pushed when the configuration or the FPS capability changes. */
+  overlayState: 'overlay:state',
+  /** Pushed every 500 ms while the overlay is open. */
+  overlayFrame: 'overlay:frame',
+  /** Folder holding the log and the crash reports. */
+  logsOpen: 'logs:open',
+  /** List the log files on disk. */
+  logsList: 'logs:list',
+  /** Read one log file and parse its lines. */
+  logsRead: 'logs:read',
+  /** Save one log file as plain text somewhere the user chooses. */
+  logsExport: 'logs:export',
+  /** Start (or attach to) a storage scan. */
+  storageStart: 'storage:start',
+  /** Cancel the scan in flight; its call resolves to null. */
+  storageCancel: 'storage:cancel',
+  /** Whether a scan is running and how far it got. */
+  storageStatus: 'storage:status',
+  /** Last completed report, kept in memory. */
+  storageReport: 'storage:report',
+  /** Attach to the scan in flight without starting one. */
+  storageJoin: 'storage:join',
+  /** Native folder picker. */
+  storagePick: 'storage:pick',
+  /** Show a path in the system file manager. */
+  storageReveal: 'storage:reveal',
+  /** Pushed a few times per second while the scan runs. */
+  storageProgress: 'storage:progress',
+  /** Start a duplicate analysis under a folder. */
+  storageDuplicateStart: 'storage:duplicate:start',
+  /** Cancel the duplicate analysis in flight. */
+  storageDuplicateCancel: 'storage:duplicate:cancel',
+  /** Whether a duplicate analysis is running and how far it got. */
+  storageDuplicateStatus: 'storage:duplicate:status',
+  /** Last completed duplicate report, kept in memory. */
+  storageDuplicateReport: 'storage:duplicate:report',
+  /** Pushed a few times per second while the duplicate analysis runs. */
+  storageDuplicateProgress: 'storage:duplicate:progress'
 } as const

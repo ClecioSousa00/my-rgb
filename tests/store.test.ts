@@ -7,15 +7,17 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
   DEFAULT_GLOBAL,
   ProfileStore,
   defaultProfile,
-  reconcileProfile
+  reconcileProfile,
+  validateImportedProfile
 } from '@main/store/profileStore'
+import { SettingsStore } from '@main/store/settings'
 import { buildZones } from '@main/zones'
 import { BUILTIN_PALETTES } from '@main/engine/palette'
 import { defaultParams } from '@main/engine/patterns'
@@ -130,6 +132,120 @@ describe('reconcileProfile', () => {
     const reconciled = reconcileProfile(profile, ZONES)
     expect(reconciled.palettes.length).toBeGreaterThan(0)
   })
+
+  it('keeps the zones when no hardware is present', () => {
+    const profile = defaultProfile(ZONES)
+    profile.zones[1].name = 'Ventoinha'
+    profile.zones[1].ledCount = 30
+
+    const reconciled = reconcileProfile(profile, [])
+
+    expect(reconciled.zones).toHaveLength(profile.zones.length)
+    expect(reconciled.zones[1].name).toBe('Ventoinha')
+    expect(reconciled.zones[1].ledCount).toBe(30)
+    expect(reconciled.zones[1].effect?.patternId).toBe('rainbow')
+  })
+
+  it('normalises fractional and invalid LED counts to whole numbers', () => {
+    const profile = emptyProfile()
+    profile.zones = [
+      { zoneId: 'argb0', enabled: true, ledCount: 1.5, effect: null, followZoneId: null },
+      { zoneId: 'argb1', enabled: true, ledCount: Number.NaN, effect: null, followZoneId: null },
+      { zoneId: 'argb2', enabled: true, ledCount: 500, effect: null, followZoneId: null }
+    ]
+
+    const reconciled = reconcileProfile(profile, ZONES)
+
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb0')?.ledCount).toBe(2)
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb1')?.ledCount).toBe(0)
+    expect(reconciled.zones.find((z) => z.zoneId === 'argb2')?.ledCount).toBe(120)
+  })
+})
+
+describe('validateImportedProfile', () => {
+  it('rejects files that are not profiles', () => {
+    expect(() => validateImportedProfile(null)).toThrow()
+    expect(() => validateImportedProfile('perfil')).toThrow()
+    expect(() => validateImportedProfile({ version: 2, zones: [], palettes: [], global: {} })).toThrow()
+    expect(() => validateImportedProfile({ version: 1, palettes: [], global: {} })).toThrow()
+  })
+
+  it('repairs invalid values instead of handing them to the engine', () => {
+    const profile = validateImportedProfile({
+      version: 1,
+      name: '  Importado  ',
+      zones: [
+        {
+          zoneId: 'argb0',
+          enabled: true,
+          ledCount: 1.5,
+          effect: {
+            patternId: 'wave',
+            paletteId: 'nao-existe',
+            params: { rate: Number.NaN, width: 'largo' }
+          },
+          followZoneId: null
+        },
+        { zoneId: 'argb0', ledCount: 999 },
+        { semZona: true }
+      ],
+      palettes: [
+        {
+          id: 'p1',
+          name: '  ',
+          interpolation: 'invalida',
+          stops: [
+            { position: 2, color: '#abc' },
+            { position: -1, color: 'não-é-cor' }
+          ]
+        }
+      ],
+      global: {
+        brightness: 2,
+        speed: -1,
+        fps: Number.NaN,
+        outputEnabled: 'sim',
+        applyToAllZones: true
+      }
+    })
+
+    expect(profile.name).toBe('Importado')
+    expect(profile.zones).toHaveLength(1)
+    expect(profile.zones[0].ledCount).toBe(2)
+    expect(profile.zones[0].effect?.paletteId).toBe('p1')
+    // NaN is dropped, strings are kept for the pattern to resolve.
+    expect(profile.zones[0].effect?.params).toEqual({ width: 'largo' })
+    expect(profile.palettes[0].name).toBe('p1')
+    expect(profile.palettes[0].interpolation).toBe('rgb')
+    expect(profile.palettes[0].stops).toEqual([
+      { position: 0, color: '#ff00ff' },
+      { position: 1, color: '#aabbcc' }
+    ])
+    expect(profile.global.brightness).toBe(1)
+    expect(profile.global.speed).toBe(0.05)
+    expect(profile.global.fps).toBe(30)
+    expect(profile.global.outputEnabled).toBe(true)
+    expect(profile.global.applyToAllZones).toBe(true)
+  })
+
+  it('drops effects whose pattern no longer exists', () => {
+    const profile = validateImportedProfile({
+      version: 1,
+      name: 'antigo',
+      zones: [
+        {
+          zoneId: 'argb0',
+          ledCount: 30,
+          effect: { patternId: 'efeito-removido', paletteId: 'rainbow', params: {} },
+          followZoneId: null
+        }
+      ],
+      palettes: [{ id: 'rainbow', stops: [{ position: 0, color: '#ff0000' }] }],
+      global: { brightness: 1, speed: 1, fps: 30, outputEnabled: true }
+    })
+
+    expect(profile.zones[0].effect).toBeNull()
+  })
 })
 
 describe('ProfileStore', () => {
@@ -165,6 +281,35 @@ describe('ProfileStore', () => {
     store.flush()
 
     expect(store.list()).toEqual(['depois'])
+  })
+
+  it('refuses to rename over another profile unless told to', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'perfil a' })
+    store.flush()
+    store.save({ ...store.profile, name: 'perfil b' })
+    store.flush()
+
+    expect(() => store.renameProfile('perfil a')).toThrow()
+    expect(store.list()).toEqual(['perfil a', 'perfil b'])
+
+    const renamed = store.renameProfile('perfil a', true)
+    store.flush()
+    expect(renamed.name).toBe('perfil a')
+    expect(store.list()).toEqual(['perfil a'])
+  })
+
+  it('suggests the first free name for an import', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Gamer (2)' })
+    store.flush()
+
+    expect(store.availableName('Gamer')).toBe('Gamer (3)')
+    expect(store.availableName('Novo')).toBe('Novo')
   })
 
   it('duplicates a profile under a new name', () => {
@@ -242,6 +387,111 @@ describe('ProfileStore', () => {
     expect(reopened.load('persistido').name).toBe('persistido')
   })
 
+  it('lists names with accents as they were typed, not as file names', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Padrão' })
+    store.flush()
+
+    expect(store.list()).toEqual(['Padrão'])
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Padrão').name).toBe('Padrão')
+    // The sanitised file identifier still works for older callers.
+    expect(reopened.load('Padr_o').name).toBe('Padrão')
+  })
+
+  it('renames a profile with accents without leaving the old file behind', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Padrão' })
+    store.flush()
+
+    store.renameProfile('Coração')
+    store.flush()
+
+    expect(store.list()).toEqual(['Coração'])
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Coração').name).toBe('Coração')
+  })
+
+  it('keeps two names that sanitise to the same file apart', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Setup:2024' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Setup*2024' })
+    store.flush()
+
+    // Both are on disk and neither replaced the other.
+    expect(store.list()).toEqual(['Setup*2024', 'Setup:2024'])
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Setup:2024').name).toBe('Setup:2024')
+    expect(reopened.load('Setup*2024').name).toBe('Setup*2024')
+
+    // The second name gets its own file, not the first one's.
+    const files = readdirSync(join(dir, 'profiles')).sort()
+    expect(files).toHaveLength(2)
+    const names = files.map((file) => {
+      const parsed = JSON.parse(
+        readFileSync(join(dir, 'profiles', file), 'utf8')
+      ) as { name: string }
+      return parsed.name
+    })
+    expect(names.sort()).toEqual(['Setup*2024', 'Setup:2024'])
+  })
+
+  it('does not duplicate a profile whose file was renamed by hand', () => {
+    const dir = tempDir()
+    mkdirSync(join(dir, 'profiles'), { recursive: true })
+    const manual = { ...emptyProfile(), name: 'Copiado', global: { ...DEFAULT_GLOBAL } }
+    writeFileSync(join(dir, 'profiles', 'manual.json'), JSON.stringify(manual), 'utf8')
+
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    expect(store.load('Copiado').name).toBe('Copiado')
+    store.setGlobal({ brightness: 0.4 })
+    store.flush()
+
+    expect(readdirSync(join(dir, 'profiles'))).toEqual(['manual.json'])
+    const saved = JSON.parse(
+      readFileSync(join(dir, 'profiles', 'manual.json'), 'utf8')
+    ) as Profile
+    expect(saved.name).toBe('Copiado')
+    expect(saved.global.brightness).toBe(0.4)
+  })
+
+  it('flushes pending edits before switching to another profile', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Estudo' })
+    store.flush()
+
+    store.load('Gamer')
+    // Debounced: this edit only exists in memory until a flush.
+    store.setGlobal({ brightness: 0.25 })
+    store.load('Estudo')
+
+    const reopened = new ProfileStore(dir, defaultProfile())
+    expect(reopened.load('Gamer').global.brightness).toBe(0.25)
+  })
+
+  it('normalises the LED count when a zone is configured', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+
+    store.setZoneConfig('argb0', { ledCount: 1.5 })
+    expect(store.profile.zones.find((z) => z.zoneId === 'argb0')?.ledCount).toBe(2)
+
+    store.setZoneConfig('argb1', { ledCount: Number.NaN })
+    expect(store.profile.zones.find((z) => z.zoneId === 'argb1')?.ledCount).toBe(0)
+
+    store.setZoneConfig('argb2', { ledCount: -7 })
+    expect(store.profile.zones.find((z) => z.zoneId === 'argb2')?.ledCount).toBe(0)
+  })
+
   it('rejects unknown zones', () => {
     const dir = tempDir()
     const store = new ProfileStore(dir, defaultProfile(ZONES))
@@ -314,5 +564,88 @@ describe('ProfileStore', () => {
     const store = new ProfileStore(dir, defaultProfile(ZONES))
     store.setZoneEffect('argb0', null)
     expect(() => store.applyEffectToAll('argb0')).toThrow()
+  })
+})
+
+describe('ProfileStore delete', () => {
+  it('switches to another saved profile when the current one is deleted', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Estudo' })
+    store.flush()
+
+    const profile = store.delete('Estudo')
+
+    expect(profile.name).toBe('Gamer')
+    expect(store.profile.name).toBe('Gamer')
+    expect(store.list()).toEqual(['Gamer'])
+    expect(existsSync(join(dir, 'profiles', 'Estudo.json'))).toBe(false)
+  })
+
+  it('keeps the hardware zones when the last profile is deleted', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.setZoneConfig('argb0', { ledCount: 42, name: 'Fita' })
+    store.flush()
+
+    const profile = store.delete(store.profile.name)
+
+    // Falling back to a zoneless profile would silently wipe the layout.
+    expect(profile.zones).toHaveLength(ZONES.length)
+    expect(profile.zones.find((z) => z.zoneId === 'argb0')?.ledCount).toBe(42)
+    expect(profile.name).toBe('Padrão')
+    expect(store.list()).toEqual(['Padrão'])
+  })
+
+  it('leaves the current profile alone when another one is deleted', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    store.save({ ...store.profile, name: 'Gamer' })
+    store.flush()
+    store.save({ ...store.profile, name: 'Estudo' })
+    store.flush()
+
+    const profile = store.delete('Gamer')
+
+    expect(profile.name).toBe('Estudo')
+    expect(store.profile.name).toBe('Estudo')
+    expect(store.list()).toEqual(['Estudo'])
+  })
+
+  it('reports a profile that does not exist', () => {
+    const dir = tempDir()
+    const store = new ProfileStore(dir, defaultProfile(ZONES))
+    expect(() => store.delete('nao-existe')).toThrow()
+  })
+})
+
+describe('write failures', () => {
+  it('reports a profile write error instead of crashing', () => {
+    const dir = tempDir()
+    // A file where the profiles directory should be makes every write fail.
+    writeFileSync(join(dir, 'profiles'), 'nao é um diretório')
+    const errors: string[] = []
+    const store = new ProfileStore(dir, defaultProfile(ZONES), {
+      onError: (message) => errors.push(message)
+    })
+
+    expect(() => store.flush()).not.toThrow()
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('perfil')
+  })
+
+  it('reports a settings write error instead of crashing', () => {
+    const dir = tempDir()
+    // A directory where settings.json should be makes the write fail.
+    mkdirSync(join(dir, 'settings.json'))
+    const errors: string[] = []
+    const settings = new SettingsStore(dir, (message) => errors.push(message))
+
+    expect(() => settings.set({ lastProfile: 'Outro' })).not.toThrow()
+    expect(settings.settings.lastProfile).toBe('Outro')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('configurações')
   })
 })

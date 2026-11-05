@@ -61,10 +61,13 @@ export function StripPreview(): React.JSX.Element {
   const zones = useApp((s) => s.zones)
   const profile = useApp((s) => s.profile)
   const selectedZoneId = useApp((s) => s.selectedZoneId)
+  const selectZone = useApp((s) => s.selectZone)
 
   const frameRef = useRef<Frame | null>(null)
   const zonesRef = useRef(zones)
   const profileRef = useRef(profile)
+  /** Where each strip was drawn, so a click can be turned into a selection. */
+  const layoutsRef = useRef<StripLayout[]>([])
   zonesRef.current = zones
   profileRef.current = profile
 
@@ -131,6 +134,7 @@ export function StripPreview(): React.JSX.Element {
     }
 
     const configs = profileRef.current?.zones ?? []
+    layoutsRef.current = layouts
 
     for (const layout of layouts) {
       const zone = list[layout.zoneIndex]
@@ -143,13 +147,15 @@ export function StripPreview(): React.JSX.Element {
       ctx.font = layout.selected
         ? '600 12px Inter, "Segoe UI", system-ui, sans-serif'
         : '500 10.5px Inter, "Segoe UI", system-ui, sans-serif'
-      ctx.fillStyle = layout.selected ? '#e8ecf5' : '#6b748c'
+      // Greys from the theme: ink-100 / ink-400, so the labels stay legible
+      // and no hue leaks into the monochrome interface.
+      ctx.fillStyle = layout.selected ? '#f5f5f5' : '#a0a0a0'
       ctx.fillText(name, 2, layout.labelY + labelH - 4)
 
       if (zone.kind === 'addressable') {
         const count = `${config?.ledCount ?? 0} LEDs`
         ctx.font = '500 10px JetBrains Mono, ui-monospace, monospace'
-        ctx.fillStyle = '#3d4457'
+        ctx.fillStyle = '#828282'
         ctx.textAlign = 'right'
         ctx.fillText(count, width - 2, layout.labelY + labelH - 4)
         ctx.textAlign = 'left'
@@ -197,19 +203,36 @@ export function StripPreview(): React.JSX.Element {
     ? zoneDisplayName(zone, profile?.zones.find((c) => c.zoneId === zone.id))
     : null
 
+  /** Select the zone whose label or strip is under the pointer. */
+  const handleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const y = event.clientY - rect.top
+    const hit = layoutsRef.current.find(
+      (layout) => y >= layout.labelY - 4 && y <= layout.stripY + layout.stripH
+    )
+    if (!hit) return
+    const target = zonesRef.current[hit.zoneIndex]
+    if (target && target.id !== selectedZoneId) selectZone(target.id)
+  }
+
   return (
-    <div className="panel flex min-h-0 flex-1 flex-col">
+    <div className="panel relative z-0 flex min-h-0 flex-1 flex-col">
       <div className="panel-header">
         <span className="flex items-center gap-1.5">
           Pré-visualização
-          <HelpTip text="A fita grande é a zona que você está editando; as fitas finas são as outras zonas da placa. Os quadros mostrados aqui são exatamente os que vão para o hardware." />
+          <HelpTip text="Vista ao vivo e idêntica ao que é enviado ao controlador. A faixa maior é a zona selecionada; as faixas menores mostram as demais. Clique em qualquer faixa para selecioná-la." />
         </span>
         <span className="font-mono normal-case tracking-normal text-ink-400">
           {zoneName ? `${zoneName} · ${zone?.kind === 'addressable' ? 'addressable' : 'fixo'}` : '—'}
         </span>
       </div>
       <div ref={wrapRef} className="relative min-h-0 flex-1">
-        <canvas ref={canvasRef} className="absolute inset-0" />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 cursor-pointer"
+          onClick={handleClick}
+          title="Clique numa faixa para selecionar a zona"
+        />
       </div>
     </div>
   )

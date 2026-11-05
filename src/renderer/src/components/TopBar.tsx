@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../store'
+import { pageTitle } from '../navigation'
 import type { AppSettings } from '@shared/types'
+import { LOG_LEVELS } from '@shared/logging'
 import { showToast } from './Toast'
+import { Modal } from './ui/Modal'
 
 export function TopBar(): React.JSX.Element {
   const device = useApp((s) => s.device)
   const profile = useApp((s) => s.profile)
-  const engineRunning = useApp((s) => s.engineRunning)
-  const toggleEngine = useApp((s) => s.toggleEngine)
-  const setGlobal = useApp((s) => s.setGlobal)
+  const page = useApp((s) => s.page)
   const loadProfile = useApp((s) => s.loadProfile)
-  const duplicateProfile = useApp((s) => s.duplicateProfile)
   const renameProfile = useApp((s) => s.renameProfile)
   const saveProfile = useApp((s) => s.saveProfile)
   const exportProfile = useApp((s) => s.exportProfile)
@@ -19,7 +19,30 @@ export function TopBar(): React.JSX.Element {
   const [profileNames, setProfileNames] = useState<string[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const dirty = useApp((s) => s.dirty)
+  const settingsRef = useRef<HTMLDivElement>(null)
+
+  // The settings popover is not a modal, but it must not stay open on top of
+  // another page or after a click elsewhere in the bar.
+  useEffect(() => {
+    if (!showSettings) return
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!settingsRef.current?.contains(event.target as Node)) setShowSettings(false)
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setShowSettings(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [showSettings])
+
+  // Changing pages closes it too: it belongs to the bar, not to the page.
+  useEffect(() => {
+    setShowSettings(false)
+  }, [page])
 
   const [savePromptOpen, setSavePromptOpen] = useState(false)
   const [savePromptValue, setSavePromptValue] = useState('')
@@ -28,7 +51,13 @@ export function TopBar(): React.JSX.Element {
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  /** Pending "overwrite this profile?" confirmation, with the action to run. */
+  const [overwrite, setOverwrite] = useState<{
+    name: string
+    kind: 'save' | 'rename'
+  } | null>(null)
 
   useEffect(() => {
     void window.myrgb.listProfiles().then(setProfileNames)
@@ -50,6 +79,7 @@ export function TopBar(): React.JSX.Element {
   useEffect(() => {
     if (renameOpen && profile) {
       setRenameValue(profile.name)
+      setRenameError(null)
       setTimeout(() => renameInputRef.current?.select(), 0)
     }
   }, [renameOpen, profile])
@@ -58,8 +88,19 @@ export function TopBar(): React.JSX.Element {
     setSettings(await window.myrgb.setSettings(patch))
   }
 
+  /** Open the folder holding the log and the crash reports. */
+  const openLogs = async (): Promise<void> => {
+    try {
+      const result = await window.myrgb.openLogsFolder()
+      // Success needs no message: the file manager is the answer. A failure
+      // still tells where the files are, which is the useful part.
+      if (result.error) showToast(`Não foi possível abrir a pasta. Registos em ${result.path}`)
+    } catch {
+      showToast('Não foi possível abrir a pasta de registos')
+    }
+  }
+
   const connected = device?.connected ?? false
-  const lightsOn = profile?.global.outputEnabled ?? true
 
   const handleProfileChange = async (name: string): Promise<void> => {
     await loadProfile(name)
@@ -87,17 +128,25 @@ export function TopBar(): React.JSX.Element {
       return
     }
     if (profileNames.includes(trimmed)) {
-      const overwrite = window.confirm(`Já existe um perfil "${trimmed}". Sobrescrever?`)
-      if (!overwrite) {
-        setSavePromptError('Já existe um perfil com esse nome.')
-        return
-      }
+      // Replaced the native `window.confirm`: the rest of the app uses modals,
+      // and this is the decision that overwrites a file.
+      setOverwrite({ name: trimmed, kind: 'save' })
+      return
     }
-    await renameProfile(trimmed)
-    await saveProfile({ ...profile, name: trimmed })
-    setProfileNames(await window.myrgb.listProfiles())
-    setSavePromptOpen(false)
-    showToast('Perfil salvo')
+    await saveAs(trimmed, false)
+  }
+
+  const saveAs = async (trimmed: string, overwrite: boolean): Promise<void> => {
+    if (!profile) return
+    try {
+      await renameProfile(trimmed, overwrite)
+      await saveProfile({ ...profile, name: trimmed })
+      setProfileNames(await window.myrgb.listProfiles())
+      setSavePromptOpen(false)
+      showToast('Perfil salvo')
+    } catch (err) {
+      setSavePromptError(err instanceof Error ? err.message : 'Não foi possível salvar o perfil.')
+    }
   }
 
   const handleRename = async (): Promise<void> => {
@@ -112,10 +161,30 @@ export function TopBar(): React.JSX.Element {
       setRenameOpen(false)
       return
     }
-    await renameProfile(trimmed)
-    setProfileNames(await window.myrgb.listProfiles())
-    setRenameOpen(false)
-    showToast(`Perfil renomeado para “${trimmed}”`)
+    if (profileNames.includes(trimmed)) {
+      setOverwrite({ name: trimmed, kind: 'rename' })
+      return
+    }
+    await renameAs(trimmed, false)
+  }
+
+  const renameAs = async (trimmed: string, overwrite: boolean): Promise<void> => {
+    try {
+      await renameProfile(trimmed, overwrite)
+      setProfileNames(await window.myrgb.listProfiles())
+      setRenameOpen(false)
+      showToast(`Perfil renomeado para “${trimmed}”`)
+    } catch (err) {
+      setRenameError(err instanceof Error ? err.message : 'Não foi possível renomear o perfil.')
+    }
+  }
+
+  const confirmOverwrite = async (): Promise<void> => {
+    const request = overwrite
+    setOverwrite(null)
+    if (!request) return
+    if (request.kind === 'save') await saveAs(request.name, true)
+    else await renameAs(request.name, true)
   }
 
   const handleExport = async (): Promise<void> => {
@@ -132,34 +201,45 @@ export function TopBar(): React.JSX.Element {
     try {
       const imported = await importProfile()
       if (imported) {
-        setProfileNames(await window.myrgb.listProfiles())
+        const names = await window.myrgb.listProfiles()
+        setProfileNames(names)
         await handleProfileChange(imported.name)
-        showToast('Perfil importado')
+        setProfileNames(await window.myrgb.listProfiles())
+        showToast(`Perfil importado como “${imported.name}”`)
       }
     } catch (err) {
-      showToast('Erro ao importar perfil')
+      // Electron wraps handler failures ("Error invoking remote method…").
+      // Strip that so the message the main process wrote is what the user sees.
+      const raw = err instanceof Error ? err.message : String(err)
+      showToast(
+        raw.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '') ||
+          'Erro ao importar perfil'
+      )
     }
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900/80 px-4 backdrop-blur">
+    <header className="relative z-30 flex h-12 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-950 px-4">
       <div className="flex items-center gap-2.5">
-        <div
-          className="h-6 w-6 rounded-md"
-          style={{
-            background: 'linear-gradient(135deg,#7c5cff 0%,#00d4ff 50%,#29d67f 100%)'
-          }}
-        />
-        <span className="text-[15px] font-semibold tracking-tight">MyRGB</span>
+        <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-ink-100 font-mono text-[12px] font-bold text-black">
+          M
+        </div>
+        <span className="text-[14px] font-semibold tracking-tight">MyRGB</span>
       </div>
 
-      <div className="h-6 w-px bg-ink-700" />
+      <div className="h-5 w-px bg-ink-700" />
 
-      {/* device status */}
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+        {pageTitle(page)}
+      </span>
+
+      <div className="h-5 w-px bg-ink-700" />
+
+      {/* device status: filled dot = connected, hollow ring = missing */}
       <div className="flex items-center gap-2">
         <span
           className={`h-1.5 w-1.5 rounded-full ${
-            connected ? 'bg-good-500 animate-pulse-dot' : 'bg-bad-500'
+            connected ? 'animate-pulse-dot bg-ink-100' : 'border border-ink-100'
           }`}
         />
         <span className="text-[12px] text-ink-300">
@@ -167,7 +247,7 @@ export function TopBar(): React.JSX.Element {
         </span>
         {device?.conflictSuspected && (
           <span
-            className="chip border-warn-500/40 bg-warn-500/10 text-warn-500"
+            className="chip border-ink-500 text-ink-200"
             title="Outro programa pode estar controlando o mesmo controlador"
           >
             conflito
@@ -177,209 +257,238 @@ export function TopBar(): React.JSX.Element {
 
       <div className="flex-1" />
 
-      {/* profile */}
-      <div className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wider text-ink-400">Perfil</span>
-        <select
-          className="field w-36"
-          value={profile?.name ?? ''}
-          onChange={(e) => void handleProfileChange(e.target.value)}
-        >
-          {profileNames.length === 0 && <option value={profile?.name ?? ''}>{profile?.name}</option>}
-          {profileNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+      {/* The profile belongs to the lighting screen. On the other pages there
+          is nothing to edit, so the whole group stays out of the header. */}
+      {page === 'lighting' && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-ink-400">Perfil</span>
+            <select
+              className="field w-36"
+              value={profile?.name ?? ''}
+              onChange={(e) => void handleProfileChange(e.target.value)}
+            >
+              {profileNames.length === 0 && (
+                <option value={profile?.name ?? ''}>{profile?.name}</option>
+              )}
+              {profileNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn btn-primary"
+              onClick={() => void handleSave()}
+              title="Salvar alterações no perfil atual por cima deste arquivo"
+            >
+              Salvar
+            </button>
+
+            <button
+              className="btn btn-ghost"
+              onClick={() => void handleRename()}
+              title="Renomear este perfil"
+            >
+              ✎
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => void handleExport()}
+              title="Exportar perfil para arquivo"
+            >
+              Exportar
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => void handleImport()}
+              title="Importar perfil de arquivo"
+            >
+              Importar
+            </button>
+          </div>
+
+          <div className="h-5 w-px bg-ink-700" />
+        </>
+      )}
+
+      <div className="relative" ref={settingsRef}>
         <button
-          className="btn btn-primary"
-          onClick={() => void handleSave()}
-          title="Salvar alterações no perfil atual por cima deste arquivo"
-        >
-          Salvar
-        </button>
-
-        <button
-          className="btn btn-ghost"
-          onClick={() => void handleRename()}
-          title="Renomear este perfil"
-        >
-          ✎
-        </button>
-        <button
-          className="btn btn-ghost"
-          onClick={() => void handleExport()}
-          title="Exportar perfil para arquivo"
-        >
-          Exportar
-        </button>
-        <button
-          className="btn btn-ghost"
-          onClick={() => void handleImport()}
-          title="Importar perfil de arquivo"
-        >
-          Importar
-        </button>
-        {dirty && (
-          <span
-            className="chip border-transparent bg-warn-500/10 text-warn-500"
-            title="Existem mudanças não salvas neste perfil"
-          >
-            ● não salvo
-          </span>
-        )}
-      </div>
-
-      <div className="h-6 w-px bg-ink-700" />
-
-      {/* global controls */}
-      <label className="flex items-center gap-2" title="Brilho global">
-        <span className="text-[11px] uppercase tracking-wider text-ink-400">Brilho</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={profile?.global.brightness ?? 1}
-          className="w-20"
-          onChange={(e) => void setGlobal({ brightness: Number(e.target.value) })}
-        />
-        <span className="w-8 font-mono text-[11px] text-ink-400">
-          {Math.round((profile?.global.brightness ?? 1) * 100)}%
-        </span>
-      </label>
-
-      <label className="flex items-center gap-2" title="Velocidade global">
-        <span className="text-[11px] uppercase tracking-wider text-ink-400">Veloc.</span>
-        <input
-          type="range"
-          min={0.1}
-          max={3}
-          step={0.05}
-          value={profile?.global.speed ?? 1}
-          className="w-20"
-          onChange={(e) => void setGlobal({ speed: Number(e.target.value) })}
-        />
-        <span className="w-8 font-mono text-[11px] text-ink-400">
-          {(profile?.global.speed ?? 1).toFixed(2)}x
-        </span>
-      </label>
-
-      <div className="h-6 w-px bg-ink-700" />
-
-      <button
-        className={`btn ${lightsOn ? 'btn-primary' : ''}`}
-        onClick={() => void setGlobal({ outputEnabled: !lightsOn })}
-        title="Envia os quadros para o hardware"
-      >
-        {lightsOn ? 'Luzes ligadas' : 'Luzes desligadas'}
-      </button>
-
-      <button
-        className="btn btn-ghost"
-        onClick={() => void toggleEngine()}
-        title={engineRunning ? 'Pausar o motor de efeitos' : 'Retomar o motor de efeitos'}
-      >
-        {engineRunning ? 'Pausar' : 'Retomar'}
-      </button>
-
-      <div className="relative">
-        <button
-          className="btn btn-ghost"
+          className="btn btn-ghost px-2 text-[18px] leading-none"
           onClick={() => setShowSettings((v) => !v)}
           title="Configurações"
+          aria-expanded={showSettings}
+          aria-haspopup="dialog"
         >
           ⚙
         </button>
 
         {showSettings && settings && (
-          <div className="panel absolute right-0 top-9 z-50 w-72 p-3 shadow-2xl">
+          <div
+            role="dialog"
+            aria-label="Configurações"
+            className="panel absolute right-0 top-9 z-10 max-h-[calc(100vh-5rem)] w-72 overflow-y-auto p-3 shadow-2xl"
+          >
             <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
               Configurações
             </div>
 
-            <SettingToggle
-              label="Iniciar o motor ao abrir"
-              checked={settings.autoStart}
-              onChange={(v) => void updateSetting({ autoStart: v })}
-            />
-            <SettingToggle
-              label="Iniciar com o sistema"
-              checked={settings.autostartAtLogin}
-              onChange={(v) => void updateSetting({ autostartAtLogin: v })}
-            />
-            <SettingToggle
-              label="Minimizar para a bandeja"
-              checked={settings.minimizeToTray}
-              onChange={(v) => void updateSetting({ minimizeToTray: v })}
-            />
-            <SettingToggle
-              label="Abrir com as luzes apagadas"
-              checked={settings.startWithLightingOff}
-              onChange={(v) => void updateSetting({ startWithLightingOff: v })}
-            />
+            <div className="mb-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">Inicialização</div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <SettingToggle
+                  label="Iniciar o motor ao abrir"
+                  checked={settings.autoStart}
+                  onChange={(v) => void updateSetting({ autoStart: v })}
+                />
+                <SettingToggle
+                  label="Iniciar com o sistema"
+                  checked={settings.autostartAtLogin}
+                  onChange={(v) => void updateSetting({ autostartAtLogin: v })}
+                />
+              </div>
+            </div>
+
+            <div className="mb-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">Comportamento</div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <SettingToggle
+                  label="Minimizar para a bandeja"
+                  checked={settings.minimizeToTray}
+                  onChange={(v) => void updateSetting({ minimizeToTray: v })}
+                />
+                <SettingToggle
+                  label="Abrir com as luzes apagadas"
+                  checked={settings.startWithLightingOff}
+                  onChange={(v) => void updateSetting({ startWithLightingOff: v })}
+                />
+              </div>
+            </div>
+
+            <div className="mb-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">Perfis</div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <div className="mb-1 text-[11px] text-ink-300">Perfil ao iniciar</div>
+                <select
+                  className="field"
+                  value={settings.startupProfile || ''}
+                  onChange={(e) => void updateSetting({ startupProfile: e.target.value || null })}
+                >
+                  <option value="">Usar último perfil</option>
+                  {profileNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">
+                Diagnóstico
+              </div>
+              <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+                <div className="mb-1 text-[11px] text-ink-300">Nível de registo</div>
+                <select
+                  className="field"
+                  aria-label="Nível de registo"
+                  value={settings.logLevel ?? 'info'}
+                  onChange={(e) =>
+                    void updateSetting({ logLevel: e.target.value as AppSettings['logLevel'] })
+                  }
+                >
+                  {LOG_LEVELS.map((level) => (
+                    <option key={level.id} value={level.id}>
+                      {level.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-ghost mt-2 w-full justify-start px-2 text-[11px]"
+                  onClick={() => void openLogs()}
+                  title="Pasta com o registo (my-rgb.log) e os relatórios de crash"
+                >
+                  Abrir pasta de registos
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
       {savePromptOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
-          <div className="panel w-80 p-4 shadow-2xl">
-            <div className="mb-2 text-sm font-semibold">Salvar perfil</div>
-            <div className="mb-1 text-[11px] text-ink-400">
-              Informe o nome do perfil. Se já existir, você pode optar por sobrescrever.
-            </div>
-            <input
-              ref={savePromptInputRef}
-              className="field"
-              value={savePromptValue}
-              onChange={(e) => {
-                setSavePromptValue(e.target.value)
-                setSavePromptError(null)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void confirmSavePrompt()
-                if (e.key === 'Escape') setSavePromptOpen(false)
-              }}
-            />
-            {savePromptError && <div className="mt-1 text-[11px] text-bad-500">{savePromptError}</div>}
-            <div className="mt-3 flex justify-end gap-2">
-              <button className="btn btn-ghost" onClick={() => setSavePromptOpen(false)}>
-                Cancelar
-              </button>
-              <button className="btn btn-primary" onClick={() => void confirmSavePrompt()}>
-                Salvar
-              </button>
-            </div>
+        <Modal
+          title="Salvar perfil"
+          description="Informe o nome do perfil. Se já existir, você pode optar por sobrescrever."
+          onClose={() => setSavePromptOpen(false)}
+        >
+          <input
+            ref={savePromptInputRef}
+            className="field"
+            value={savePromptValue}
+            aria-label="Nome do perfil"
+            onChange={(e) => {
+              setSavePromptValue(e.target.value)
+              setSavePromptError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void confirmSavePrompt()
+            }}
+          />
+          {savePromptError && <div className="mt-1 text-[11px] text-bad-500">{savePromptError}</div>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={() => setSavePromptOpen(false)}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={() => void confirmSavePrompt()}>
+              Salvar
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {renameOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
-          <div className="panel w-80 p-4 shadow-2xl">
-            <div className="mb-2 text-sm font-semibold">Renomear perfil</div>
-            <input
-              ref={renameInputRef}
-              className="field"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void confirmRename()
-                if (e.key === 'Escape') setRenameOpen(false)
-              }}
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button className="btn btn-ghost" onClick={() => setRenameOpen(false)}>
-                Cancelar
-              </button>
-              <button className="btn btn-primary" onClick={() => void confirmRename()}>
-                Renomear
-              </button>
-            </div>
+        <Modal title="Renomear perfil" onClose={() => setRenameOpen(false)}>
+          <input
+            ref={renameInputRef}
+            className="field"
+            value={renameValue}
+            aria-label="Novo nome do perfil"
+            onChange={(e) => {
+              setRenameValue(e.target.value)
+              setRenameError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void confirmRename()
+            }}
+          />
+          {renameError && <div className="mt-1 text-[11px] text-bad-500">{renameError}</div>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={() => setRenameOpen(false)}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={() => void confirmRename()}>
+              Renomear
+            </button>
           </div>
-        </div>
+        </Modal>
+      )}
+      {overwrite && (
+        <Modal
+          title="Sobrescrever perfil?"
+          description={`Já existe um perfil chamado “${overwrite.name}”. O conteúdo atual desse perfil será substituído.`}
+          onClose={() => setOverwrite(null)}
+        >
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={() => setOverwrite(null)}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={() => void confirmOverwrite()}>
+              Sobrescrever
+            </button>
+          </div>
+        </Modal>
       )}
     </header>
   )
@@ -405,10 +514,4 @@ function SettingToggle({
       />
     </label>
   )
-}
-
-/** Suggests a free name for a copy of a profile. */
-function suggestProfileName(current: string): string {
-  const base = current.replace(/\s+cópia(\s+\d+)?$/i, '').trim() || current
-  return `${base} cópia`
 }

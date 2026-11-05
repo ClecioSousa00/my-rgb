@@ -5,22 +5,33 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { AppSettings } from '@shared/types'
+import { DEFAULT_OVERLAY_CONFIG, normalizeOverlayConfig } from '@shared/features/overlay'
+import { DEFAULT_LOG_LEVEL, normalizeLogLevel } from '@shared/logging'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autoStart: true,
   autostartAtLogin: false,
   minimizeToTray: true,
   lastProfile: 'Padrão',
-  startWithLightingOff: false
+  startWithLightingOff: false,
+  startupProfile: null,
+  logLevel: DEFAULT_LOG_LEVEL,
+  ui: { lastPage: 'lighting', collapsedGroups: [] },
+  overlay: DEFAULT_OVERLAY_CONFIG
 }
 
 export class SettingsStore {
   private readonly file: string
   private data: AppSettings
+  /** Called when the settings cannot be written to disk. */
+  private readonly onError: ((message: string) => void) | null
+  /** Last write error, so a failing disk does not spam the UI. */
+  private lastWriteError: string | null = null
 
-  constructor(userDataPath: string) {
+  constructor(userDataPath: string, onError?: (message: string) => void) {
     this.file = join(userDataPath, 'settings.json')
     this.data = { ...DEFAULT_SETTINGS }
+    this.onError = onError ?? null
     this.load()
   }
 
@@ -29,7 +40,19 @@ export class SettingsStore {
   }
 
   set(patch: Partial<AppSettings>): AppSettings {
-    this.data = { ...this.data, ...patch }
+    // The navigation state is written field by field (page on click, group on
+    // collapse), so merging it here keeps one write from wiping the other.
+    this.data = {
+      ...this.data,
+      ...patch,
+      ui: patch.ui ? { ...this.data.ui, ...patch.ui } : this.data.ui,
+      // The overlay is always stored whole and normalized, so a partial patch
+      // from an older version cannot leave a corrupt shortcut or scale.
+      overlay: patch.overlay ? normalizeOverlayConfig(patch.overlay) : this.data.overlay,
+      // Same for the log level: an unknown value from the renderer must not
+      // reach the writer.
+      logLevel: patch.logLevel ? normalizeLogLevel(patch.logLevel) : this.data.logLevel
+    }
     this.write()
     return this.data
   }
@@ -38,15 +61,37 @@ export class SettingsStore {
     if (!existsSync(this.file)) return
     try {
       const parsed = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<AppSettings>
-      this.data = { ...DEFAULT_SETTINGS, ...parsed }
+      this.data = {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        ui: { ...DEFAULT_SETTINGS.ui, ...(parsed.ui ?? {}) },
+        overlay: normalizeOverlayConfig(parsed.overlay),
+        // A hand-edited or older settings file must not silence the log.
+        logLevel: normalizeLogLevel(parsed.logLevel)
+      }
     } catch {
       this.data = { ...DEFAULT_SETTINGS }
     }
   }
 
   private write(): void {
-    const dir = join(this.file, '..')
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf8')
+    try {
+      const dir = join(this.file, '..')
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+      writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf8')
+      this.lastWriteError = null
+    } catch (err) {
+      // Settings are written from IPC handlers and startup: an uncaught
+      // exception here would take the whole main process down.
+      const message = `Não foi possível salvar as configurações: ${errorMessage(err)}`
+      if (message !== this.lastWriteError) {
+        this.lastWriteError = message
+        this.onError?.(message)
+      }
+    }
   }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
 }

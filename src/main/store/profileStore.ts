@@ -7,30 +7,279 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs'
-import { join } from 'path'
+import { basename, join } from 'path'
 import type {
   EffectDefinition,
   GlobalSettings,
   Palette,
+  ParamValue,
   Profile,
   ZoneConfig,
   ZoneState
 } from '@shared/types'
-import { BUILTIN_PALETTES } from '../engine/palette'
-import { defaultParams } from '../engine/patterns'
+import type { LightBackendId, LightTarget } from '@shared/features/light'
+import {
+  LIGHT_BACKENDS,
+  auraTargetsFromZones,
+  mergeTargets,
+  syncAuraTargets
+} from '@shared/features/light'
+import { BUILTIN_PALETTES, hexToRgb, rgbToHex } from '../engine/palette'
+import { defaultParams, getPattern } from '../engine/patterns'
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
   brightness: 1,
   speed: 1,
   fps: 30,
-  outputEnabled: true
+  outputEnabled: true,
+  applyToAllZones: false
 }
 
 /** Default LED count for an addressable header. */
 export const DEFAULT_HEADER_LEDS = 72
 
 /** How long to wait before writing the profile to disk. */
-const WRITE_DEBOUNCE_MS = 250
+const WRITE_DEBOUNCE_MS = 150
+
+/**
+ * Turn a profile name into the base file name used on disk.
+ *
+ * Accents and other characters that are not safe in a file name become "_"
+ * here. The file name is only an identifier: the profile keeps the real name
+ * inside the JSON, and that is what the UI shows. Because two different names
+ * can sanitise to the same text ("Setup:2024" and "Setup*2024"), `pathFor`
+ * adds a short hash when the base name already belongs to another profile.
+ */
+export function profileFileId(name: string): string {
+  return sanitize(name)
+}
+
+/**
+ * Stable 32-bit FNV-1a, rendered in base 36.
+ *
+ * Used only to disambiguate two names that sanitise to the same file name; it
+ * is deterministic, so the same profile always resolves to the same file even
+ * across restarts.
+ */
+function nameHash(name: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+/**
+ * LED counts must be whole, finite numbers. A fractional count reaches the
+ * engine and `new Array(1.5)` throws `RangeError`, taking the whole main
+ * process down.
+ */
+export function normalizeLedCount(value: unknown, max = Number.POSITIVE_INFINITY): number {
+  const count = Math.round(Number(value))
+  if (!Number.isFinite(count)) return 0
+  const limit = Number.isFinite(max) ? Math.max(0, Math.round(max)) : Number.POSITIVE_INFINITY
+  return Math.max(0, Math.min(count, limit))
+}
+
+/** Deep copy of the built-in palettes, so callers can edit them freely. */
+function copyBuiltinPalettes(): Palette[] {
+  return BUILTIN_PALETTES.map((p) => ({ ...p, stops: p.stops.map((s) => ({ ...s })) }))
+}
+
+const HEX_COLOR = /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+/**
+ * Validate a profile imported from a file.
+ *
+ * The file comes from outside the app, so nothing in it can be trusted: an
+ * invalid `global`, a NaN LED count or a pattern that no longer exists would
+ * reach the engine and break it. Structurally invalid files are rejected;
+ * single bad values are repaired or dropped.
+ */
+export function validateImportedProfile(value: unknown): Profile {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Arquivo de perfil inválido')
+  }
+  const raw = value as Partial<Profile> & Record<string, unknown>
+  if (raw.version !== 1) throw new Error('Versão de perfil não suportada')
+  if (!Array.isArray(raw.palettes)) throw new Error('Perfil sem paletas')
+  if (!Array.isArray(raw.zones)) throw new Error('Perfil sem zonas')
+  if (!raw.global || typeof raw.global !== 'object') throw new Error('Perfil sem opções globais')
+
+  const palettes = sanitizePalettes(raw.palettes)
+  const paletteIds = new Set(palettes.map((p) => p.id))
+  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Importado'
+  const targets = sanitizeTargets(raw.targets)
+
+  return {
+    version: 1,
+    name,
+    zones: sanitizeZones(raw.zones, paletteIds, palettes[0].id),
+    palettes,
+    global: sanitizeGlobal(raw.global),
+    // Absent stays absent: the targets are derived from the hardware when the
+    // profile is opened, which is what lets an old file be imported as is.
+    ...(targets ? { targets } : {})
+  }
+}
+
+/**
+ * Targets from an imported file.
+ *
+ * A target is an instruction to write to a device, so an unknown backend or a
+ * nonsensical zone index is dropped instead of being trusted. A file without
+ * targets keeps none (`undefined`), and the AURA ones are synthesized later.
+ */
+function sanitizeTargets(value: unknown): LightTarget[] | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const result: LightTarget[] = []
+  const ids = new Set<string>()
+
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const target = item as Partial<LightTarget>
+    if (typeof target.id !== 'string' || !target.id || ids.has(target.id)) continue
+    const backend = target.backend as LightBackendId | undefined
+    if (!backend || !LIGHT_BACKENDS.includes(backend)) continue
+
+    const zoneIndex = Math.round(Number(target.zoneIndex))
+    if (!Number.isFinite(zoneIndex) || zoneIndex < 0) continue
+
+    const ledCount = Math.round(Number(target.ledCount))
+    ids.add(target.id)
+    result.push({
+      id: target.id,
+      backend,
+      deviceId:
+        typeof target.deviceId === 'string' && target.deviceId.trim()
+          ? target.deviceId.trim()
+          : backend,
+      zoneIndex,
+      label:
+        typeof target.label === 'string' && target.label.trim() ? target.label.trim() : target.id,
+      ledCount: Number.isFinite(ledCount) ? Math.max(0, ledCount) : 0,
+      enabled: target.enabled !== false
+    })
+  }
+
+  return result.length > 0 ? result : undefined
+}
+
+function sanitizePalettes(input: unknown[]): Palette[] {
+  const result: Palette[] = []
+  const ids = new Set<string>()
+
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue
+    const palette = item as Partial<Palette>
+    if (typeof palette.id !== 'string' || !palette.id || ids.has(palette.id)) continue
+    if (!Array.isArray(palette.stops)) continue
+
+    const stops = palette.stops
+      .filter((stop): stop is { position: number; color: string } => {
+        if (!stop || typeof stop !== 'object') return false
+        return Number.isFinite(Number(stop.position)) && typeof stop.color === 'string'
+      })
+      .map((stop) => ({
+        position: Math.min(1, Math.max(0, Number(stop.position))),
+        // Repair odd colours (3 digits, missing #) and drop anything that is
+        // not a colour at all instead of handing it to the CSS/engine.
+        color: HEX_COLOR.test(stop.color) ? rgbToHex(hexToRgb(stop.color)) : '#ff00ff'
+      }))
+      .sort((a, b) => a.position - b.position)
+
+    if (stops.length === 0) continue
+
+    result.push({
+      id: palette.id,
+      name:
+        typeof palette.name === 'string' && palette.name.trim()
+          ? palette.name.trim()
+          : palette.id,
+      interpolation: palette.interpolation === 'hsv' ? 'hsv' : 'rgb',
+      stops
+    })
+    ids.add(palette.id)
+  }
+
+  return result.length > 0 ? result : copyBuiltinPalettes()
+}
+
+function sanitizeZones(
+  input: unknown[],
+  paletteIds: Set<string>,
+  fallbackPaletteId: string
+): ZoneConfig[] {
+  const result: ZoneConfig[] = []
+  const ids = new Set<string>()
+
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue
+    const zone = item as Partial<ZoneConfig>
+    if (typeof zone.zoneId !== 'string' || !zone.zoneId || ids.has(zone.zoneId)) continue
+    ids.add(zone.zoneId)
+
+    const name = typeof zone.name === 'string' ? zone.name.trim() : ''
+    result.push({
+      zoneId: zone.zoneId,
+      enabled: typeof zone.enabled === 'boolean' ? zone.enabled : true,
+      ledCount: normalizeLedCount(zone.ledCount),
+      ...(name ? { name } : {}),
+      effect: sanitizeEffect(zone.effect, paletteIds, fallbackPaletteId),
+      followZoneId:
+        typeof zone.followZoneId === 'string' && zone.followZoneId ? zone.followZoneId : null
+    })
+  }
+
+  return result
+}
+
+function sanitizeEffect(
+  value: unknown,
+  paletteIds: Set<string>,
+  fallbackPaletteId: string
+): EffectDefinition | null {
+  if (!value || typeof value !== 'object') return null
+  const effect = value as Partial<EffectDefinition>
+  if (typeof effect.patternId !== 'string' || !getPattern(effect.patternId)) return null
+
+  const params: Record<string, ParamValue> = {}
+  if (effect.params && typeof effect.params === 'object') {
+    for (const [key, param] of Object.entries(effect.params)) {
+      if (typeof param === 'boolean' || typeof param === 'string') {
+        params[key] = param
+      } else if (typeof param === 'number' && Number.isFinite(param)) {
+        params[key] = param
+      }
+    }
+  }
+
+  return {
+    patternId: effect.patternId,
+    paletteId:
+      typeof effect.paletteId === 'string' && paletteIds.has(effect.paletteId)
+        ? effect.paletteId
+        : fallbackPaletteId,
+    params
+  }
+}
+
+function sanitizeGlobal(value: object): GlobalSettings {
+  const global = value as Partial<GlobalSettings>
+  const brightness = Number(global.brightness)
+  const speed = Number(global.speed)
+  const fps = Number(global.fps)
+
+  return {
+    brightness: Number.isFinite(brightness) ? Math.min(1, Math.max(0, brightness)) : 1,
+    speed: Number.isFinite(speed) ? Math.max(0.05, Math.min(10, speed)) : 1,
+    fps: Number.isFinite(fps) ? Math.max(1, Math.min(240, Math.round(fps))) : 30,
+    outputEnabled: typeof global.outputEnabled === 'boolean' ? global.outputEnabled : true,
+    applyToAllZones: global.applyToAllZones === true
+  }
+}
 
 export function defaultProfile(zones: ZoneState[] = []): Profile {
   // Every zone starts with the same effect, matching what reconcileProfile
@@ -52,7 +301,8 @@ export function defaultProfile(zones: ZoneState[] = []): Profile {
     name: 'Padrão',
     zones: zoneConfigs,
     palettes: BUILTIN_PALETTES.map((p) => ({ ...p, stops: p.stops.map((s) => ({ ...s })) })),
-    global: { ...DEFAULT_GLOBAL }
+    global: { ...DEFAULT_GLOBAL },
+    targets: auraTargetsFromZones(zones, zoneConfigs)
   }
 }
 
@@ -62,27 +312,40 @@ export function defaultProfile(zones: ZoneState[] = []): Profile {
  * the layout changes.
  */
 export function reconcileProfile(profile: Profile, zones: ZoneState[]): Profile {
-  const next: Profile = {
-    ...profile,
-    zones: zones.map((zone) => {
-      const existing = profile.zones.find((z) => z.zoneId === zone.id)
-      if (existing) {
-        return {
-          ...existing,
-          ledCount: Math.max(
-            0,
-            Math.min(existing.ledCount || 0, zone.maxLedCount) || existing.ledCount || 0
-          )
-        }
-      }
-      return {
-        zoneId: zone.id,
-        enabled: true,
-        ledCount: zone.kind === 'addressable' ? DEFAULT_HEADER_LEDS : zone.maxLedCount,
-        effect: null,
-        followZoneId: null
-      }
-    })
+  // No hardware layout means there is nothing to reconcile. Clearing the
+  // zones here would erase the user's profile - names, effects, LED counts -
+  // whenever the controller is unplugged or the udev rule is missing.
+  const zoneConfigs: ZoneConfig[] =
+    zones.length === 0
+      ? profile.zones.map((zone) => ({
+          ...zone,
+          effect: zone.effect ? { ...zone.effect, params: { ...zone.effect.params } } : null
+        }))
+      : zones.map((zone) => {
+          const existing = profile.zones.find((z) => z.zoneId === zone.id)
+          if (existing) {
+            return {
+              ...existing,
+              ledCount: normalizeLedCount(existing.ledCount, zone.maxLedCount)
+            }
+          }
+          return {
+            zoneId: zone.id,
+            enabled: true,
+            ledCount: zone.kind === 'addressable' ? DEFAULT_HEADER_LEDS : zone.maxLedCount,
+            effect: null,
+            followZoneId: null
+          }
+        })
+
+  const next: Profile = { ...profile, zones: zoneConfigs }
+
+  // Zones are the physical truth for the AURA controller: a profile written
+  // before targets existed (or one whose layout changed) gets them here, and
+  // an old file opens without a migration step. With no device attached the
+  // stored targets are kept untouched, exactly like the zone configs above.
+  if (zones.length > 0) {
+    next.targets = mergeTargets(profile.targets, auraTargetsFromZones(zones, zoneConfigs))
   }
 
   // Every zone gets a valid effect, so switching one on later shows something
@@ -116,26 +379,47 @@ export class ProfileStore {
   private writtenPath: string | null = null
   /** Called after every successful write to disk. */
   private readonly onSaved: ((name: string) => void) | null
+  /** Called when a write fails (disk full, no permission, ...). */
+  private readonly onError: ((message: string) => void) | null
+  /** Last write error, so a failing disk does not spam the UI. */
+  private lastWriteError: string | null = null
 
-  constructor(userDataPath: string, initial: Profile, onSaved?: (name: string) => void) {
+  constructor(
+    userDataPath: string,
+    initial: Profile,
+    callbacks: {
+      onSaved?: (name: string) => void
+      onError?: (message: string) => void
+    } = {}
+  ) {
     this.dir = join(userDataPath, 'profiles')
     this.current = initial
-    this.onSaved = onSaved ?? null
+    this.onSaved = callbacks.onSaved ?? null
+    this.onError = callbacks.onError ?? null
   }
 
   get profile(): Profile {
     return this.current
   }
 
-  /** Load a profile by id, or the last used one. */
+  /** Load a profile by name (or file id), or the last used one. */
   load(id?: string): Profile {
-    const target = id ? this.pathFor(id) : this.lastUsedPath()
+    const target = id ? this.resolvePath(id) : this.lastUsedPath()
     if (target && existsSync(target)) {
       try {
         const parsed = JSON.parse(readFileSync(target, 'utf8')) as Profile
         if (parsed && parsed.version === 1) {
+          // Persist whatever the profile being left still has pending: the
+          // debounced write below would otherwise land in the file that is
+          // being opened and the edits would never reach the old profile.
+          // At startup there is nothing to persist yet (`writtenPath` and the
+          // timer are both empty), so the initial default is not written.
+          if (this.writtenPath || this.writeTimer) this.flush()
           this.current = parsed
-          this.writeCurrent()
+          // The loaded file is the home of this profile from now on. Loading
+          // must not write: a profile whose file was renamed by hand would
+          // otherwise be duplicated under the name stored inside the JSON.
+          this.writtenPath = target
         }
       } catch (err) {
         throw new Error(`Could not read profile: ${errorMessage(err)}`)
@@ -144,42 +428,128 @@ export class ProfileStore {
     return this.current
   }
 
+  /** Names shown in the profile selector, read from the JSON, not the file name. */
   list(): string[] {
     if (!existsSync(this.dir)) return []
-    return readdirSync(this.dir)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => f.slice(0, -5))
-      .sort()
+    const names: string[] = []
+    for (const file of readdirSync(this.dir)) {
+      if (!file.endsWith('.json')) continue
+      const fallback = file.slice(0, -5)
+      const full = join(this.dir, file)
+      try {
+        const parsed = JSON.parse(readFileSync(full, 'utf8')) as Partial<Profile>
+        const name = typeof parsed.name === 'string' ? parsed.name.trim() : ''
+        names.push(name || fallback)
+      } catch {
+        // A damaged file still has a name on disk; show it instead of hiding it.
+        names.push(fallback)
+      }
+    }
+    return names.sort()
   }
 
   save(profile: Profile): Profile {
-    this.current = profile
+    // The zone configs own the label and LED count of each AURA target; a
+    // stale copy would travel with the file on export.
+    const targets = profile.targets
+      ? syncAuraTargets(profile.targets, profile.zones)
+      : undefined
+    const next = targets === profile.targets ? profile : { ...profile, targets }
+    // A different name is a different file (save-as, duplicate, import): the
+    // previous path must not be reused, or the new profile would overwrite the
+    // old one instead of getting its own.
+    if (next.name !== this.current.name) this.writtenPath = null
+    this.current = next
     this.writeCurrent()
     return this.current
   }
 
-  delete(id: string): void {
-    const path = this.pathFor(id)
-    if (existsSync(path)) unlinkSync(path)
+  /**
+   * Delete a saved profile.
+   *
+   * Returns the profile that is current afterwards. When the deleted profile
+   * was the one in use, another saved profile takes its place; if none is
+   * left, the current configuration (zones, effects, LED counts) is kept
+   * under the default name instead of falling back to a zoneless profile.
+   */
+  delete(id: string): Profile {
+    const path = this.resolvePath(id)
+    if (!path) throw new Error(`Perfil não encontrado: ${id}`)
+
+    const deletedName = this.nameAt(path)
+    const currentPath = this.pathFor(this.current.name)
+    const isCurrent =
+      path === currentPath ||
+      path === this.writtenPath ||
+      deletedName === this.current.name ||
+      id === this.current.name
+
+    unlinkSync(path)
     if (this.writtenPath === path) this.writtenPath = null
-    if (this.current.name === id) {
-      this.current = defaultProfile()
-      this.writeCurrent()
+
+    if (!isCurrent) return this.current
+
+    const remaining = this.list()[0]
+    if (remaining) {
+      const next = this.load(remaining)
+      this.flush()
+      return next
     }
+
+    // Nothing left on disk: keep what the user configured and only reset the
+    // name, so the hardware layout is not lost with the last profile.
+    this.current = { ...this.current, name: 'Padrão' }
+    this.flush()
+    return this.current
+  }
+
+  /** Displayed name of the profile behind an id/name, or null if missing. */
+  displayName(id: string): string | null {
+    const path = this.resolvePath(id)
+    return path ? this.nameAt(path) : null
+  }
+
+  /** Displayed name of the profile stored in a file. */
+  private nameAt(path: string): string {
+    try {
+      const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<Profile>
+      const name = typeof parsed.name === 'string' ? parsed.name.trim() : ''
+      if (name) return name
+    } catch {
+      /* damaged file: the file name is the best we have */
+    }
+    const file = basename(path)
+    return file.endsWith('.json') ? file.slice(0, -5) : file
   }
 
   /** Replace the effect of one zone. */
   setZoneEffect(zoneId: string, effect: EffectDefinition | null): Profile {
     const zone = this.current.zones.find((z) => z.zoneId === zoneId)
     if (!zone) throw new Error(`Unknown zone: ${zoneId}`)
-    zone.effect = effect ? { ...effect, params: { ...effect.params } } : null
+    const next = effect ? { ...effect, params: { ...effect.params } } : null
+
+    if (this.current.global?.applyToAllZones && this.current.zones.length > 1) {
+      for (const z of this.current.zones) {
+        z.effect = next ? { ...next, params: { ...next.params } } : null
+        z.followZoneId = null
+      }
+      return this.save(this.current)
+    }
+
+    zone.effect = next
     return this.save(this.current)
   }
 
   setZoneConfig(zoneId: string, patch: Partial<ZoneConfig>): Profile {
     const zone = this.current.zones.find((z) => z.zoneId === zoneId)
     if (!zone) throw new Error(`Unknown zone: ${zoneId}`)
-    Object.assign(zone, patch)
+    const next = { ...patch }
+    if (next.ledCount !== undefined) {
+      // The number input can produce 1.5 or NaN; keep the profile (and the
+      // engine) on whole LED counts only.
+      next.ledCount = normalizeLedCount(next.ledCount)
+    }
+    Object.assign(zone, next)
     return this.save(this.current)
   }
 
@@ -262,22 +632,60 @@ export class ProfileStore {
   }
 
   /**
+   * First name not used by an existing profile: "X", "X (2)", "X (3)"...
+   * Used when importing a file whose name is already taken.
+   */
+  availableName(base: string): string {
+    const clean = base.trim() || 'Perfil'
+    const names = new Set(this.list())
+    if (!names.has(clean)) return clean
+    for (let i = 2; i < 1000; i++) {
+      const candidate = `${clean} (${i})`
+      if (!names.has(candidate)) return candidate
+    }
+    return `${clean} ${Date.now()}`
+  }
+
+  /**
    * Rename the current profile.
    *
    * The file moves with it, so the profile list does not end up holding a
-   * stale copy under the old name.
+   * stale copy under the old name. An existing profile is never overwritten
+   * unless the caller explicitly says so (the UI asks the user first).
    */
-  renameProfile(newName: string): Profile {
+  renameProfile(newName: string, overwrite = false): Profile {
     const oldName = this.current.name
     const name = newName.trim()
     if (!name || name === oldName) return this.current
 
-    const oldPath = this.pathFor(oldName)
-    if (existsSync(oldPath)) unlinkSync(oldPath)
-    if (this.writtenPath === oldPath) this.writtenPath = null
+    const oldPath = this.writtenPath ?? this.resolvePath(oldName)
+    const targetPath = this.pathFor(name)
+    const owner = existsSync(targetPath) ? this.nameAt(targetPath) : null
+    if (!overwrite && owner !== null && owner !== oldName) {
+      throw new Error(`Já existe um perfil chamado "${name}".`)
+    }
 
-    this.current = { ...this.current, name }
-    return this.save(this.current)
+    const renamed = { ...this.current, name }
+    // Write the new file before deleting the old one. A full disk, a read-only
+    // home or a process killed in the 150 ms debounce window would otherwise
+    // leave the user without the only copy of the profile.
+    try {
+      if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
+      writeFileSync(targetPath, JSON.stringify(renamed, null, 2), 'utf8')
+    } catch (err) {
+      const message = `Não foi possível salvar o perfil: ${errorMessage(err)}`
+      this.lastWriteError = message
+      this.onError?.(message)
+      throw new Error(message)
+    }
+
+    if (oldPath && oldPath !== targetPath && existsSync(oldPath)) unlinkSync(oldPath)
+
+    this.current = renamed
+    this.writtenPath = targetPath
+    this.lastWriteError = null
+    this.onSaved?.(this.current.name)
+    return this.current
   }
 
   private writeCurrent(): void {
@@ -300,21 +708,101 @@ export class ProfileStore {
   }
 
   private writeNow(): void {
-    if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
-    const file = join(this.dir, `${sanitize(this.current.name)}.json`)
-    writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
-    this.writtenPath = file
+    try {
+      if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
+      // Keep writing to the file this profile came from. A profile whose file
+      // name differs from the name inside the JSON (copied by hand, renamed
+      // outside the app) must not gain a second copy under the sanitised name.
+      const file =
+        this.writtenPath && existsSync(this.writtenPath)
+          ? this.writtenPath
+          : this.pathFor(this.current.name)
+      writeFileSync(file, JSON.stringify(this.current, null, 2), 'utf8')
+      this.writtenPath = file
+      this.lastWriteError = null
+    } catch (err) {
+      // This runs from a debounce timer and from IPC flushes: an uncaught
+      // exception here would take the whole main process down (disk full,
+      // read-only home, missing permission).
+      const message = `Não foi possível salvar o perfil: ${errorMessage(err)}`
+      if (message !== this.lastWriteError) {
+        this.lastWriteError = message
+        this.onError?.(message)
+      }
+      return
+    }
     // The UI shows a "saved" indicator, so it has to know when the disk was
     // really written - not when the change was made.
     this.onSaved?.(this.current.name)
   }
 
-  private pathFor(id: string): string {
-    return join(this.dir, `${sanitize(id)}.json`)
+  /**
+   * Resolve a profile name (or legacy file id) to its file.
+   *
+   * The name stored in the JSON wins: two display names can sanitise to the
+   * same file name, and the file must follow the name the user sees. The raw
+   * file name and the sanitised id remain as fallbacks for older callers
+   * (`load('Padr_o')`) and for files copied by hand.
+   */
+  private resolvePath(id: string): string | null {
+    if (!existsSync(this.dir)) return null
+    const wanted = id.trim()
+    if (!wanted) return null
+
+    const files = readdirSync(this.dir).filter((file) => file.endsWith('.json'))
+
+    for (const file of files) {
+      const full = join(this.dir, file)
+      try {
+        const parsed = JSON.parse(readFileSync(full, 'utf8')) as Partial<Profile>
+        if (typeof parsed.name === 'string' && parsed.name.trim() === wanted) return full
+      } catch {
+        /* damaged file: fall back to its name on disk */
+      }
+    }
+
+    const raw = `${wanted}.json`
+    if (files.includes(raw)) return join(this.dir, raw)
+
+    // A sanitised id ("Padr_o" for "Padrão") is only a fallback when the
+    // caller's string could itself be a file id. A display name containing
+    // characters the sanitiser rewrites must not borrow another profile's
+    // file just because both sanitise to the same text.
+    if (profileFileId(wanted) === wanted) {
+      const sanitised = `${profileFileId(wanted)}.json`
+      if (files.includes(sanitised)) return join(this.dir, sanitised)
+    }
+
+    return null
   }
 
-  private lastUsedPath(): string {
-    return this.pathFor(this.current.name)
+  /**
+   * File for a profile name.
+   *
+   * An existing profile keeps its file; a new one gets the sanitised name,
+   * plus a short stable hash when that name already belongs to a different
+   * profile. Deterministic, so the same name resolves to the same file on the
+   * next run.
+   */
+  private pathFor(name: string): string {
+    const existing = this.resolvePath(name)
+    if (existing) return existing
+
+    const base = join(this.dir, `${profileFileId(name)}.json`)
+    if (!existsSync(base)) return base
+
+    const hashed = join(this.dir, `${profileFileId(name)}-${nameHash(name)}.json`)
+    if (!existsSync(hashed)) return hashed
+
+    for (let i = 2; i < 1000; i++) {
+      const candidate = join(this.dir, `${profileFileId(name)}-${nameHash(name)}-${i}.json`)
+      if (!existsSync(candidate)) return candidate
+    }
+    return join(this.dir, `${profileFileId(name)}-${Date.now()}.json`)
+  }
+
+  private lastUsedPath(): string | null {
+    return this.resolvePath(this.current.name) ?? this.pathFor(this.current.name)
   }
 }
 

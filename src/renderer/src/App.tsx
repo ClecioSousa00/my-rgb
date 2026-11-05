@@ -1,12 +1,34 @@
 import { useEffect } from 'react'
 import { useApp } from './store'
 import { TopBar } from './components/TopBar'
-import { ZoneRail } from './components/ZoneRail'
-import { StripPreview } from './components/StripPreview'
-import { PatternPicker } from './components/PatternPicker'
-import { GradientEditor } from './components/GradientEditor'
-import { ParamSliders } from './components/ParamSliders'
+import { Sidebar } from './components/Sidebar'
 import { ToastHost } from './components/Toast'
+import { LightingPage } from './pages/Lighting'
+import { OverviewPage } from './pages/Overview'
+import { SystemPage } from './pages/System'
+import { SensorsPage } from './pages/Sensors'
+import { DisksPage } from './pages/Disks'
+import { NetworkPage } from './pages/Network'
+import { GamesPage } from './pages/Games'
+import { BottleneckPage } from './pages/Bottleneck'
+import { OverlayPage } from './pages/Overlay'
+import { IntegrationsPage } from './pages/Integrations'
+import { LogsPage } from './pages/Logs'
+import type { PageId } from '@shared/types'
+
+const PAGES: Record<PageId, () => React.JSX.Element> = {
+  overview: OverviewPage,
+  lighting: LightingPage,
+  system: SystemPage,
+  sensors: SensorsPage,
+  disks: DisksPage,
+  network: NetworkPage,
+  games: GamesPage,
+  bottleneck: BottleneckPage,
+  overlay: OverlayPage,
+  integrations: IntegrationsPage,
+  logs: LogsPage
+}
 
 export default function App(): React.JSX.Element {
   const ready = useApp((s) => s.ready)
@@ -14,17 +36,21 @@ export default function App(): React.JSX.Element {
   const device = useApp((s) => s.device)
   const error = useApp((s) => s.error)
   const reconnect = useApp((s) => s.reconnect)
+  const reconnecting = useApp((s) => s.reconnecting)
+  const page = useApp((s) => s.page)
 
   useEffect(() => {
     void init()
   }, [init])
+
+  const Page = PAGES[page]
 
   return (
     <div className="relative flex h-full flex-col bg-ink-950">
       <TopBar />
 
       {device?.conflictSuspected && (
-        <div className="flex items-center gap-2 border-b border-warn-500/30 bg-warn-500/10 px-4 py-2 text-[11.5px] text-warn-500">
+        <div className="flex items-center gap-2 border-b border-ink-600 bg-ink-800 px-4 py-2 text-[11.5px] text-ink-100">
           <span className="font-semibold">Possível conflito.</span>
           <span className="text-ink-300">
             Outro programa também está controlando este controlador - isso causa cintilação.
@@ -34,30 +60,22 @@ export default function App(): React.JSX.Element {
       )}
 
       {error && (
-        <div className="flex items-center gap-3 border-b border-bad-500/30 bg-bad-500/10 px-4 py-2 text-[11.5px] text-bad-500">
-          <span className="font-semibold">Dispositivo indisponível.</span>
+        <div className="flex items-center gap-3 border-b border-ink-600 bg-ink-800 px-4 py-2 text-[11.5px] text-ink-100">
+          <span className="font-semibold">Problema no dispositivo.</span>
           <span className="flex-1 text-ink-300">{error}</span>
-          <button className="btn h-7 px-3" onClick={() => void reconnect()}>
-            Reconectar
+          <button
+            className="btn h-7 px-3"
+            onClick={() => void reconnect()}
+            disabled={reconnecting}
+          >
+            {reconnecting ? 'Reconectando…' : 'Reconectar'}
           </button>
         </div>
       )}
 
       <div className="flex min-h-0 flex-1">
-        <ZoneRail />
-
-        <main className="flex min-w-0 flex-1 flex-col gap-3 p-3">
-          <StripPreview />
-
-          <div className="flex min-h-0 flex-1 gap-3">
-            <PatternPicker />
-
-            <div className="flex w-[340px] shrink-0 flex-col gap-3 overflow-y-auto">
-              <GradientEditor />
-              <ParamSliders />
-            </div>
-          </div>
-        </main>
+        <Sidebar />
+        <Page />
       </div>
 
       {!ready && (

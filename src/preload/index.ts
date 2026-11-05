@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { EngineState, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
+import type { EngineState, LogsFolderResult, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
 import type {
   AppSettings,
   DeviceInfo,
@@ -20,6 +20,35 @@ import type {
   ZoneConfig,
   ZoneState
 } from '@shared/types'
+import type { DriveInfo, SystemSnapshot } from '@shared/features/system'
+import type { SensorsSnapshot } from '@shared/features/sensors'
+import type { DiskHealthSnapshot } from '@shared/features/health'
+import type { NetworkProgress, NetworkReport, NetworkStatus } from '@shared/features/network'
+import type {
+  StorageDuplicateProgress,
+  StorageDuplicateReport,
+  StorageDuplicateStatus,
+  StorageProgress,
+  StorageReport,
+  StorageStatus
+} from '@shared/features/storage'
+import type { LogList, LogRead } from '@shared/features/log'
+import type {
+  GamesQuery,
+  GamesReport,
+  GpuMatch
+} from '@shared/features/games'
+import type {
+  BottleneckSessionProgress,
+  BottleneckSessionReport,
+  BottleneckSnapshot,
+  BottleneckUpdate
+} from '@shared/features/bottleneck'
+import type {
+  OverlayConfig,
+  OverlayFrame,
+  OverlayState
+} from '@shared/features/overlay'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -41,7 +70,8 @@ const api: MyRgbApi = {
   getProfile: (): Promise<Profile> => ipcRenderer.invoke(IPC.profileGet),
   saveProfile: (profile: Profile): Promise<Profile> => ipcRenderer.invoke(IPC.profileSave, profile),
   duplicateProfile: (name: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileDuplicate, name),
-  renameProfile: (name: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileRename, name),
+  renameProfile: (name: string, overwrite = false): Promise<Profile> =>
+    ipcRenderer.invoke(IPC.profileRename, name, overwrite),
   listProfiles: (): Promise<string[]> => ipcRenderer.invoke(IPC.profileList),
   loadProfile: (id: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileLoad, id),
   deleteProfile: (id: string): Promise<Profile> => ipcRenderer.invoke(IPC.profileDelete, id),
@@ -70,6 +100,92 @@ const api: MyRgbApi = {
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settingsGet),
   setSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IPC.settingsSet, patch),
+  openLogsFolder: (): Promise<LogsFolderResult> => ipcRenderer.invoke(IPC.logsOpen),
+  listLogs: (): Promise<LogList> => ipcRenderer.invoke(IPC.logsList),
+  readLog: (name: string): Promise<LogRead> => ipcRenderer.invoke(IPC.logsRead, name),
+  exportLog: (name: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.logsExport, name),
+
+  // storage
+  startStorageScan: (root: string): Promise<StorageReport | null> =>
+    ipcRenderer.invoke(IPC.storageStart, root),
+  cancelStorageScan: (): Promise<void> => ipcRenderer.invoke(IPC.storageCancel),
+  getStorageStatus: (): Promise<StorageStatus> => ipcRenderer.invoke(IPC.storageStatus),
+  getStorageReport: (): Promise<StorageReport | null> => ipcRenderer.invoke(IPC.storageReport),
+  joinStorageScan: (): Promise<StorageReport | null> => ipcRenderer.invoke(IPC.storageJoin),
+  pickStorageFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.storagePick),
+  revealStoragePath: (path: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.storageReveal, path),
+  onStorageProgress: (callback: (progress: StorageProgress) => void) =>
+    subscribe(IPC.storageProgress, callback),
+
+  // storage duplicates
+  startStorageDuplicateScan: (root: string): Promise<StorageDuplicateReport | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateStart, root),
+  cancelStorageDuplicateScan: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.storageDuplicateCancel),
+  getStorageDuplicateStatus: (): Promise<StorageDuplicateStatus | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateStatus),
+  getStorageDuplicateReport: (): Promise<StorageDuplicateReport | null> =>
+    ipcRenderer.invoke(IPC.storageDuplicateReport),
+  onStorageDuplicateProgress: (callback: (progress: StorageDuplicateProgress) => void) =>
+    subscribe(IPC.storageDuplicateProgress, callback),
+
+  // system & drives
+  getSystem: (force = false): Promise<SystemSnapshot> => ipcRenderer.invoke(IPC.systemGet, force),
+  listDrives: (): Promise<DriveInfo[]> => ipcRenderer.invoke(IPC.drivesList),
+
+  // sensors
+  startSensors: (): Promise<SensorsSnapshot | null> => ipcRenderer.invoke(IPC.sensorsStart),
+  stopSensors: (): Promise<void> => ipcRenderer.invoke(IPC.sensorsStop),
+  onSensors: (callback: (snapshot: SensorsSnapshot) => void) =>
+    subscribe(IPC.sensorsBatch, callback),
+
+  // disk health
+  listDiskHealth: (force = false): Promise<DiskHealthSnapshot> =>
+    ipcRenderer.invoke(IPC.healthList, force),
+  readDiskHealthElevated: (): Promise<DiskHealthSnapshot> =>
+    ipcRenderer.invoke(IPC.healthElevated),
+
+  // network
+  runNetworkDiagnosis: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netDiagnose),
+  cancelNetworkDiagnosis: (): Promise<void> => ipcRenderer.invoke(IPC.netCancel),
+  getNetworkReport: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netLast),
+  getNetworkStatus: (): Promise<NetworkStatus> => ipcRenderer.invoke(IPC.netStatus),
+  joinNetworkDiagnosis: (): Promise<NetworkReport | null> => ipcRenderer.invoke(IPC.netJoin),
+  onNetworkProgress: (callback: (progress: NetworkProgress) => void) =>
+    subscribe(IPC.netProgress, callback),
+
+  // games
+  listGames: (query?: GamesQuery): Promise<GamesReport> =>
+    ipcRenderer.invoke(IPC.gamesList, query),
+  searchGpus: (query: string, limit?: number): Promise<GpuMatch[]> =>
+    ipcRenderer.invoke(IPC.gamesGpus, query, limit),
+
+  // bottleneck
+  startBottleneck: (): Promise<BottleneckSnapshot> =>
+    ipcRenderer.invoke(IPC.bottleneckStart),
+  stopBottleneck: (): Promise<void> => ipcRenderer.invoke(IPC.bottleneckStop),
+  startBottleneckSession: (minutes: number): Promise<BottleneckSessionProgress> =>
+    ipcRenderer.invoke(IPC.bottleneckSessionStart, minutes),
+  stopBottleneckSession: (): Promise<void> => ipcRenderer.invoke(IPC.bottleneckSessionStop),
+  getBottleneckReport: (): Promise<BottleneckSessionReport | null> =>
+    ipcRenderer.invoke(IPC.bottleneckReport),
+  onBottleneck: (callback: (update: BottleneckUpdate) => void) =>
+    subscribe(IPC.bottleneckSample, callback),
+
+  // overlay
+  getOverlayState: (): Promise<OverlayState> => ipcRenderer.invoke(IPC.overlayGet),
+  updateOverlay: (patch: Partial<OverlayConfig>): Promise<OverlayState> =>
+    ipcRenderer.invoke(IPC.overlayUpdate, patch),
+  toggleOverlay: (): Promise<OverlayState> => ipcRenderer.invoke(IPC.overlayToggle),
+  retryOverlayFps: (): Promise<OverlayState> => ipcRenderer.invoke(IPC.overlayRetryFps),
+  resizeOverlay: (width: number, height: number): Promise<void> =>
+    ipcRenderer.invoke(IPC.overlayResize, width, height),
+  onOverlayState: (callback: (state: OverlayState) => void) =>
+    subscribe(IPC.overlayState, callback),
+  onOverlayFrame: (callback: (frame: OverlayFrame) => void) =>
+    subscribe(IPC.overlayFrame, callback),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),
@@ -78,7 +194,7 @@ const api: MyRgbApi = {
   onProfileChange: (callback: (profile: Profile) => void) => subscribe(IPC.profileGet, callback),
   onProfileSaved: (callback: (event: ProfileSavedEvent) => void) =>
     subscribe(IPC.profileSaved, callback),
-  onTrayCommand: (callback: (command: string) => void) => subscribe(IPC.engineState, callback)
+  onAppError: (callback: (message: string) => void) => subscribe(IPC.appError, callback)
 }
 
 contextBridge.exposeInMainWorld('myrgb', api)

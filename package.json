@@ -29,6 +29,7 @@
     "test:watch": "vitest",
     "postinstall": "node tools/check-hid-binary.mjs",
     "build:linux": "npm run build && electron-builder --linux --publish never",
+    "build:helper": "dotnet publish helper/MyRgb.Helper -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o helper/publish/win-x64",
     "build:win": "npm run build && electron-builder --win --publish never",
     "build:win:dir": "npm run build && electron-builder --win dir --publish never --config.win.signAndEditExecutable=false",
     "build:dir": "npm run build && electron-builder --dir --publish never",
@@ -37,11 +38,13 @@
     "dump:frames": "npm run build && electron . --dump-frames",
     "write-test": "npm run build && electron . --write-test",
     "selftest": "npm run build && electron . --selftest",
-    "docs": "npm run build && electron . --gen-docs documentation/efeitos.md"
+    "docs": "npm run build && electron . --gen-docs documentation/efeitos.md",
+    "games:data": "node tools/build-games-data.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
-    "node-hid": "^3.4.0"
+    "node-hid": "^3.4.0",
+    "systeminformation": "^5.33.16"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.2",

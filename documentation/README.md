@@ -11,10 +11,12 @@ comportam, e como desenvolver.
 |---|---|
 | [como-funciona.md](como-funciona.md) | A arquitetura, o protocolo HID, o motor de efeitos e a prova de paridade entre Linux e Windows |
 | [funcionalidades.md](funcionalidades.md) | O programa tela por tela: barra superior, zonas, pré-visualização, efeitos, gradiente e parâmetros |
-| [efeitos.md](efeitos.md) | O catálogo dos 34 efeitos, com todos os parâmetros e o que cada um faz |
+| [jogos.md](jogos.md) | A estimativa de FPS: fontes e licenças, metodologia, níveis de confiança, atualização da base e limitações |
+| [efeitos.md](efeitos.md) | O catálogo dos 50 efeitos, com todos os parâmetros e o que cada um faz |
 | [zonas-e-perfis.md](zonas-e-perfis.md) | Zonas, quantidade de LEDs, nomes, o botão "aplicar a todas" e o workings de perfis |
 | [windows.md](windows.md) | O passo a passo no Windows, o Armoury Crate e o diagnóstico de cintilação |
 | [desenvolvimento.md](desenvolvimento.md) | A stack, os scripts, os testes, as ferramentas e como adicionar um efeito novo |
+| [planejamento-iluminacao-externa.md](planejamento-iluminacao-externa.md) | **Planejamento, não implementado:** por que OpenRGB, Razer e Corsair ficaram para depois, o que já está pronto e como retomar |
 
 ## Em uma página
 

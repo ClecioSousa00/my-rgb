@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp, zoneDisplayName } from '../store'
 import { HelpTip } from './HelpTip'
-import { showToast } from './Toast'
 import type { ZoneConfig, ZoneState } from '@shared/types'
 
 export function ZoneRail(): React.JSX.Element {
@@ -10,18 +9,12 @@ export function ZoneRail(): React.JSX.Element {
   const selectedZoneId = useApp((s) => s.selectedZoneId)
   const selectZone = useApp((s) => s.selectZone)
   const setZoneConfig = useApp((s) => s.setZoneConfig)
-  const applyToAll = useApp((s) => s.applyToAll)
+  const setGlobal = useApp((s) => s.setGlobal)
 
   const configFor = (zoneId: string): ZoneConfig | undefined =>
     profile?.zones.find((z) => z.zoneId === zoneId)
 
-  const selectedConfig = selectedZoneId ? configFor(selectedZoneId) : undefined
-  const canApplyToAll = zones.length > 1 && Boolean(selectedConfig?.effect)
-
-  const handleApplyToAll = async (): Promise<void> => {
-    await applyToAll()
-    showToast(`Efeito aplicado a ${zones.length} zonas`)
-  }
+  const applyToAllZones = profile?.global?.applyToAllZones ?? false
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-ink-700 bg-ink-900/40">
@@ -33,14 +26,18 @@ export function ZoneRail(): React.JSX.Element {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <button
-          className="btn mb-2 w-full"
-          disabled={!canApplyToAll}
-          onClick={() => void handleApplyToAll()}
-          title="Copia o efeito da zona selecionada para todas as zonas. O número de LEDs e o ligado/desligado de cada uma são mantidos."
-        >
-          ⇉ Aplicar a todas as zonas
-        </button>
+        {zones.length > 1 && (
+          <label className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-2">
+            <span className="text-[11.5px] text-ink-300">Aplicar a todas as zonas</span>
+            <input
+              type="checkbox"
+              className="accent-brand-500"
+              checked={applyToAllZones}
+              title="Ao marcar, qualquer efeito escolhido será aplicado a todas as zonas ao mesmo tempo."
+              onChange={(e) => void setGlobal({ applyToAllZones: e.target.checked })}
+            />
+          </label>
+        )}
 
         {zones.map((zone) => {
           const config = configFor(zone.id)
@@ -98,10 +95,34 @@ function ZoneCard({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  /** Text being typed in the LED field; null means "show the stored value". */
+  const [ledDraft, setLedDraft] = useState<string | null>(null)
   /** Enter commits and then blurs the input, so the commit must happen once. */
   const committing = useRef(false)
 
   const displayName = zoneDisplayName(zone, config)
+  const storedLedCount = config?.ledCount ?? 0
+
+  // Typing "12" must not write 1 first (the strip would flash with a single
+  // LED) and must not be truncated mid-edit. The store is only told on
+  // blur/Enter, like the gradient's hex field.
+  useEffect(() => {
+    setLedDraft(null)
+  }, [storedLedCount, zone.id])
+
+  const commitLedCount = (): void => {
+    if (ledDraft === null) return
+    const raw = Number(ledDraft)
+    // Empty text is not zero: keep what was stored instead of turning the
+    // strip dark because the field was cleared on the way to a new number.
+    const count = ledDraft.trim()
+      ? Number.isFinite(raw)
+        ? Math.max(0, Math.min(zone.maxLedCount, Math.round(raw)))
+        : storedLedCount
+      : storedLedCount
+    setLedDraft(null)
+    if (count !== storedLedCount) onConfig({ ledCount: count })
+  }
 
   useEffect(() => {
     if (editing) {
@@ -173,7 +194,7 @@ function ZoneCard({
 
         {!editing && (
           <button
-            className="shrink-0 rounded px-1 text-[11px] text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+            className="shrink-0 rounded px-1 text-[13px] text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
             title="Renomear esta zona"
             onClick={(e) => {
               e.stopPropagation()
@@ -202,14 +223,22 @@ function ZoneCard({
               className="field h-6 w-14 px-1.5 py-0 text-[11px]"
               min={0}
               max={zone.maxLedCount}
-              value={config?.ledCount ?? 0}
+              step={1}
+              value={ledDraft ?? String(storedLedCount)}
               title="Quantidade de LEDs neste header"
               onClick={(e) => e.stopPropagation()}
-              onChange={(e) =>
-                void onConfig({
-                  ledCount: Math.max(0, Math.min(zone.maxLedCount, Number(e.target.value)))
-                })
-              }
+              onChange={(e) => setLedDraft(e.target.value)}
+              onBlur={commitLedCount}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitLedCount()
+                  e.currentTarget.blur()
+                } else if (e.key === 'Escape') {
+                  setLedDraft(null)
+                  e.currentTarget.blur()
+                }
+              }}
             />
             <span className="text-[10.5px] text-ink-400">/ {zone.maxLedCount} LEDs</span>
           </>
@@ -221,7 +250,9 @@ function ZoneCard({
       </div>
 
       {followedName && (
-        <div className="mt-1.5 text-[10.5px] text-accent-400">seguindo {followedName}</div>
+        <div className="mt-1.5 flex items-center gap-1 text-[10.5px] text-accent-400">
+          <span className="rounded-full bg-accent-400/15 px-1.5 py-0.5">↷ seguindo {followedName}</span>
+        </div>
       )}
     </div>
   )
@@ -235,7 +266,14 @@ function ZoneFollowPicker(): React.JSX.Element {
   const setZoneConfig = useApp((s) => s.setZoneConfig)
 
   const config = profile?.zones.find((z) => z.zoneId === selectedZoneId)
-  const value = config?.followZoneId ?? ''
+  const wanted = config?.followZoneId ?? ''
+  // The engine falls back to the zone's own effect when the followed zone is
+  // gone, so the select must say the same instead of showing "— efeito
+  // próprio —" over a value that is something else. The link is kept as is:
+  // with the controller unplugged there are no zones to match, and writing
+  // null would destroy a link that is still valid.
+  const value =
+    wanted && zones.some((z) => z.id === wanted && z.id !== selectedZoneId) ? wanted : ''
 
   return (
     <div className="border-t border-ink-700 p-3">

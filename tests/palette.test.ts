@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   hexToRgb,
   hsvToRgb,
+  normalizeHexColor,
   paletteToCssGradient,
   rgbToHex,
   rgbToHsv,
@@ -31,6 +32,21 @@ describe('colour conversion', () => {
 
   it('handles invalid hex', () => {
     expect(hexToRgb('nope')).toEqual({ r: 255, g: 0, b: 255 })
+  })
+
+  it('normalises colours typed by the user', () => {
+    expect(normalizeHexColor('#7c5cff')).toBe('#7c5cff')
+    expect(normalizeHexColor('7c5cff')).toBe('#7c5cff')
+    expect(normalizeHexColor('#ABC')).toBe('#aabbcc')
+    expect(normalizeHexColor('  #FFF  ')).toBe('#ffffff')
+  })
+
+  it('rejects text that is not a colour', () => {
+    expect(normalizeHexColor('')).toBeNull()
+    expect(normalizeHexColor('#12345')).toBeNull()
+    expect(normalizeHexColor('#xyzxyz')).toBeNull()
+    expect(normalizeHexColor('vermelho')).toBeNull()
+    expect(normalizeHexColor('#7c5cff extra')).toBeNull()
   })
 
   it('round trips hsv', () => {

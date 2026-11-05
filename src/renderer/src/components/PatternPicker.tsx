@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp, useSelectedZoneConfig } from '../store'
 import { HelpTip } from './HelpTip'
 import type { PatternMeta } from '@shared/types'
@@ -28,6 +28,20 @@ export function PatternPicker(): React.JSX.Element {
   }, [patterns])
 
   const current = zoneConfig?.effect?.patternId
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+
+  // Follow the selected effect when the zone or profile changes, so its
+  // category tab is always the one on screen.
+  useEffect(() => {
+    const category = patterns.find((pattern) => pattern.id === current)?.category
+    if (category) setActiveCategory(category)
+  }, [current, patterns])
+
+  const selectedCategory =
+    activeCategory && grouped.some(([category]) => category === activeCategory)
+      ? activeCategory
+      : (grouped[0]?.[0] ?? '')
+  const visible = grouped.find(([category]) => category === selectedCategory)?.[1] ?? []
 
   const handleSelect = (pattern: PatternMeta): void => {
     void setZoneEffect(selectedZoneId, {
@@ -59,37 +73,63 @@ export function PatternPicker(): React.JSX.Element {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {grouped.map(([category, items]) => (
-          <div key={category} className="mb-4">
-            <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
-              {category}
-            </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-1.5">
-              {items.map((pattern) => {
-                const active = current === pattern.id
-                return (
-                  <button
-                    key={pattern.id}
-                    onClick={() => handleSelect(pattern)}
-                    title={pattern.description}
-                    className={`rounded-lg border px-2.5 py-2 text-left text-[12px] transition-colors ${
-                      active
-                        ? 'border-brand-500 bg-brand-500/15 text-ink-100'
-                        : 'border-ink-700 bg-ink-850 text-ink-300 hover:border-ink-600 hover:bg-ink-800'
-                    }`}
-                  >
-                    <span className="block truncate font-medium">{pattern.name}</span>
-                    {pattern.params.length > 0 && (
-                      <span className="mt-0.5 block text-[10px] text-ink-500">
-                        {pattern.params.length} parâm.
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+        <div
+          role="tablist"
+          aria-label="Categorias de efeitos"
+          className="mb-2.5 flex flex-wrap gap-1.5"
+        >
+          {grouped.map(([category, items]) => {
+            const active = category === selectedCategory
+            return (
+              <button
+                key={category}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveCategory(category)}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  active
+                    ? 'border-brand-500 bg-brand-500/15 text-ink-100'
+                    : 'border-ink-700 bg-ink-850 text-ink-400 hover:border-ink-600 hover:text-ink-200'
+                }`}
+              >
+                {category}
+                <span
+                  className={`rounded-full px-1.5 text-[10px] font-mono ${
+                    active ? 'bg-brand-500/25 text-ink-100' : 'bg-ink-800 text-ink-500'
+                  }`}
+                >
+                  {items.length}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-1.5">
+          {visible.map((pattern) => {
+            const active = current === pattern.id
+            return (
+              <button
+                key={pattern.id}
+                onClick={() => handleSelect(pattern)}
+                title={pattern.description}
+                className={`rounded-lg border px-2.5 py-2 text-left text-[12px] transition-colors ${
+                  active
+                    ? 'border-brand-500 bg-brand-500/15 text-ink-100'
+                    : 'border-ink-700 bg-ink-850 text-ink-300 hover:border-ink-600 hover:bg-ink-800'
+                }`}
+              >
+                <span className="block truncate font-medium">{pattern.name}</span>
+                {pattern.params.length > 0 && (
+                  <span className="mt-0.5 block text-[10px] text-ink-500">
+                    {pattern.params.length} parâm.
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

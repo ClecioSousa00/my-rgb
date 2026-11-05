@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp, useSelectedZoneConfig } from '../store'
-import { paletteToCssGradient, samplePalette, rgbToHex } from '@shared/color'
+import { paletteToCssGradient, samplePalette, rgbToHex, normalizeHexColor } from '@shared/color'
 import { HelpTip } from './HelpTip'
+import { useDebouncedNumber } from './useDebouncedNumber'
 import type { Palette } from '@shared/types'
 
 export function GradientEditor(): React.JSX.Element {
@@ -17,6 +18,17 @@ export function GradientEditor(): React.JSX.Element {
   const [dragging, setDragging] = useState<number | null>(null)
   /** Local position while dragging, so the store is not hammered. */
   const [dragPosition, setDragPosition] = useState<number | null>(null)
+  /** Same value for the pointerup handler, which is not a state updater. */
+  const dragPositionRef = useRef<number | null>(null)
+  /**
+   * Text being typed in the hex field.
+   *
+   * Null means "show the stored colour". Keeping the raw text in local state
+   * lets the user type an incomplete value like "#7c5c" without the store
+   * receiving (#7c5c is not a colour) and without the field jumping back to
+   * the old value before they finish.
+   */
+  const [colorDraft, setColorDraft] = useState<string | null>(null)
 
   const palettes = profile?.palettes ?? []
   const paletteId = zoneConfig?.effect?.paletteId ?? palettes[0]?.id
@@ -31,12 +43,42 @@ export function GradientEditor(): React.JSX.Element {
         }
       : stored
 
+  /**
+   * A profile can point at a palette that no longer exists (removed in another
+   * window, imported profile). The engine already falls back to the first
+   * palette; writing that back is what keeps the select, the editor and the
+   * engine saying the same thing instead of the select showing a palette the
+   * effect does not reference.
+   */
+  const reconciled = useRef<string | null>(null)
+  useEffect(() => {
+    const effect = zoneConfig?.effect
+    if (!effect || palettes.length === 0) return
+    if (palettes.some((p) => p.id === effect.paletteId)) return
+    const key = `${selectedZoneId}:${effect.paletteId}`
+    if (reconciled.current === key) return
+    // StrictMode runs the effect twice; only one write is needed.
+    reconciled.current = key
+    void setZoneEffect(selectedZoneId, { ...effect, paletteId: palettes[0].id })
+  }, [zoneConfig?.effect, palettes, selectedZoneId, setZoneEffect])
+
   // Keep the selection valid when the palette list changes.
   useEffect(() => {
     if (palette && activeStop !== null && activeStop >= palette.stops.length) {
       setActiveStop(palette.stops.length - 1)
     }
   }, [palette, activeStop])
+
+  /** Colour the hex field should display when nothing is being typed. */
+  const activeStopColor =
+    palette && activeStop !== null ? (palette.stops[activeStop]?.color ?? null) : null
+
+  // A draft belongs to a single stop. Switching stops, palettes or the stored
+  // colour (colour picker, drag, other window) discards it, so the field
+  // never keeps showing text that no longer describes the palette.
+  useEffect(() => {
+    setColorDraft(null)
+  }, [activeStop, palette?.id, activeStopColor])
 
   const commit = useCallback(
     (next: Palette) => {
@@ -57,21 +99,23 @@ export function GradientEditor(): React.JSX.Element {
     if (dragging === null) return
 
     const move = (event: PointerEvent): void => {
-      setDragPosition(positionFromEvent(event.clientX))
+      const position = positionFromEvent(event.clientX)
+      dragPositionRef.current = position
+      setDragPosition(position)
     }
 
     const up = (): void => {
-      // Commit the final position once, when the button is released.
-      setDragPosition((position) => {
-        if (position !== null && stored && dragging !== null) {
-          const stops = stored.stops.map((s, i) =>
-            i === dragging ? { ...s, position } : s
-          )
-          commit({ ...stored, stops })
-        }
-        return null
-      })
+      // Commit the final position once, when the button is released. Reading
+      // it from a ref keeps the IPC call out of a state updater, which React
+      // StrictMode runs twice.
+      const position = dragPositionRef.current
+      dragPositionRef.current = null
+      setDragPosition(null)
       setDragging(null)
+      if (position !== null && stored && dragging !== null) {
+        const stops = stored.stops.map((s, i) => (i === dragging ? { ...s, position } : s))
+        commit({ ...stored, stops })
+      }
     }
 
     window.addEventListener('pointermove', move)
@@ -102,6 +146,26 @@ export function GradientEditor(): React.JSX.Element {
   const updateStop = (index: number, patch: Partial<{ position: number; color: string }>): void => {
     const stops = palette.stops.map((s, i) => (i === index ? { ...s, ...patch } : s))
     commit({ ...palette, stops })
+  }
+
+  const colorDraftInvalid = colorDraft !== null && normalizeHexColor(colorDraft) === null
+
+  /**
+   * Turn the typed text into a colour, or throw it away.
+   *
+   * Only complete hex values reach the store. Invalid text is discarded on
+   * blur/Enter and the stop keeps its last valid colour - otherwise the
+   * gradient CSS breaks and the engine paints magenta.
+   */
+  const commitColorDraft = (): void => {
+    if (activeStop === null || colorDraft === null) return
+    const color = normalizeHexColor(colorDraft)
+    if (!color) {
+      setColorDraft(null)
+      return
+    }
+    if (color !== selected?.color) updateStop(activeStop, { color })
+    else setColorDraft(null)
   }
 
   const removeStop = (index: number): void => {
@@ -169,10 +233,14 @@ export function GradientEditor(): React.JSX.Element {
 
       <div className="p-3">
         {/* the gradient bar */}
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[10.5px] uppercase tracking-wider text-ink-400">Pré-visualização</span>
+        </div>
+
         <div
           ref={barRef}
           onClick={handleBarClick}
-          className="relative h-9 cursor-copy rounded-lg border border-ink-600"
+          className="relative h-14 cursor-copy rounded-xl border border-ink-600 shadow-inner"
           style={{ background: paletteToCssGradient(palette) }}
           title="Clique para adicionar uma parada"
         >
@@ -187,12 +255,16 @@ export function GradientEditor(): React.JSX.Element {
                 setDragPosition(stop.position)
               }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 shadow-md transition-transform active:cursor-grabbing"
+              className="absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 shadow-lg transition-transform active:cursor-grabbing"
               style={{
                 left: `${stop.position * 100}%`,
                 background: stop.color,
-                borderColor: activeStop === index ? '#fff' : 'rgba(0,0,0,0.55)',
-                transform: `translate(-50%, -50%) scale(${activeStop === index ? 1.18 : 1})`
+                borderColor: activeStop === index ? '#fff' : 'rgba(0,0,0,0.7)',
+                boxShadow:
+                  activeStop === index
+                    ? '0 0 0 2px rgba(255, 255, 255, 0.65), 0 2px 6px rgba(0,0,0,0.6)'
+                    : '0 2px 6px rgba(0,0,0,0.6)',
+                transform: `translate(-50%, -50%) scale(${activeStop === index ? 1.22 : 1})`
               }}
               title={`${stop.color} @ ${(stop.position * 100).toFixed(0)}%`}
             />
@@ -232,22 +304,28 @@ export function GradientEditor(): React.JSX.Element {
             />
             <input
               type="text"
-              className="field w-20 font-mono text-[11px]"
-              value={selected.color}
-              onChange={(e) => updateStop(activeStop, { color: e.target.value })}
+              className={`field w-20 font-mono text-[11px] ${
+                colorDraftInvalid ? 'border-bad-500 text-bad-500' : ''
+              }`}
+              value={colorDraft ?? selected.color}
+              onChange={(e) => setColorDraft(e.target.value)}
+              onBlur={commitColorDraft}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitColorDraft()
+                } else if (e.key === 'Escape') {
+                  setColorDraft(null)
+                }
+              }}
+              spellCheck={false}
+              aria-invalid={colorDraftInvalid}
+              title="Cor da parada em hexadecimal (#rrggbb)"
             />
-            <input
-              type="range"
-              className="flex-1"
-              min={0}
-              max={1}
-              step={0.005}
+            <StopPositionSlider
               value={selected.position}
-              onChange={(e) => updateStop(activeStop, { position: Number(e.target.value) })}
+              onChange={(position) => updateStop(activeStop, { position })}
             />
-            <span className="w-10 text-right font-mono text-[11px] text-ink-400">
-              {(selected.position * 100).toFixed(1)}%
-            </span>
             <button
               className="btn btn-danger h-7 px-2"
               onClick={() => removeStop(activeStop)}
@@ -260,5 +338,34 @@ export function GradientEditor(): React.JSX.Element {
         )}
       </div>
     </div>
+  )
+}
+
+/** Position slider of the selected stop, drafting locally while dragging. */
+function StopPositionSlider({
+  value,
+  onChange
+}: {
+  value: number
+  onChange: (position: number) => void
+}): React.JSX.Element {
+  const [position, setPosition] = useDebouncedNumber(value, onChange)
+
+  return (
+    <>
+      <input
+        type="range"
+        className="flex-1"
+        min={0}
+        max={1}
+        step={0.005}
+        value={position}
+        aria-label="Posição da parada"
+        onChange={(e) => setPosition(Number(e.target.value))}
+      />
+      <span className="w-10 text-right font-mono text-[11px] text-ink-400">
+        {(position * 100).toFixed(1)}%
+      </span>
+    </>
   )
 }

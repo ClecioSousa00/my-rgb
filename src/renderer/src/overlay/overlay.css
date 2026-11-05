@@ -1,0 +1,138 @@
+/*
+ * Overlay card.
+ *
+ * Transparent document, one black card. Every size is in `em` so the scale
+ * picker (Pequeno/Médio/Grande) only has to change the root font size; the
+ * window then measures the card and resizes itself.
+ *
+ * Monochrome like the dashboard: white values, grey labels, a hairline border.
+ * Nothing here reacts to the mouse - the window is click-through.
+ */
+
+:root {
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'Cascadia Code', ui-monospace, monospace;
+}
+
+html,
+body,
+#overlay-root {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: #ffffff;
+  user-select: none;
+  cursor: default;
+  -webkit-font-smoothing: antialiased;
+}
+
+.overlay-card {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.45em;
+  width: max-content;
+  min-width: 14em;
+  max-width: 32em;
+  padding: 0.72em 0.88em;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.7em;
+  line-height: 1.25;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 35%);
+}
+
+.overlay-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.4em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+.overlay-game {
+  overflow: hidden;
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.overlay-clock {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  color: #a3a3a3;
+  font-variant-numeric: tabular-nums;
+}
+
+.overlay-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.14em;
+}
+
+.overlay-group + .overlay-group {
+  padding-top: 0.4em;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.overlay-group-title {
+  margin: 0 0 0.05em;
+  font-size: 0.6em;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #8c8c8c;
+}
+
+.overlay-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.4em;
+}
+
+.overlay-label {
+  font-size: 0.78em;
+  color: #a3a3a3;
+  white-space: nowrap;
+}
+
+.overlay-value {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.overlay-row-graph {
+  align-items: center;
+}
+
+.overlay-graph {
+  display: block;
+  width: 7.5em;
+  height: 1.9em;
+  overflow: visible;
+}
+
+.overlay-graph polygon {
+  fill: rgb(255 255 255 / 10%);
+}
+
+.overlay-graph polyline {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
