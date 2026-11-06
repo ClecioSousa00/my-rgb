@@ -97,8 +97,8 @@
 
 - [x] **Atualizar README com novas funcionalidades** - Exportar/Importar, salvar único botão, etc. **Feito em 29/10/2026:** README, `documentation/funcionalidades.md`, `desenvolvimento.md` e `jogos.md` refletem o dashboard, o cartão de refrigeração e os 295 testes. Falta apenas a especificação do formato de exportação (item seguinte).
 - [~] **Adicionar guia de resolução de problemas (Troubleshooting)** - Comum em Linux/Windows. **Parcial:** `documentation/windows.md` cobre AURA/Armoury Crate, cintilação e dispositivo não encontrado. Falta o equivalente Linux (udev, AppImage, `brightness`/`asus_ec_sensors`, `hwmon`).
-- [ ] **Documentar formato de exportação de perfil** - Especificação do `.myrgb.json`. O ficheiro é o próprio `Profile` `version: 1` (sem envelope), mas isso não está escrito em lado nenhum; quem for escrever um importador não tem contrato.
-- [ ] **Traduzir documentação para inglês** - Para maior alcance. Toda a documentação e a interface continuam só em português.
+- [x] **Documentar formato de exportação de perfil** - `documentation/formato-exportacao-perfil.md` (pt) e `documentation/profile-export-format.md` (en): esquema completo do `.myrgb.json` (versão 1, sem envelope), regras de importação e paridade Linux/Windows.
+- [~] **Traduzir documentação para inglês** - Iniciado: `documentation/en/README.md`, `how-it-works.md` e `windows.md` traduzidos. Falta: funcionalidades.md, efeitos.md, zonas-e-perfis.md, jogos.md, desenvolvimento.md, planejamento-iluminacao-externa.md.
 
 ---
 
