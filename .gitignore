@@ -6,6 +6,7 @@ release/
 *.log
 *.tsbuildinfo
 .DS_Store
+.vitest/
 
 # .NET helper (Windows only): build output and the published executable.
 helper/**/bin/
