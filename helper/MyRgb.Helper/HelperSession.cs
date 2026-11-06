@@ -1,20 +1,23 @@
+using System.IO.Pipes;
 using System.Security.Principal;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace MyRgb.Helper;
 
 /// <summary>
 /// The commands exposed over the pipe. Every one returns plain objects that
-/// the TypeScript side deserializes; `fps.poll` returns null when no game is
-/// presenting, which is a normal answer (a menu, the desktop).
+/// the TypeScript side deserializes.
 ///
-/// Only FPS lives here. Temperatures and fans still come from the shared
-/// sensor collector in the main app, so this helper stays small and needs one
-/// UAC prompt for one purpose.
+/// - FPS comes from ETW (`fps.*`), which needs administrator rights.
+/// - Board temperatures, fans and pumps come from LibreHardwareMonitorLib
+///   (`sensors.poll`), which reads WMI/SMBIOS without elevation once the
+///   helper is already running elevated for FPS.
 /// </summary>
 internal sealed class HelperSession : IDisposable
 {
     private readonly FrameMonitor _monitor = new();
+    private readonly HardwareMonitor _sensors = new();
     private readonly bool _elevated = IsElevated();
 
     public object? Dispatch(string cmd, JsonNode? args) => cmd switch
@@ -30,6 +33,8 @@ internal sealed class HelperSession : IDisposable
         "fps.stop" => StopFps(),
         "fps.poll" => PollFps(),
         "fps.status" => Status(),
+        "sensors.poll" => PollSensors(),
+        "sensors.status" => StatusSensors(),
         _ => throw new InvalidOperationException($"Comando desconhecido: {cmd}")
     };
 
@@ -86,7 +91,41 @@ internal sealed class HelperSession : IDisposable
         elevated = _elevated
     };
 
-    public void Dispose() => _monitor.Dispose();
+    private object PollSensors()
+    {
+        var readings = _sensors.Read();
+        return new
+        {
+            readings = readings.Select(r => new
+            {
+                id = r.Id,
+                kind = r.Kind,
+                group = r.Group,
+                chip = r.Chip,
+                label = r.Label,
+                value = r.Value,
+                unit = r.Unit,
+                order = r.Order,
+                critical = r.Critical,
+                role = r.Role,
+                min = r.Min,
+                max = r.Max,
+                history = r.History
+            })
+        };
+    }
+
+    private object StatusSensors() => new
+    {
+        available = true,
+        elevated = _elevated
+    };
+
+    public void Dispose()
+    {
+        _monitor.Dispose();
+        _sensors.Dispose();
+    }
 
     private static bool IsElevated()
     {
