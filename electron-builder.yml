@@ -89,6 +89,9 @@ win:
     - target: nsis
       arch: [x64]
   artifactName: ${productName}-${version}-setup.${ext}
+  # Ícone do executável e dos atalhos no Windows. Sem isso o MyRGB.exe sai
+  # com o ícone padrão do Electron.
+  icon: build/icon.png
   extraResources:
     - from: build
       to: build
