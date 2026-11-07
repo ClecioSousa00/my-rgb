@@ -126,7 +126,14 @@ E compare com o dump do Linux:
 node tools\compare-frames.mjs frames-linux frames-windows
 ```
 
-O resultado esperado é `IDENTICAL: 60 frames match byte for byte`.
+O resultado esperado é `IDENTICAL: 60 frames match byte for byte, manifest identical`.
+
+Sem o controlador, use `--dump-offline` (layout sintético fixo) nos dois lados —
+é o mesmo modo usado pelo CI:
+
+```powershell
+MyRGB.exe --dump-frames frames-offline --dump-count 60 --dump-offline
+```
 
 ---
 

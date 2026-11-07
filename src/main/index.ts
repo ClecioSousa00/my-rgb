@@ -18,7 +18,7 @@ import { buildZones } from './zones'
 import { createTray, type TrayHandle } from './tray'
 import { resolveResource } from './resources'
 import { detectConflicts, type ConflictReport } from './platform/conflict'
-import { runFrameDump } from './dumpFrames'
+import { runFrameDump, syntheticDumpInput } from './dumpFrames'
 import { buildEffectsDoc } from './docs/effectsDoc'
 import { initAutoUpdater } from './updater'
 import { registerIpc } from './ipc/register'
@@ -700,14 +700,22 @@ async function runHeadlessDump(): Promise<void> {
   const offline = process.argv.includes('--dump-offline')
 
   const device = new AuraUsbDevice()
-  let zones: ZoneState[] = []
-  if (!offline) {
+  let zones: ZoneState[]
+  let reconciled: Profile
+
+  if (offline) {
+    // No hardware: use the fixed synthetic layout so the dump is reproducible
+    // on any machine (and in CI). See SYNTHETIC_LAYOUT in dumpFrames.ts.
+    const input = syntheticDumpInput()
+    zones = input.zones
+    reconciled = input.profile
+  } else {
+    zones = []
     const ok = await device.open()
     if (ok && device.info.layout) zones = buildZones(device.info.layout)
+    reconciled = reconcileProfile(defaultProfile(zones), zones)
   }
 
-  const profile = defaultProfile(zones)
-  const reconciled = reconcileProfile(profile, zones)
   const files = await runFrameDump({
     outDir,
     frameCount,

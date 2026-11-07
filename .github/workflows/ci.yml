@@ -46,6 +46,7 @@ jobs:
           tests/bottleneck.test.ts
           tests/overlay.test.ts
           tests/light.test.ts
+          tests/parity.test.ts
 
       - name: Build
         run: npm run build
@@ -73,6 +74,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The same test runs on the Ubuntu job above. Both compare against the
+      # committed golden fixture, so a green pair is a byte-for-byte proof
+      # that the Windows and Linux builds render the identical frames.
+      - name: Run Linux/Windows parity test
+        run: npm run test:parity
 
       - name: Build the FPS helper
         run: npm run build:helper

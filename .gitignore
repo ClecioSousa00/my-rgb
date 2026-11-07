@@ -7,6 +7,9 @@ release/
 *.tsbuildinfo
 .DS_Store
 
+# Frame dumps used by the Linux/Windows parity proof.
+frames-*/
+
 # .NET helper (Windows only): build output and the published executable.
 helper/**/bin/
 helper/**/obj/

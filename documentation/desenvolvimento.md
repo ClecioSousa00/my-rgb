@@ -109,7 +109,8 @@ diagnóstico:
 | `--selftest` | sobe a interface e confere que ela montou e está recebendo quadros |
 | `--write-test` | escreve um arco-íris em todas as zonas (teste de hardware) |
 | `--dump-frames <dir>` | grava os quadros em disco, para comparar entre sistemas |
-| `--dump-offline` | junto com o de cima, não abre o dispositivo |
+| `--dump-offline` | junto com o de cima, não abre o dispositivo e usa um layout sintético fixo (reproduzível em CI) |
+| `--dump-count <n>` | quantidade de quadros do dump (padrão 120) |
 | `--gen-docs <arquivo>` | regera o catálogo de efeitos |
 | `--storage-bench <pasta>` | varre a pasta com o motor a rodar e imprime FPS antes/durante, tempo e progresso |
 | `--hidden` | sobe sem janela (usado pelo autostart) |
@@ -129,6 +130,9 @@ npm run probe      # lê a config table do hardware real e mostra o layout
 npm run icons      # regenera os ícones do app e da bandeja
 npm run docs       # regera documentation/efeitos.md
 npm run games:data # baixa e normaliza a base de FPS (precisa de rede)
+npm run dump:frames:offline # dump sem hardware, com layout sintético fixo
+npm run test:parity        # prova de paridade Linux/Windows (roda no CI)
+npm run parity:golden      # regera a fixture dourada após mudança intencional
 ```
 
 ---
@@ -139,7 +143,8 @@ npm run games:data # baixa e normaliza a base de FPS (precisa de rede)
 |---|---|
 | `tools/probe-aura.mjs` | Lê a config table do hardware real e mostra o layout |
 | `tools/gen-icons.mjs` | Regenera os ícones do app e da bandeja |
-| `tools/compare-frames.mjs <a> <b>` | Compara dois dumps de frames byte a byte |
+| `tools/compare-frames.mjs <a> <b>` | Compara dois dumps de frames byte a byte (inclusive o `manifest.json`) |
+| `tools/update-parity-fixture.mjs` | Regera a fixture dourada do teste de paridade |
 | `tools/check-hid-binary.mjs` | Confere se o binário nativo do node-hid existe para esta plataforma |
 | `tools/build-games-data.mjs` | Baixa, valida e normaliza a base de FPS distribuída com o app |
 

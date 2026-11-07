@@ -18,11 +18,42 @@
 import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { Profile, ZoneState } from '@shared/types'
+import type { AuraLayout } from './aura/auraProtocol'
 import { EffectEngine } from './engine/engine'
 import type { AuraUsbDevice } from './aura/auraDevice'
+import { defaultProfile, reconcileProfile } from './store/profileStore'
+import { buildZones } from './zones'
 
 const MAGIC = 'MYRGBFRM'
 const VERSION = 1
+
+/**
+ * Fake layout used by `--dump-frames --dump-offline`.
+ *
+ * A real dump reads the layout from the controller, which means two machines
+ * can only be compared when they have the same motherboard. The offline dump
+ * exists to be reproducible anywhere - including CI, which has no AURA
+ * hardware at all - so it uses this fixed layout instead. It mirrors the
+ * layout used by the automated parity test.
+ */
+export const SYNTHETIC_LAYOUT: AuraLayout = {
+  argbChannels: 3,
+  mainboardLeds: 1,
+  rgbHeaders: 2
+}
+
+/**
+ * Profile and zones for a hardware-free dump.
+ *
+ * This is the exact input of `--dump-frames --dump-offline` and of
+ * `tests/parity.test.ts`. Keeping it in one place means the test compares the
+ * same bytes the CLI writes, so a green test and a green manual comparison
+ * cannot disagree about the profile.
+ */
+export function syntheticDumpInput(): { profile: Profile; zones: ZoneState[] } {
+  const zones = buildZones(SYNTHETIC_LAYOUT)
+  return { zones, profile: reconcileProfile(defaultProfile(zones), zones) }
+}
 
 export interface DumpOptions {
   outDir: string
