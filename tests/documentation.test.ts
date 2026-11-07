@@ -27,7 +27,9 @@ describe('documentation', () => {
   })
 
   it('keeps the effect catalogue in sync with the code', () => {
-    const onDisk = readDoc('efeitos.md')
+    // `core.autocrlf` checks the file out with CRLF on Windows; the generator
+    // always emits LF. Line endings are not part of the contract.
+    const onDisk = readDoc('efeitos.md').replace(/\r\n/g, '\n')
     expect(onDisk).toBe(buildEffectsDoc())
   })
 

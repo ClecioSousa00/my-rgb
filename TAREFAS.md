@@ -105,11 +105,11 @@
 ## 7. Testes e Qualidade
 
 - [~] **Aumentar cobertura de testes** - Adicionar testes para export/import. Já existem testes de `validateImportedProfile` (`tests/store.test.ts:165`), mas nenhum cobre o fluxo IPC com o diálogo, o `exportProfile` ou o import de um ficheiro real.
-- [x] **Corrigir CI** - O workflow referencia `tests/color.test.ts`, `tests/effects.test.ts` e `tests/zone-apply.test.ts`, que não existem. O `npm run typecheck` já passa. **Corrigido:** o CI agora roda 16 ficheiros existentes (todos menos `conflict.test.ts`, instável em runner partilhado), mais `typecheck`, `build` e o job Windows com o helper .NET e o pacote `win-unpacked`.
-- [ ] **Testes E2E com Playwright** - **Não existe setup nenhum no projeto:** `playwright` não está em `devDependencies`, não há `playwright.config.ts` nem `tests/e2e/`. O que existe é o `--selftest` embutido no Electron, que valida o caminho main → IPC → renderer → DOM.
+- [x] **Corrigir CI** - O workflow referencia `tests/color.test.ts`, `tests/effects.test.ts` e `tests/zone-apply.test.ts`, que não existem. O `npm run typecheck` já passa. **Corrigido:** o CI roda todos os ficheiros de teste existentes (exceto `conflict.test.ts`, instável em runner partilhado), mais `typecheck`, `build` e o job Windows com o helper .NET e o pacote `win-unpacked`.
+- [~] **Testes E2E com Playwright** - **Pulado por decisão do utilizador (06/11/2026).** Continua sem setup: `playwright` não está em `devDependencies`, não há `playwright.config.ts` nem `tests/e2e/`. O `--selftest` embutido no Electron continua a validar o caminho main → IPC → renderer → DOM.
 - [x] **Testar paridade Linux/Windows** - Validar mesmo comportamento. **Concluído:** `tests/parity.test.ts` renderiza 60 quadros pelo mesmo caminho do `--dump-frames --dump-offline` (layout sintético fixo, sem hardware) e compara os hashes com `tests/fixtures/parity-frames.json`. O CI roda o teste nos jobs Linux e Windows; `tools/compare-frames.mjs` agora também compara o `manifest.json` e é exercitado pelo teste (dump igual passa, byte alterado falha). Regeneração: `npm run parity:golden`.
 - [ ] **Testar com diferentes configurações de hardware** - Validar com outras placas ASUS. Todo o desenvolvimento é validado num único controlador `0x0B05:0x19AF`.
-- [ ] **Verificar build para Windows (.exe/.msi)** - Testar instalador NSIS. O CI só produz `win-unpacked` (com `signAndEditExecutable=false`); o instalador NSIS nunca foi executado num runner Windows nem assinado.
+- [~] **Verificar build para Windows (.exe/.msi)** - **Parcial (06/11/2026):** o instalador NSIS foi gerado e executado numa máquina Windows (`release/MyRGB-0.2.0-setup.exe`), com ícone no executável e o helper .NET incluído. Continua sem assinatura e o CI ainda só valida `win-unpacked`.
 
 ---
 
@@ -241,7 +241,7 @@
 
 **Falta ou está frágil:**
 
-- **Temperaturas/ventoinhas da placa-mãe** — a página Sensores diz explicitamente que ainda não existem; é a Fase B já discutida (`LibreHardwareMonitorLib` no helper). Sem isso, o cartão de Refrigeração no Windows só mostra a ventoinha da GPU em %.
+- **Temperaturas/ventoinhas da placa-mãe** — resolvido (06/11/2026): o helper lê `LibreHardwareMonitorLib` e responde `sensors.poll`; a bridge é reutilizada entre polls (uma só elevação) e fecha após 20 s sem pedidos, com recuo de 5 min depois de uma falha.
 - **UAC em cada sessão** — `FpsService.stop()` destrói a ponte (`fps.ts:99-104`) e a próxima sessão volta a lançar o helper elevado (`helper.ts:103-114`). Abrir o overlay ou iniciar uma análise de 1 minuto pede elevação outra vez.
 - **FPS pode morrer até reiniciar** — resolvido (03/11/2026, itens 10-12): os pedidos pendentes são rejeitados quando o helper morre, o pedido de elevação tem limite de 45 s, o "Tentar novamente" não perde a tentativa nova e o `error` do socket tem listener permanente; cada transição do FPS passa a ficar no registo.
 - **Instalador sem assinatura** — SmartScreen bloqueia; o CI só valida `win-unpacked`, nunca o NSIS.
@@ -256,7 +256,7 @@
 4. **Windows: FPS e reconexão** (itens 7, 10 e 11) — são as duas falhas que mais parecem "o app quebrou".
 5. **Robustez de arranque e importação** (itens 8 e 9) — barato e evita um app sem janela ou uma mensagem em inglês.
 6. **Lote de UI** (itens 17-22, 27-30) — pequenos, mas todos visíveis no uso diário.
-7. **Fase B dos sensores no Windows** e **Integrações** — os dois maiores blocos de funcionalidade que faltam; nenhum bloqueia os anteriores.
+7. **Integrações de iluminação externa** — único bloco grande que falta; está pausado e será removido se não for retomado.
 
 ### 9.6 Limites que continuam válidos (não são bugs)
 

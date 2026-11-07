@@ -40,6 +40,7 @@ jobs:
           tests/format.test.ts
           tests/system.test.ts
           tests/sensors.test.ts
+          tests/sensors-windows.test.ts
           tests/health.test.ts
           tests/network.test.ts
           tests/games.test.ts

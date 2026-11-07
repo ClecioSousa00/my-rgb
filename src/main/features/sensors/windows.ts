@@ -1,15 +1,21 @@
 /**
  * Sensores de placa-mãe no Windows via LibreHardwareMonitorLib no helper .NET.
  *
- * O helper já está elevado para o FPS (ETW); ler WMI/SMBIOS não precisa de
- * elevação extra, então reusa o mesmo processo e o mesmo named pipe. Os dados
- * vêm no mesmo formato do collector hwmon no Linux, então a página de
- * sensores e o cartão de refrigeração funcionam sem nenhuma mudança.
+ * O helper já é elevado para o FPS (ETW); ler WMI/SMBIOS não precisa de
+ * elevação extra, então usa o mesmo executável e o mesmo protocolo de named
+ * pipe. Os dados vêm no mesmo formato do collector hwmon no Linux, então a
+ * página de sensores e o cartão de refrigeração funcionam sem nenhuma mudança.
+ *
+ * A bridge é um singleton de módulo. O `SensorsStore` faz poll de 1 em 1
+ * segundo enquanto a página está aberta; criar uma bridge (e um helper
+ * elevado) por poll dispararia um UAC e um processo novo a cada segundo. A
+ * bridge é reutilizada e fechada depois de um período sem pedidos. Uma falha
+ * fica em cache por alguns minutos: se o utilizador recusou o UAC, o app não
+ * pode voltar a perguntar a cada segundo.
  */
 
 import { app } from 'electron'
-import { HelperBridge } from '../overlay/helper'
-import { helperCandidates, findHelperPath } from '../overlay/helper'
+import { HelperBridge, helperCandidates, findHelperPath } from '../overlay/helper'
 import type { SensorReading } from '@shared/features/sensors'
 
 export interface WindowsSensorReading {
@@ -26,6 +32,64 @@ export interface WindowsSensorReading {
   min: number | null
   max: number | null
   history: number[] | null
+}
+
+/** A página fecha e o poll para; o helper não precisa ficar vivo para sempre. */
+const IDLE_AFTER_MS = 20_000
+/** Depois de uma falha (UAC recusado, helper morto), não tentar de novo já. */
+const RETRY_AFTER_MS = 5 * 60_000
+
+let bridge: HelperBridge | null = null
+let starting: Promise<HelperBridge> | null = null
+let idleTimer: NodeJS.Timeout | null = null
+let failure: { message: string; at: number } | null = null
+
+function clearIdleTimer(): void {
+  if (!idleTimer) return
+  clearTimeout(idleTimer)
+  idleTimer = null
+}
+
+function scheduleIdleClose(): void {
+  clearIdleTimer()
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    bridge?.dispose()
+    bridge = null
+  }, IDLE_AFTER_MS)
+  idleTimer.unref?.()
+}
+
+async function getBridge(executable: string): Promise<HelperBridge> {
+  if (bridge) return bridge
+
+  if (!starting) {
+    starting = (async () => {
+      const candidate = new HelperBridge({
+        executable,
+        connectTimeoutMs: 30_000,
+        timeoutMs: 5_000
+      })
+      try {
+        await candidate.start()
+        return candidate
+      } catch (error) {
+        // A failed start never reaches the caller's `finally`, so release the
+        // pipe and the helper here instead of leaking them.
+        candidate.dispose()
+        throw error
+      }
+    })()
+  }
+
+  const attempt = starting
+  try {
+    const created = await attempt
+    if (!bridge) bridge = created
+    return bridge
+  } finally {
+    if (starting === attempt) starting = null
+  }
 }
 
 /**
@@ -79,26 +143,31 @@ export async function readWindowsSensors(): Promise<{
     }
   }
 
-  const bridge = new HelperBridge({
-    executable: helper,
-    connectTimeoutMs: 30_000,
-    timeoutMs: 5_000
-  })
+  if (failure && Date.now() - failure.at < RETRY_AFTER_MS) {
+    return {
+      readings: [],
+      note: `Não foi possível ler os sensores da placa-mãe no Windows: ${failure.message}`
+    }
+  }
 
   try {
-    await bridge.start()
-    const result = await bridge.request<{ readings: WindowsSensorReading[] }>('sensors.poll')
+    const active = await getBridge(helper)
+    const result = await active.request<{ readings: WindowsSensorReading[] }>('sensors.poll')
+    failure = null
+    scheduleIdleClose()
     return {
       readings: toReadings(result.readings ?? []),
       note: null
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    failure = { message, at: Date.now() }
+    clearIdleTimer()
+    bridge?.dispose()
+    bridge = null
     return {
       readings: [],
       note: `Não foi possível ler os sensores da placa-mãe no Windows: ${message}`
     }
-  } finally {
-    bridge.dispose()
   }
 }
