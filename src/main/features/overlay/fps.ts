@@ -104,7 +104,7 @@ export class FpsService {
     this.subscribers = Math.max(0, this.subscribers - 1)
     if (this.subscribers > 0) return
     this.clearTimer()
-    this.bridge?.dispose()
+    this.releaseCapture(this.bridge)
     this.bridge = null
     this.last = null
   }
@@ -117,7 +117,7 @@ export class FpsService {
     this.attempt++
     this.starting = false
     this.stopPoll()
-    this.bridge?.dispose()
+    this.releaseCapture(this.bridge)
     this.bridge = null
     this.available = false
     this.reason = undefined
@@ -152,7 +152,7 @@ export class FpsService {
     this.attempt++
     this.subscribers = 0
     this.stopPoll()
-    this.bridge?.dispose()
+    this.releaseCapture(this.bridge)
     this.bridge = null
   }
 
@@ -184,13 +184,11 @@ export class FpsService {
         throw new Error(started?.error ?? 'O helper não conseguiu iniciar a captura de frames.')
       }
 
-      // A retry may have started another attempt while this one waited for
-      // UAC/the helper. Leave the new attempt alone.
-      if (attempt !== this.attempt || this.subscribers === 0 || this.disposed) {
-        bridge.dispose()
-        if (this.bridge === bridge) this.bridge = null
-        return
-      }
+      // A retry, `stop()` or `dispose()` took over while this attempt waited
+      // for UAC/the helper. That superseding call already released this
+      // attempt's lease; releasing it again would drop the lease of the
+      // attempt (or the sensors) that replaced it.
+      if (attempt !== this.attempt || this.subscribers === 0 || this.disposed) return
 
       this.available = true
       this.reason = undefined
@@ -200,9 +198,10 @@ export class FpsService {
       this.timer = setInterval(() => void this.poll(), this.options.pollMs ?? POLL_MS)
       this.timer.unref?.()
     } catch (error) {
+      // Same rule as above: a superseded attempt must not touch the shared
+      // helper's lease count, which now belongs to the new attempt.
+      if (attempt !== this.attempt || this.subscribers === 0 || this.disposed) return
       bridge.dispose()
-      // Superseded by a retry: its state must not overwrite the new attempt's.
-      if (attempt !== this.attempt) return
       if (this.bridge === bridge) this.bridge = null
       this.available = false
       this.reason = messageOf(error)
@@ -224,7 +223,7 @@ export class FpsService {
       this.failures++
       if (this.failures >= MAX_POLL_FAILURES) {
         this.stopPoll()
-        this.bridge?.dispose()
+        this.releaseCapture(this.bridge)
         this.bridge = null
         this.available = false
         this.last = null
@@ -238,6 +237,23 @@ export class FpsService {
 
   private stopPoll(): void {
     this.clearTimer()
+  }
+
+  /**
+   * Stop the ETW capture, then drop our lease on the helper.
+   *
+   * The helper is shared with the Windows board sensors, so `dispose()` no
+   * longer means "the process exits": while the Sensors page is open the
+   * helper stays alive, and without `fps.stop` the capture would keep reading
+   * frame events for a closed overlay. The request is best effort - a helper
+   * that never connected just gets its lease released.
+   */
+  private releaseCapture(bridge: FpsBridge | null): void {
+    if (!bridge) return
+    void bridge
+      .request('fps.stop')
+      .catch(() => {})
+      .finally(() => bridge.dispose())
   }
 
   private clearTimer(): void {

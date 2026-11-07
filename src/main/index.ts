@@ -26,7 +26,7 @@ import { SensorsStore } from './features/sensors/store'
 import { BottleneckService } from './features/bottleneck'
 import { FpsService } from './features/overlay/fps'
 import { OverlayService } from './features/overlay/manager'
-import { findHelperPath, helperCandidates, HelperBridge } from './features/overlay/helper'
+import { findHelperPath, getSharedHelper, helperCandidates } from './features/overlay/helper'
 import type { OverlayState } from '@shared/features/overlay'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
@@ -184,10 +184,12 @@ class MyRgbApp {
     this.fps = new FpsService({
       createBridge: () => {
         // Absent helper is a capability, not an error: no FPS, overlay still on.
+        // The same shared helper serves the Windows board sensors, so starting
+        // the overlay and then the Sensors page asks for elevation only once.
         const executable = findHelperPath(
           helperCandidates(app.getAppPath(), process.resourcesPath)
         )
-        return executable ? new HelperBridge({ executable }) : null
+        return executable ? getSharedHelper(executable) : null
       },
       onStatus: (capabilities) => {
         const status = `${capabilities.supported ? 'supported' : 'unsupported'}/${

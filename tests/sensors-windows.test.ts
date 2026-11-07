@@ -13,7 +13,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   request: vi.fn(),
-  dispose: vi.fn()
+  dispose: vi.fn(),
+  getSharedHelper: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -21,11 +22,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('@main/features/overlay/helper', () => ({
-  HelperBridge: class {
-    start = mocks.start
-    request = mocks.request
-    dispose = mocks.dispose
-  },
+  getSharedHelper: mocks.getSharedHelper,
   helperCandidates: () => ['/app/helper/MyRgb.Helper.exe'],
   findHelperPath: () => '/app/helper/MyRgb.Helper.exe'
 }))
@@ -39,6 +36,12 @@ beforeEach(() => {
   mocks.start.mockReset()
   mocks.request.mockReset()
   mocks.dispose.mockReset()
+  mocks.getSharedHelper.mockReset()
+  mocks.getSharedHelper.mockReturnValue({
+    start: mocks.start,
+    request: mocks.request,
+    dispose: mocks.dispose
+  })
 })
 
 describe('Windows board sensors', () => {
@@ -85,7 +88,8 @@ describe('Windows board sensors', () => {
     expect(mocks.start).toHaveBeenCalledTimes(1)
     expect(first?.note).toContain('UAC recusado')
     expect(second?.note).toContain('UAC recusado')
-    // The failed attempt released its own pipe/process.
-    expect(mocks.dispose).toHaveBeenCalledTimes(1)
+    // The shared helper released its own lease on failure; the next poll must
+    // not have tried to launch it again.
+    expect(mocks.getSharedHelper).toHaveBeenCalledTimes(1)
   })
 })

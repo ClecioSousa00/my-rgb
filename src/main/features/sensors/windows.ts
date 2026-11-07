@@ -6,16 +6,23 @@
  * pipe. Os dados vêm no mesmo formato do collector hwmon no Linux, então a
  * página de sensores e o cartão de refrigeração funcionam sem nenhuma mudança.
  *
- * A bridge é um singleton de módulo. O `SensorsStore` faz poll de 1 em 1
- * segundo enquanto a página está aberta; criar uma bridge (e um helper
- * elevado) por poll dispararia um UAC e um processo novo a cada segundo. A
- * bridge é reutilizada e fechada depois de um período sem pedidos. Uma falha
- * fica em cache por alguns minutos: se o utilizador recusou o UAC, o app não
- * pode voltar a perguntar a cada segundo.
+ * A bridge é compartilhada com o FPS (`getSharedHelper`): um único helper
+ * elevado atende os dois recursos, em vez de um UAC por página/sessão. O
+ * `SensorsStore` faz poll de 1 em 1 segundo enquanto a página está aberta;
+ * criar uma bridge (e um helper elevado) por poll dispararia um UAC e um
+ * processo novo a cada segundo. A bridge é reutilizada e a lease dos sensores
+ * é liberada depois de um período sem pedidos. Uma falha fica em cache por
+ * alguns minutos: se o utilizador recusou o UAC, o app não pode voltar a
+ * perguntar a cada segundo.
  */
 
 import { app } from 'electron'
-import { HelperBridge, helperCandidates, findHelperPath } from '../overlay/helper'
+import {
+  getSharedHelper,
+  helperCandidates,
+  findHelperPath,
+  type SharedHelper
+} from '../overlay/helper'
 import type { SensorReading } from '@shared/features/sensors'
 
 export interface WindowsSensorReading {
@@ -39,8 +46,8 @@ const IDLE_AFTER_MS = 20_000
 /** Depois de uma falha (UAC recusado, helper morto), não tentar de novo já. */
 const RETRY_AFTER_MS = 5 * 60_000
 
-let bridge: HelperBridge | null = null
-let starting: Promise<HelperBridge> | null = null
+let bridge: SharedHelper | null = null
+let starting: Promise<SharedHelper> | null = null
 let idleTimer: NodeJS.Timeout | null = null
 let failure: { message: string; at: number } | null = null
 
@@ -60,33 +67,21 @@ function scheduleIdleClose(): void {
   idleTimer.unref?.()
 }
 
-async function getBridge(executable: string): Promise<HelperBridge> {
+async function getBridge(executable: string): Promise<SharedHelper> {
   if (bridge) return bridge
 
-  if (!starting) {
-    starting = (async () => {
-      const candidate = new HelperBridge({
-        executable,
-        connectTimeoutMs: 30_000,
-        timeoutMs: 5_000
-      })
-      try {
-        await candidate.start()
-        return candidate
-      } catch (error) {
-        // A failed start never reaches the caller's `finally`, so release the
-        // pipe and the helper here instead of leaking them.
-        candidate.dispose()
-        throw error
-      }
-    })()
-  }
+  const attempt =
+    starting ??
+    (starting = (async () => {
+      const shared = getSharedHelper(executable)
+      await shared.start()
+      return shared
+    })())
 
-  const attempt = starting
   try {
-    const created = await attempt
-    if (!bridge) bridge = created
-    return bridge
+    const shared = await attempt
+    bridge = shared
+    return shared
   } finally {
     if (starting === attempt) starting = null
   }

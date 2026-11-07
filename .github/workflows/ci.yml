@@ -46,6 +46,7 @@ jobs:
           tests/games.test.ts
           tests/bottleneck.test.ts
           tests/overlay.test.ts
+          tests/helper-shared.test.ts
           tests/light.test.ts
           tests/parity.test.ts
 

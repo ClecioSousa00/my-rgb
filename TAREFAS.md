@@ -237,16 +237,18 @@
 
 ### 9.4 Windows — o que funciona e o que falta
 
-**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, overlay sempre no topo e instalador NSIS configurado.
+**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **instalador NSIS gerado localmente** (Seção 1; o CI ainda só produz `win-unpacked`).
 
 **Falta ou está frágil:**
 
-- **Temperaturas/ventoinhas da placa-mãe** — resolvido (06/11/2026): o helper lê `LibreHardwareMonitorLib` e responde `sensors.poll`; a bridge é reutilizada entre polls (uma só elevação) e fecha após 20 s sem pedidos, com recuo de 5 min depois de uma falha.
-- **UAC em cada sessão** — `FpsService.stop()` destrói a ponte (`fps.ts:99-104`) e a próxima sessão volta a lançar o helper elevado (`helper.ts:103-114`). Abrir o overlay ou iniciar uma análise de 1 minuto pede elevação outra vez.
-- **FPS pode morrer até reiniciar** — resolvido (03/11/2026, itens 10-12): os pedidos pendentes são rejeitados quando o helper morre, o pedido de elevação tem limite de 45 s, o "Tentar novamente" não perde a tentativa nova e o `error` do socket tem listener permanente; cada transição do FPS passa a ficar no registo.
+- **UAC em cada sessão** — melhorado (06/11/2026): FPS e sensores compartilham um único helper elevado (`getSharedHelper` em `overlay/helper.ts`), então abrir o overlay e depois a página Sensores não pede elevação duas vezes. Ainda há um prompt quando o helper já foi fechado por ociosidade (20 s sem sensores e sem sessão de FPS) ou depois de uma falha; eliminar de vez exigiria manter o processo elevado vivo ou instalar um serviço/tarefa agendada.
+- **Canal de release** — `publish: github` está configurado, mas nenhum workflow publica um Release: `build:win` usa `--publish never` e só existe `ci.yml`. Sem `setup.exe` + `latest.yml` publicados, o auto-update não entrega atualização a ninguém.
 - **Instalador sem assinatura** — SmartScreen bloqueia; o CI só valida `win-unpacked`, nunca o NSIS.
-- **Sem `smartctl`** — a saúde no Windows vem do CIM, que não dá os atributos S.M.A.R.T. brutos que a página mostra no Linux; o veredito é equivalente, o detalhe não.
-- **Sem logs de campo** — resolvido (03/11/2026): o registo em `<userData>/logs/my-rgb.log` guarda o arranque, as transições de estado do FPS/helper, o `child-process-gone` e as exceções, e a pasta abre por ⚙ Configurações → Diagnóstico.
+- **Sem `smartctl`** — a saúde no Windows vem do CIM (`MSFT_PhysicalDisk`, `MSStorageDriver_FailurePredictStatus`), que não dá os atributos S.M.A.R.T. brutos que a página mostra no Linux; o veredito é equivalente, o detalhe não.
+- **Só x64** — `electron-builder.yml` declara `arch: [x64]`; não há pacote ARM64.
+- **Validar os sensores em hardware real** — o código e o ciclo de vida da bridge estão cobertos por testes, mas falta abrir a página Sensores numa máquina Windows e confirmar os valores e o UAC único.
+
+**Resolvido:** FPS pode morrer até reiniciar (03/11/2026, itens 10-12) e logs de campo (03/11/2026, `<userData>/logs/my-rgb.log` com rotação e crash local).
 
 ### 9.5 Prioridades sugeridas
 
