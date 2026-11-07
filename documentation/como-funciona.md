@@ -197,7 +197,7 @@ node tools/compare-frames.mjs frames-linux frames-windows
 Saída esperada:
 
 ```
-IDENTICAL: 60 frames match byte for byte
+IDENTICAL: 60 frames match byte for byte, manifest identical
 ```
 
 Cada arquivo `.bin` contém o cabeçalho do formato, a contagem de LEDs por zona
@@ -221,10 +221,31 @@ bytes    trios RGB
 1. **O mesmo perfil.** O `--dump-frames` usa o perfil padrão reconciliado com o
    layout real do hardware. Como o layout vem da tabela de configuração do
    controlador, as duas máquinas precisam ter a mesma placa (ou, no mínimo, o
-   mesmo número de headers).
+   mesmo número de headers). O `manifest.json` grava esse layout e o
+   `compare-frames` o compara: se for diferente, a ferramenta falha em vez de
+   comparar bytes de trabalhos diferentes.
 2. **O mesmo relógio.** O dump usa um relógio determinístico: o quadro *n* está
    sempre em exatamente `n / fps` segundos a partir de uma origem fixa. Não
    importa a hora do sistema, nem a carga da máquina.
+
+### Sem hardware: o modo offline e o CI
+
+`--dump-offline` troca o layout lido do controlador por um layout sintético
+fixo (`SYNTHETIC_LAYOUT` em `src/main/dumpFrames.ts`: 1 LED onboard e 3 headers
+de 72 LEDs). Assim o dump roda em qualquer máquina e em CI, onde não existe
+hardware AURA.
+
+O teste `tests/parity.test.ts` usa exatamente esse caminho: renderiza 60
+quadros, calcula o SHA-256 de cada um e compara com
+`tests/fixtures/parity-frames.json`. Os jobs Linux e Windows do CI rodam o
+mesmo teste contra a mesma fixture — se as duas plataformas passam, os bytes
+são idênticos nas duas. O teste também exercita o `compare-frames` de verdade:
+dois dumps iguais passam, um byte alterado ou um manifesto diferente falham.
+
+```bash
+npm run test:parity      # roda só o teste de paridade
+npm run parity:golden    # regera a fixture (só após mudança intencional)
+```
 
 ---
 
