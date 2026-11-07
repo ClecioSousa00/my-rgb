@@ -92,6 +92,12 @@ win:
   # Ícone do executável e dos atalhos no Windows. Sem isso o MyRGB.exe sai
   # com o ícone padrão do Electron.
   icon: build/icon.png
+  publish:
+    provider: github
+    owner: ClecioSousa00
+    repo: my-rgb
+    # Releases privadas exigem GH_TOKEN; públicas funcionam sem token.
+    # As atualizações são verificadas contra as tags do GitHub Releases.
   extraResources:
     - from: build
       to: build

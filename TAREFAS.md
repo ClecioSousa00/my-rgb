@@ -117,7 +117,7 @@
 
 - [x] **CI/CD** - GitHub Actions para build/test
 - [x] **Versionamento semântico** - Adotar semver corretamente
-- [~] **Auto-update** - Implementar electron-updater. **Parcial/skeleton:** `src/main/updater.ts` só roda com `MYRGB_ENABLE_AUTOUPDATE=1` e `app.isPackaged`, não há `publish` no `electron-builder.yml`, nenhuma UI e o `catch` esconde a falha. Na prática, nenhum utilizador recebe atualização.
+- [x] **Auto-update** - Implementar electron-updater. Configurado contra GitHub Releases (`publish` no `electron-builder.yml`), UI nas Configurações com verificar/baixar/instalar e reiniciar. `updater.ts` gerencia estado, eventos e push via IPC para o renderer.
 - [ ] **Logs estruturados** - Melhorar sistema de logs para debug. Hoje são ~15 `console.*` no main, sem ficheiro, sem nível e sem timestamp; um problema em campo não deixa rasto.
 - [ ] **Crash reporting** - Adicionar report de crashes (opcional). `crashReporter` não é inicializado em lado nenhum.
 - [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC"; o CI usa `signAndEditExecutable=false` para o `--dir`.
@@ -228,7 +228,7 @@
 | **RPM de AIO por USB** — *futuro* | Sem `hwmon` sem driver do fabricante; nenhum `liquidctl` embarcado | Corsair iCUE, muitos Lian Li/Deepcool com LCD. Decisão anterior: não fazer agora |
 | **Tensão/limitador no overlay** | **Resolvido (02/11/2026, item 25)** — as duas opções saíram da lista (24 métricas) e configurações antigas são normalizadas | Só a tensão voltaria com NVML nativo; o limitador não tem fonte no `nvidia-smi` usado |
 | **Controle de ventoinhas** — *futuro* | Somente leitura, por decisão | Escrever PWM exigiria root/admin e pode parar uma bomba por engano; **não fazer** |
-| **Auto-update** — *futuro* | Skeleton atrás de `MYRGB_ENABLE_AUTOUPDATE=1`, sem `publish` | Canal de releases, assinatura e UI de atualização |
+| **Auto-update** — concluído | `electron-updater` contra GitHub Releases, `publish` no `electron-builder.yml`, UI nas Configurações | UI com verificar/baixar/instalar e reiniciar |
 | **Logs/crash** | **Implementado (03/11/2026):** `src/main/logging/` espelha o `console.*` em `<userData>/logs/my-rgb.log` (rotação em 2 MB, três arquivos antigos), com nível em `src/shared/logging.ts` (⚙ Configurações → Diagnóstico, ou `MYRGB_LOG_LEVEL`); conexão/desconexão do controlador, início/paragem do motor, FPS/helper, `child-process-gone` e `uncaughtException` ficam registados. `crashReporter` sempre local (`uploadToServer: false`, dumps em `logs/crash/`), desligável com `MYRGB_CRASH_REPORTER=0`. Coberto por `tests/logging.test.ts` (19 testes) e pelo `--selftest` (`logReady`, `logsUi`) | Enviar relatórios automaticamente — não fazer: não existe servidor, e o relatório fica na máquina até o utilizador o anexar |
 | **Internacionalização** — *futuro* | Interface e documentação só em português | Textos em inglês; hoje até `localeCompare` está fixo em `pt-BR` |
 | **Hardware suportado** | Apenas `0x0B05:0x19AF` | Nenhuma outra placa, RAM ou cooler. É escopo, não bug — mas deve continuar explícito na UI |
