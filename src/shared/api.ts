@@ -45,6 +45,18 @@ import type {
 } from './features/storage'
 import type { LogList, LogRead } from './features/log'
 
+export interface AutoUpdateState {
+  checking: boolean
+  available: boolean
+  version: string | null
+  releaseNotes: string | null
+  releaseDate: string | null
+  progress: number | null
+  error: string | null
+  downloaded: boolean
+  canQuitAndInstall: boolean
+}
+
 export type Unsubscribe = () => void
 
 export interface EngineState {
@@ -242,6 +254,18 @@ export interface MyRgbApi {
   onOverlayState(callback: (state: OverlayState) => void): Unsubscribe
   /** Pushed every 500 ms while the overlay is open. */
   onOverlayFrame(callback: (frame: OverlayFrame) => void): Unsubscribe
+
+  // auto-update
+  /** Current auto-update state. */
+  getAutoUpdateState(): Promise<AutoUpdateState>
+  /** Check the release server for a new version. */
+  checkForUpdates(): Promise<void>
+  /** Download the available update. */
+  downloadUpdate(): Promise<void>
+  /** Quit and install the downloaded update. */
+  quitAndInstall(): Promise<void>
+  /** Subscribe to auto-update state changes. */
+  onAutoUpdateState(callback: (state: AutoUpdateState) => void): Unsubscribe
 
   // events
   onFrame(callback: (frame: Frame) => void): Unsubscribe

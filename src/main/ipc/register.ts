@@ -50,6 +50,13 @@ import {
   storageDuplicateStatus,
   storageStatus
 } from '../features/storage'
+import {
+  checkForUpdates,
+  downloadUpdate,
+  getAutoUpdateState,
+  quitAndInstall,
+  subscribeAutoUpdate
+} from '../updater'
 
 /** Largest profile file accepted on import; real ones are a few kilobytes. */
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024
@@ -380,6 +387,33 @@ export function registerIpc(host: IpcHost): void {
       return null
     }
   })
+
+  // --- auto-update --------------------------------------------------------
+
+  ipcMain.handle(IPC.autoUpdateState, () => getAutoUpdateState())
+
+  ipcMain.handle(IPC.autoUpdateCheck, async () => {
+    await checkForUpdates()
+  })
+
+  ipcMain.handle(IPC.autoUpdateDownload, async () => {
+    await downloadUpdate()
+  })
+
+  ipcMain.handle(IPC.autoUpdateQuitAndInstall, async () => {
+    await quitAndInstall()
+  })
+
+  // Subscribe once to push state changes to the renderer window.
+  let autoUpdateSubscribed = false
+  if (!autoUpdateSubscribed && host.window) {
+    autoUpdateSubscribed = true
+    subscribeAutoUpdate((s) => {
+      if (host.window && !host.window.isDestroyed()) {
+        host.window.webContents.send(IPC.autoUpdateChanged, s)
+      }
+    })
+  }
 
   // --- system & drives ----------------------------------------------------
 

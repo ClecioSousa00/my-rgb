@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../store'
 import { pageTitle } from '../navigation'
 import type { AppSettings } from '@shared/types'
+import type { AutoUpdateState } from '@shared/api'
 import { LOG_LEVELS } from '@shared/logging'
 import { showToast } from './Toast'
 import { Modal } from './ui/Modal'
@@ -20,6 +21,51 @@ export function TopBar(): React.JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
+
+  // --- auto-update -------------------------------------------------------
+
+  const [updateState, setUpdateState] = useState<AutoUpdateState>({
+    checking: false,
+    available: false,
+    version: null,
+    releaseNotes: null,
+    releaseDate: null,
+    progress: null,
+    error: null,
+    downloaded: false,
+    canQuitAndInstall: false
+  })
+
+  useEffect(() => {
+    const unsub = window.myrgb.onAutoUpdateState(setUpdateState)
+    return unsub
+  }, [])
+
+  const handleCheckForUpdates = async (): Promise<void> => {
+    try {
+      await window.myrgb.checkForUpdates()
+      showToast('A verificação de atualização foi iniciada')
+    } catch {
+      showToast('Não foi possível verificar atualizações')
+    }
+  }
+
+  const handleDownloadUpdate = async (): Promise<void> => {
+    try {
+      await window.myrgb.downloadUpdate()
+      showToast('Download da atualização iniciado')
+    } catch {
+      showToast('Não foi possível iniciar o download')
+    }
+  }
+
+  const handleQuitAndInstall = async (): Promise<void> => {
+    try {
+      await window.myrgb.quitAndInstall()
+    } catch {
+      showToast('Não foi possível instalar a atualização')
+    }
+  }
 
   // The settings popover is not a modal, but it must not stay open on top of
   // another page or after a click elsewhere in the bar.
@@ -324,11 +370,12 @@ export function TopBar(): React.JSX.Element {
         </button>
 
         {showSettings && settings && (
-          <div
-            role="dialog"
-            aria-label="Configurações"
-            className="panel absolute right-0 top-9 z-10 max-h-[calc(100vh-5rem)] w-72 overflow-y-auto p-3 shadow-2xl"
-          >
+          <>
+            <div
+              role="dialog"
+              aria-label="Configurações"
+              className="panel absolute right-0 top-9 z-10 max-h-[calc(100vh-5rem)] w-72 overflow-y-auto p-3 shadow-2xl"
+            >
             <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
               Configurações
             </div>
@@ -414,6 +461,89 @@ export function TopBar(): React.JSX.Element {
               </div>
             </div>
           </div>
+
+          <div className="mb-2">
+            <div className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">
+              Atualizações
+            </div>
+            <div className="rounded-lg border border-ink-700 bg-ink-850/60 p-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[12px] text-ink-300">
+                  Verificar atualizações automaticamente
+                </span>
+                <input
+                  type="checkbox"
+                  className="accent-brand-500"
+                  checked={settings.autoUpdateEnabled ?? true}
+                  onChange={(e) =>
+                    void updateSetting({ autoUpdateEnabled: e.target.checked })
+                  }
+                />
+              </div>
+              <div className="mb-1">
+                <button
+                  className="btn btn-ghost w-full justify-start px-2 text-[11px]"
+                  onClick={() => void handleCheckForUpdates()}
+                  disabled={updateState.checking}
+                  title="Verificar o GitHub Releases por uma nova versão"
+                >
+                  {updateState.checking
+                    ? 'A verificar…'
+                    : 'Verificar agora'}
+                </button>
+              </div>
+              {updateState.available && !updateState.downloaded && (
+                <div className="mb-1">
+                  <p className="text-[11px] text-ink-200">
+                    Versão {updateState.version ?? 'desconhecida'} disponível
+                  </p>
+                  <button
+                    className="btn btn-primary w-full justify-start px-2 text-[11px]"
+                    onClick={() => void handleDownloadUpdate()}
+                  >
+                    Baixar atualização
+                  </button>
+                </div>
+              )}
+              {updateState.downloaded && updateState.canQuitAndInstall && (
+                <div className="mb-1">
+                  <p className="text-[11px] text-ink-200">
+                    Atualização {updateState.version ?? 'desconhecida'} pronta
+                  </p>
+                  <button
+                    className="btn btn-primary w-full justify-start px-2 text-[11px]"
+                    onClick={() => void handleQuitAndInstall()}
+                  >
+                    Instalar e reiniciar
+                  </button>
+                </div>
+              )}
+              {updateState.progress != null && (
+                <div className="mb-1">
+                  <div className="flex items-center justify-between text-[10px] mb-1">
+                    <span className="text-ink-300">A baixar</span>
+                    <span className="text-ink-300">
+                      {Math.round(updateState.progress)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-ink-700 rounded overflow-hidden">
+                    <div
+                      className="h-full bg-brand-500"
+                      style={{ width: `${updateState.progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {updateState.error && (
+                <div className="mb-1">
+                  <p className="text-[11px] text-bad-500">
+                    {updateState.error}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+          </>
         )}
       </div>
 

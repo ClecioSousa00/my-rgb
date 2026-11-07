@@ -89,6 +89,13 @@ win:
     - target: nsis
       arch: [x64]
   artifactName: ${productName}-${version}-setup.${ext}
+  icon: build/icon.png
+  publish:
+    provider: github
+    owner: ClecioSousa00
+    repo: my-rgb
+    # Releases privadas exigem GH_TOKEN; públicas funcionam sem token.
+    # As atualizações são verificadas contra as tags do GitHub Releases.
   extraResources:
     - from: build
       to: build
