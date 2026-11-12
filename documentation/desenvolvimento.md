@@ -74,7 +74,8 @@ Windows e fica isolada em `src/main/features/overlay/` e no helper .NET.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev, com hot reload
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest — 318 testes em 18 arquivos
+npm test             # vitest — a suíte completa (inclui os testes que dependem do ambiente)
+npm run test:ci      # o subconjunto que o CI e a release correm (sem conflict.test.ts)
 npm run build        # build de produção em out/
 npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
 npm run selftest     # build + UI real, conferindo páginas, IPC e quadros
@@ -722,7 +723,9 @@ binário da plataforma certa.
 O instalador NSIS (`MyRGB-<versão>-setup.exe`) precisa ser gerado **no
 Windows** ou numa máquina com o `wine` instalado: o alvo NSIS do
 electron-builder executa o instalador recém-gerado para extrair o
-desinstalador, e isso exige o `wine` no Linux.
+desinstalador, e isso exige o `wine` no Linux. O workflow de release
+([release.md](release.md)) já o gera num runner `windows-latest`, por isso uma
+release oficial não depende do `wine` local.
 
 ```bash
 # no Windows
@@ -744,16 +747,19 @@ instalador gerado sem ele continua válido, apenas sem FPS.
 
 `.github/workflows/ci.yml` roda em dois sistemas:
 
-- **Linux**: `npm run typecheck`, a suíte de testes (menos `conflict.test.ts`,
-  que lê processos reais e é instável num runner compartilhado) e
-  `npm run build`.
+- **Linux**: `npm run typecheck`, `npm run test:ci` (o mesmo subconjunto que a
+  release corre; `conflict.test.ts` fica de fora porque lê processos reais e é
+  instável num runner compartilhado) e `npm run build`.
 - **Windows**: `npm install`, `npm run build:helper` com o .NET 8 e
   `npm run build:win:dir`. No fim, confere que o pacote gerado tem o
   `MyRGB.exe`, o helper em `resources/helper/`, o `icon.png` e o `tray.png`.
   É essa checagem que impede o pacote de sair sem os ícones de novo.
 
-O instalador NSIS em si não é gerado no CI: ele precisa do Windows (ou do
-`wine`) para extrair o desinstalador.
+O `.github/workflows/release.yml` é o único que publica: parte de uma tag
+`vX.Y.Z` na `main`, corre a mesma verificação (`typecheck`, `test:ci`, `build`),
+gera o instalador NSIS e o AppImage + deb, e só depois — dentro do environment
+`release` — cria a release no GitHub. Os detalhes e a configuração única do
+repositório estão em [release.md](release.md).
 
 ---
 

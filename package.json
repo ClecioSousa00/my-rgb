@@ -27,6 +27,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:ci": "vitest run tests/store.test.ts tests/patterns.test.ts tests/palette.test.ts tests/protocol.test.ts tests/documentation.test.ts tests/engine.test.ts tests/output.test.ts tests/format.test.ts tests/system.test.ts tests/sensors.test.ts tests/sensors-windows.test.ts tests/health.test.ts tests/network.test.ts tests/games.test.ts tests/bottleneck.test.ts tests/overlay.test.ts tests/helper-shared.test.ts tests/light.test.ts tests/parity.test.ts",
     "test:parity": "vitest run tests/parity.test.ts",
     "parity:golden": "node tools/update-parity-fixture.mjs",
     "postinstall": "node tools/check-hid-binary.mjs",

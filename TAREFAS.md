@@ -109,7 +109,7 @@
 - [~] **Testes E2E com Playwright** - **Pulado por decisão do utilizador (06/11/2026).** Continua sem setup: `playwright` não está em `devDependencies`, não há `playwright.config.ts` nem `tests/e2e/`. O `--selftest` embutido no Electron continua a validar o caminho main → IPC → renderer → DOM.
 - [x] **Testar paridade Linux/Windows** - Validar mesmo comportamento. **Concluído:** `tests/parity.test.ts` renderiza 60 quadros pelo mesmo caminho do `--dump-frames --dump-offline` (layout sintético fixo, sem hardware) e compara os hashes com `tests/fixtures/parity-frames.json`. O CI roda o teste nos jobs Linux e Windows; `tools/compare-frames.mjs` agora também compara o `manifest.json` e é exercitado pelo teste (dump igual passa, byte alterado falha). Regeneração: `npm run parity:golden`.
 - [ ] **Testar com diferentes configurações de hardware** - Validar com outras placas ASUS. Todo o desenvolvimento é validado num único controlador `0x0B05:0x19AF`.
-- [~] **Verificar build para Windows (.exe/.msi)** - **Parcial (06/11/2026):** o instalador NSIS foi gerado e executado numa máquina Windows (`release/MyRGB-0.2.0-setup.exe`), com ícone no executável e o helper .NET incluído. Continua sem assinatura e o CI ainda só valida `win-unpacked`.
+- [~] **Verificar build para Windows (.exe/.msi)** - **Parcial (12/11/2026):** o instalador NSIS é gerado no CI pelo `release.yml`, com ícone, helper .NET e `latest.yml`, e já foi executado numa máquina Windows (`release/MyRGB-0.2.0-setup.exe`). Falta assinatura e uma instalação/execução automática numa VM limpa.
 
 ---
 
@@ -120,7 +120,7 @@
 - [x] **Auto-update** - Implementar electron-updater. Configurado contra GitHub Releases (`publish` no `electron-builder.yml`), UI nas Configurações com verificar/baixar/instalar e reiniciar. `updater.ts` gerencia estado, eventos e push via IPC para o renderer.
 - [ ] **Logs estruturados** - Melhorar sistema de logs para debug. Hoje são ~15 `console.*` no main, sem ficheiro, sem nível e sem timestamp; um problema em campo não deixa rasto.
 - [ ] **Crash reporting** - Adicionar report de crashes (opcional). `crashReporter` não é inicializado em lado nenhum.
-- [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC"; o CI usa `signAndEditExecutable=false` para o `--dir`.
+- [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC". Caminho escolhido (12/11/2026): **SignPath Foundation** (gratuito para OSS); alternativa Azure Trusted Signing. Passos em `documentation/release.md`.
 - [ ] **Ignorar artefactos de teste** - `.vitest/` (cache do reporter JSON) não está no `.gitignore` e aparece como untracked.
 
 ---
@@ -237,18 +237,17 @@
 
 ### 9.4 Windows — o que funciona e o que falta
 
-**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **instalador NSIS gerado localmente** (Seção 1; o CI ainda só produz `win-unpacked`).
+**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **release automática** (`release.yml`: NSIS + helper + `latest.yml`, com checksums e proveniência).
 
 **Falta ou está frágil:**
 
 - **UAC em cada sessão** — melhorado (06/11/2026): FPS e sensores compartilham um único helper elevado (`getSharedHelper` em `overlay/helper.ts`), então abrir o overlay e depois a página Sensores não pede elevação duas vezes. Ainda há um prompt quando o helper já foi fechado por ociosidade (20 s sem sensores e sem sessão de FPS) ou depois de uma falha; eliminar de vez exigiria manter o processo elevado vivo ou instalar um serviço/tarefa agendada.
-- **Canal de release** — `publish: github` está configurado, mas nenhum workflow publica um Release: `build:win` usa `--publish never` e só existe `ci.yml`. Sem `setup.exe` + `latest.yml` publicados, o auto-update não entrega atualização a ninguém.
-- **Instalador sem assinatura** — SmartScreen bloqueia; o CI só valida `win-unpacked`, nunca o NSIS.
+- **Instalador sem assinatura** — SmartScreen bloqueia. O NSIS já é construído e verificado no CI, mas continua sem assinatura; caminho escolhido: SignPath Foundation (ver `documentation/release.md`).
 - **Sem `smartctl`** — a saúde no Windows vem do CIM (`MSFT_PhysicalDisk`, `MSStorageDriver_FailurePredictStatus`), que não dá os atributos S.M.A.R.T. brutos que a página mostra no Linux; o veredito é equivalente, o detalhe não.
 - **Só x64** — `electron-builder.yml` declara `arch: [x64]`; não há pacote ARM64.
 - **Validar os sensores em hardware real** — o código e o ciclo de vida da bridge estão cobertos por testes, mas falta abrir a página Sensores numa máquina Windows e confirmar os valores e o UAC único.
 
-**Resolvido:** FPS pode morrer até reiniciar (03/11/2026, itens 10-12) e logs de campo (03/11/2026, `<userData>/logs/my-rgb.log` com rotação e crash local).
+**Resolvido:** FPS pode morrer até reiniciar (03/11/2026, itens 10-12), logs de campo (03/11/2026, `<userData>/logs/my-rgb.log` com rotação e crash local) e **canal de release** (12/11/2026: `.github/workflows/release.yml` publica Windows + Linux a partir de uma tag `vX.Y.Z` na `main`, com checksums e proveniência; detalhes em `documentation/release.md`).
 
 ### 9.5 Prioridades sugeridas
 

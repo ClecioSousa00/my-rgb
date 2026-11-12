@@ -26,29 +26,10 @@ jobs:
         run: npm run typecheck
 
       # `conflict.test.ts` is skipped on CI: it inspects real processes and is
-      # unreliable on a shared runner. It still runs locally.
+      # unreliable on a shared runner. It still runs locally. The list lives in
+      # package.json so the release workflow can run exactly the same gate.
       - name: Run tests
-        run: >
-          npx vitest run
-          tests/store.test.ts
-          tests/patterns.test.ts
-          tests/palette.test.ts
-          tests/protocol.test.ts
-          tests/documentation.test.ts
-          tests/engine.test.ts
-          tests/output.test.ts
-          tests/format.test.ts
-          tests/system.test.ts
-          tests/sensors.test.ts
-          tests/sensors-windows.test.ts
-          tests/health.test.ts
-          tests/network.test.ts
-          tests/games.test.ts
-          tests/bottleneck.test.ts
-          tests/overlay.test.ts
-          tests/helper-shared.test.ts
-          tests/light.test.ts
-          tests/parity.test.ts
+        run: npm run test:ci
 
       - name: Build
         run: npm run build

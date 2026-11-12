@@ -6,6 +6,17 @@ directories:
   output: release
   buildResources: build
 
+# Publicação: o auto-update (electron-updater) lê os GitHub Releases. Fica no
+# topo para valer nas duas plataformas: o Windows usa `latest.yml` e o Linux
+# (AppImage) usa `latest-linux.yml`. Nos scripts de build `--publish never`
+# apenas evita o upload; os metadados de atualização continuam a ser gerados
+# para o workflow de release os publicar. Releases privadas exigiriam GH_TOKEN;
+# o repositório é público, por isso o cliente não precisa de token.
+publish:
+  provider: github
+  owner: ClecioSousa00
+  repo: my-rgb
+
 # node-hid 3.x ships N-API v4 prebuilds for every supported platform
 # (linux-x64, win32-x64, darwin-*). N-API is ABI stable, so the same binary
 # works in Node and in Electron and no source compilation is needed - which
@@ -92,12 +103,6 @@ win:
   # Ícone do executável e dos atalhos no Windows. Sem isso o MyRGB.exe sai
   # com o ícone padrão do Electron.
   icon: build/icon.png
-  publish:
-    provider: github
-    owner: ClecioSousa00
-    repo: my-rgb
-    # Releases privadas exigem GH_TOKEN; públicas funcionam sem token.
-    # As atualizações são verificadas contra as tags do GitHub Releases.
   extraResources:
     - from: build
       to: build
