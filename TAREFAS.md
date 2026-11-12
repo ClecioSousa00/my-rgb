@@ -109,7 +109,7 @@
 - [~] **Testes E2E com Playwright** - **Pulado por decisão do utilizador (06/11/2026).** Continua sem setup: `playwright` não está em `devDependencies`, não há `playwright.config.ts` nem `tests/e2e/`. O `--selftest` embutido no Electron continua a validar o caminho main → IPC → renderer → DOM.
 - [x] **Testar paridade Linux/Windows** - Validar mesmo comportamento. **Concluído:** `tests/parity.test.ts` renderiza 60 quadros pelo mesmo caminho do `--dump-frames --dump-offline` (layout sintético fixo, sem hardware) e compara os hashes com `tests/fixtures/parity-frames.json`. O CI roda o teste nos jobs Linux e Windows; `tools/compare-frames.mjs` agora também compara o `manifest.json` e é exercitado pelo teste (dump igual passa, byte alterado falha). Regeneração: `npm run parity:golden`.
 - [ ] **Testar com diferentes configurações de hardware** - Validar com outras placas ASUS. Todo o desenvolvimento é validado num único controlador `0x0B05:0x19AF`.
-- [~] **Verificar build para Windows (.exe/.msi)** - **Parcial (12/11/2026):** o instalador NSIS é gerado no CI pelo `release.yml`, com ícone, helper .NET e `latest.yml`, e já foi executado numa máquina Windows (`release/MyRGB-0.2.0-setup.exe`). Falta assinatura e uma instalação/execução automática numa VM limpa.
+- [~] **Verificar build para Windows (.exe/.msi)** - **Parcial (12/11/2026):** a primeira release `v0.3.0` foi publicada pelo `release.yml` (NSIS + helper .NET + `latest.yml` + checksums + proveniência); o instalador de uma build local anterior já foi executado numa máquina Windows. Falta assinatura e uma instalação/execução automática do instalador publicado numa VM limpa.
 
 ---
 
@@ -237,7 +237,7 @@
 
 ### 9.4 Windows — o que funciona e o que falta
 
-**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **release automática** (`release.yml`: NSIS + helper + `latest.yml`, com checksums e proveniência).
+**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **release automática** (`release.yml`: NSIS + helper + `latest.yml`, com checksums e proveniência; a `v0.3.0` foi publicada em 12/11/2026).
 
 **Falta ou está frágil:**
 
