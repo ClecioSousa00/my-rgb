@@ -729,7 +729,7 @@ release oficial não depende do `wine` local.
 
 ```bash
 # no Windows
-npm run build:win        # release/MyRGB-0.2.0-setup.exe
+npm run build:win        # release/MyRGB-<versão>-setup.exe
 ```
 
 O `build:win:dir` funciona em qualquer sistema e serve para conferir o

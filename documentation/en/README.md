@@ -63,7 +63,7 @@ The controller appears as a raw HID device. Without a udev rule, only root can o
 The `.deb` installs the rule automatically during `dpkg -i`:
 
 ```bash
-sudo dpkg -i release/my-rgb_0.2.0_amd64.deb
+sudo dpkg -i release/my-rgb_*_amd64.deb
 ```
 
 Then, **unplug and replug the controller cable** (or reboot) so the rule takes effect.
@@ -216,7 +216,7 @@ The NSIS installer (`MyRGB-<version>-setup.exe`) needs to be generated **on Wind
 
 ```bash
 # on Windows
-npm run build:win        # release/MyRGB-0.2.0-setup.exe
+npm run build:win        # release/MyRGB-<version>-setup.exe
 ```
 
 `build:win:dir` works on any system and is useful for checking packaging (asar structure, native binary, icons) before going to Windows.

@@ -116,7 +116,7 @@ downloads.
 O `electron-updater` não faz downgrade automático. Para retirar uma versão má:
 
 1. Marcar a release anterior como *latest*:
-   `gh release edit v0.2.0 --latest`.
+   `gh release edit <tag-anterior> --latest`.
 2. Apagar (ou marcar como *prerelease*) a release má e a tag.
 3. Quem já instalou a versão má tem de instalar manualmente a anterior.
 

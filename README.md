@@ -88,7 +88,7 @@ root consegue abri-lo.
 O `.deb` instala a regra sozinho durante o `dpkg -i`:
 
 ```bash
-sudo dpkg -i release/my-rgb_0.2.0_amd64.deb
+sudo dpkg -i release/my-rgb_*_amd64.deb
 ```
 
 Depois, **desligue e religue o cabo do controlador** (ou reinicie) para que a
@@ -291,7 +291,7 @@ desinstalador, e isso exige o `wine` no Linux.
 
 ```bash
 # no Windows
-npm run build:win        # release/MyRGB-0.2.0-setup.exe
+npm run build:win        # release/MyRGB-<versão>-setup.exe
 ```
 
 O `build:win:dir` funciona em qualquer sistema e serve para conferir o
