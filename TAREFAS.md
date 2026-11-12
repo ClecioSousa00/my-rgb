@@ -97,19 +97,19 @@
 
 - [x] **Atualizar README com novas funcionalidades** - Exportar/Importar, salvar único botão, etc. **Feito em 29/10/2026:** README, `documentation/funcionalidades.md`, `desenvolvimento.md` e `jogos.md` refletem o dashboard, o cartão de refrigeração e os 295 testes. Falta apenas a especificação do formato de exportação (item seguinte).
 - [~] **Adicionar guia de resolução de problemas (Troubleshooting)** - Comum em Linux/Windows. **Parcial:** `documentation/windows.md` cobre AURA/Armoury Crate, cintilação e dispositivo não encontrado. Falta o equivalente Linux (udev, AppImage, `brightness`/`asus_ec_sensors`, `hwmon`).
-- [ ] **Documentar formato de exportação de perfil** - Especificação do `.myrgb.json`. O ficheiro é o próprio `Profile` `version: 1` (sem envelope), mas isso não está escrito em lado nenhum; quem for escrever um importador não tem contrato.
-- [ ] **Traduzir documentação para inglês** - Para maior alcance. Toda a documentação e a interface continuam só em português.
+- [x] **Documentar formato de exportação de perfil** - `documentation/formato-exportacao-perfil.md` (pt) e `documentation/profile-export-format.md` (en): esquema completo do `.myrgb.json` (versão 1, sem envelope), regras de importação e paridade Linux/Windows.
+- [~] **Traduzir documentação para inglês** - Iniciado: `documentation/en/README.md`, `how-it-works.md` e `windows.md` traduzidos. Falta: funcionalidades.md, efeitos.md, zonas-e-perfis.md, jogos.md, desenvolvimento.md, planejamento-iluminacao-externa.md.
 
 ---
 
 ## 7. Testes e Qualidade
 
 - [~] **Aumentar cobertura de testes** - Adicionar testes para export/import. Já existem testes de `validateImportedProfile` (`tests/store.test.ts:165`), mas nenhum cobre o fluxo IPC com o diálogo, o `exportProfile` ou o import de um ficheiro real.
-- [x] **Corrigir CI** - O workflow referencia `tests/color.test.ts`, `tests/effects.test.ts` e `tests/zone-apply.test.ts`, que não existem. O `npm run typecheck` já passa. **Corrigido:** o CI agora roda 16 ficheiros existentes (todos menos `conflict.test.ts`, instável em runner partilhado), mais `typecheck`, `build` e o job Windows com o helper .NET e o pacote `win-unpacked`.
-- [ ] **Testes E2E com Playwright** - **Não existe setup nenhum no projeto:** `playwright` não está em `devDependencies`, não há `playwright.config.ts` nem `tests/e2e/`. O que existe é o `--selftest` embutido no Electron, que valida o caminho main → IPC → renderer → DOM.
-- [ ] **Testar paridade Linux/Windows** - Validar mesmo comportamento. `tools/compare-frames.mjs` compara dumps byte a byte, mas não corre em CI e depende de hardware nos dois lados.
+- [x] **Corrigir CI** - O workflow referencia `tests/color.test.ts`, `tests/effects.test.ts` e `tests/zone-apply.test.ts`, que não existem. O `npm run typecheck` já passa. **Corrigido:** o CI roda todos os ficheiros de teste existentes (exceto `conflict.test.ts`, instável em runner partilhado), mais `typecheck`, `build` e o job Windows com o helper .NET e o pacote `win-unpacked`.
+- [~] **Testes E2E com Playwright** - **Pulado por decisão do utilizador (06/11/2026).** Continua sem setup: `playwright` não está em `devDependencies`, não há `playwright.config.ts` nem `tests/e2e/`. O `--selftest` embutido no Electron continua a validar o caminho main → IPC → renderer → DOM.
+- [x] **Testar paridade Linux/Windows** - Validar mesmo comportamento. **Concluído:** `tests/parity.test.ts` renderiza 60 quadros pelo mesmo caminho do `--dump-frames --dump-offline` (layout sintético fixo, sem hardware) e compara os hashes com `tests/fixtures/parity-frames.json`. O CI roda o teste nos jobs Linux e Windows; `tools/compare-frames.mjs` agora também compara o `manifest.json` e é exercitado pelo teste (dump igual passa, byte alterado falha). Regeneração: `npm run parity:golden`.
 - [ ] **Testar com diferentes configurações de hardware** - Validar com outras placas ASUS. Todo o desenvolvimento é validado num único controlador `0x0B05:0x19AF`.
-- [ ] **Verificar build para Windows (.exe/.msi)** - Testar instalador NSIS. O CI só produz `win-unpacked` (com `signAndEditExecutable=false`); o instalador NSIS nunca foi executado num runner Windows nem assinado.
+- [~] **Verificar build para Windows (.exe/.msi)** - **Parcial (12/11/2026):** o instalador NSIS é gerado no CI pelo `release.yml`, com ícone, helper .NET e `latest.yml`, e já foi executado numa máquina Windows (`release/MyRGB-0.2.0-setup.exe`). Falta assinatura e uma instalação/execução automática numa VM limpa.
 
 ---
 
@@ -117,10 +117,10 @@
 
 - [x] **CI/CD** - GitHub Actions para build/test
 - [x] **Versionamento semântico** - Adotar semver corretamente
-- [~] **Auto-update** - Implementar electron-updater. **Parcial/skeleton:** `src/main/updater.ts` só roda com `MYRGB_ENABLE_AUTOUPDATE=1` e `app.isPackaged`, não há `publish` no `electron-builder.yml`, nenhuma UI e o `catch` esconde a falha. Na prática, nenhum utilizador recebe atualização.
+- [x] **Auto-update** - Implementar electron-updater. Configurado contra GitHub Releases (`publish` no `electron-builder.yml`), UI nas Configurações com verificar/baixar/instalar e reiniciar. `updater.ts` gerencia estado, eventos e push via IPC para o renderer.
 - [ ] **Logs estruturados** - Melhorar sistema de logs para debug. Hoje são ~15 `console.*` no main, sem ficheiro, sem nível e sem timestamp; um problema em campo não deixa rasto.
 - [ ] **Crash reporting** - Adicionar report de crashes (opcional). `crashReporter` não é inicializado em lado nenhum.
-- [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC"; o CI usa `signAndEditExecutable=false` para o `--dir`.
+- [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC". Caminho escolhido (12/11/2026): **SignPath Foundation** (gratuito para OSS); alternativa Azure Trusted Signing. Passos em `documentation/release.md`.
 - [ ] **Ignorar artefactos de teste** - `.vitest/` (cache do reporter JSON) não está no `.gitignore` e aparece como untracked.
 
 ---
@@ -228,7 +228,7 @@
 | **RPM de AIO por USB** — *futuro* | Sem `hwmon` sem driver do fabricante; nenhum `liquidctl` embarcado | Corsair iCUE, muitos Lian Li/Deepcool com LCD. Decisão anterior: não fazer agora |
 | **Tensão/limitador no overlay** | **Resolvido (02/11/2026, item 25)** — as duas opções saíram da lista (24 métricas) e configurações antigas são normalizadas | Só a tensão voltaria com NVML nativo; o limitador não tem fonte no `nvidia-smi` usado |
 | **Controle de ventoinhas** — *futuro* | Somente leitura, por decisão | Escrever PWM exigiria root/admin e pode parar uma bomba por engano; **não fazer** |
-| **Auto-update** — *futuro* | Skeleton atrás de `MYRGB_ENABLE_AUTOUPDATE=1`, sem `publish` | Canal de releases, assinatura e UI de atualização |
+| **Auto-update** — concluído | `electron-updater` contra GitHub Releases, `publish` no `electron-builder.yml`, UI nas Configurações | UI com verificar/baixar/instalar e reiniciar |
 | **Logs/crash** | **Implementado (03/11/2026):** `src/main/logging/` espelha o `console.*` em `<userData>/logs/my-rgb.log` (rotação em 2 MB, três arquivos antigos), com nível em `src/shared/logging.ts` (⚙ Configurações → Diagnóstico, ou `MYRGB_LOG_LEVEL`); conexão/desconexão do controlador, início/paragem do motor, FPS/helper, `child-process-gone` e `uncaughtException` ficam registados. `crashReporter` sempre local (`uploadToServer: false`, dumps em `logs/crash/`), desligável com `MYRGB_CRASH_REPORTER=0`. Coberto por `tests/logging.test.ts` (19 testes) e pelo `--selftest` (`logReady`, `logsUi`) | Enviar relatórios automaticamente — não fazer: não existe servidor, e o relatório fica na máquina até o utilizador o anexar |
 | **Internacionalização** — *futuro* | Interface e documentação só em português | Textos em inglês; hoje até `localeCompare` está fixo em `pt-BR` |
 | **Hardware suportado** | Apenas `0x0B05:0x19AF` | Nenhuma outra placa, RAM ou cooler. É escopo, não bug — mas deve continuar explícito na UI |
@@ -237,16 +237,17 @@
 
 ### 9.4 Windows — o que funciona e o que falta
 
-**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, overlay sempre no topo e instalador NSIS configurado.
+**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **release automática** (`release.yml`: NSIS + helper + `latest.yml`, com checksums e proveniência).
 
 **Falta ou está frágil:**
 
-- **Temperaturas/ventoinhas da placa-mãe** — a página Sensores diz explicitamente que ainda não existem; é a Fase B já discutida (`LibreHardwareMonitorLib` no helper). Sem isso, o cartão de Refrigeração no Windows só mostra a ventoinha da GPU em %.
-- **UAC em cada sessão** — `FpsService.stop()` destrói a ponte (`fps.ts:99-104`) e a próxima sessão volta a lançar o helper elevado (`helper.ts:103-114`). Abrir o overlay ou iniciar uma análise de 1 minuto pede elevação outra vez.
-- **FPS pode morrer até reiniciar** — resolvido (03/11/2026, itens 10-12): os pedidos pendentes são rejeitados quando o helper morre, o pedido de elevação tem limite de 45 s, o "Tentar novamente" não perde a tentativa nova e o `error` do socket tem listener permanente; cada transição do FPS passa a ficar no registo.
-- **Instalador sem assinatura** — SmartScreen bloqueia; o CI só valida `win-unpacked`, nunca o NSIS.
-- **Sem `smartctl`** — a saúde no Windows vem do CIM, que não dá os atributos S.M.A.R.T. brutos que a página mostra no Linux; o veredito é equivalente, o detalhe não.
-- **Sem logs de campo** — resolvido (03/11/2026): o registo em `<userData>/logs/my-rgb.log` guarda o arranque, as transições de estado do FPS/helper, o `child-process-gone` e as exceções, e a pasta abre por ⚙ Configurações → Diagnóstico.
+- **UAC em cada sessão** — melhorado (06/11/2026): FPS e sensores compartilham um único helper elevado (`getSharedHelper` em `overlay/helper.ts`), então abrir o overlay e depois a página Sensores não pede elevação duas vezes. Ainda há um prompt quando o helper já foi fechado por ociosidade (20 s sem sensores e sem sessão de FPS) ou depois de uma falha; eliminar de vez exigiria manter o processo elevado vivo ou instalar um serviço/tarefa agendada.
+- **Instalador sem assinatura** — SmartScreen bloqueia. O NSIS já é construído e verificado no CI, mas continua sem assinatura; caminho escolhido: SignPath Foundation (ver `documentation/release.md`).
+- **Sem `smartctl`** — a saúde no Windows vem do CIM (`MSFT_PhysicalDisk`, `MSStorageDriver_FailurePredictStatus`), que não dá os atributos S.M.A.R.T. brutos que a página mostra no Linux; o veredito é equivalente, o detalhe não.
+- **Só x64** — `electron-builder.yml` declara `arch: [x64]`; não há pacote ARM64.
+- **Validar os sensores em hardware real** — o código e o ciclo de vida da bridge estão cobertos por testes, mas falta abrir a página Sensores numa máquina Windows e confirmar os valores e o UAC único.
+
+**Resolvido:** FPS pode morrer até reiniciar (03/11/2026, itens 10-12), logs de campo (03/11/2026, `<userData>/logs/my-rgb.log` com rotação e crash local) e **canal de release** (12/11/2026: `.github/workflows/release.yml` publica Windows + Linux a partir de uma tag `vX.Y.Z` na `main`, com checksums e proveniência; detalhes em `documentation/release.md`).
 
 ### 9.5 Prioridades sugeridas
 
@@ -256,7 +257,7 @@
 4. **Windows: FPS e reconexão** (itens 7, 10 e 11) — são as duas falhas que mais parecem "o app quebrou".
 5. **Robustez de arranque e importação** (itens 8 e 9) — barato e evita um app sem janela ou uma mensagem em inglês.
 6. **Lote de UI** (itens 17-22, 27-30) — pequenos, mas todos visíveis no uso diário.
-7. **Fase B dos sensores no Windows** e **Integrações** — os dois maiores blocos de funcionalidade que faltam; nenhum bloqueia os anteriores.
+7. **Integrações de iluminação externa** — único bloco grande que falta; está pausado e será removido se não for retomado.
 
 ### 9.6 Limites que continuam válidos (não são bugs)
 

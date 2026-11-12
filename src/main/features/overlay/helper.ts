@@ -342,6 +342,125 @@ export class HelperBridge {
   }
 }
 
+/**
+ * The part of `HelperBridge` that consumers need. Shared by the FPS service
+ * and the Windows board sensors so both use a single elevated helper.
+ */
+export interface HelperClient {
+  start(): Promise<void>
+  request<T>(cmd: string, args?: Record<string, unknown>): Promise<T>
+  dispose(): void
+}
+
+export interface HelperClientWithState extends HelperClient {
+  readonly connected: boolean
+}
+
+type HelperFactory = (executable: string) => HelperClientWithState
+
+/**
+ * One helper process shared by several consumers.
+ *
+ * `start()` takes a lease and `dispose()` releases it; the helper is launched
+ * on the first lease and torn down when the last one goes away. Without this,
+ * opening the overlay and then the Sensors page (or each sensor poll) would
+ * raise a separate UAC prompt and run a separate elevated process.
+ */
+export class SharedHelper implements HelperClient {
+  private bridge: HelperClientWithState | null = null
+  private leases = 0
+  private starting: Promise<void> | null = null
+
+  constructor(
+    private readonly executable: string,
+    private readonly create: HelperFactory = (exe) => new HelperBridge({ executable: exe })
+  ) {}
+
+  /** Whether a live helper is currently connected. */
+  get connected(): boolean {
+    return this.bridge?.connected ?? false
+  }
+
+  async start(): Promise<void> {
+    this.leases++
+
+    // A start is already in flight: share it instead of launching a second
+    // helper. Both callers hold a lease if it succeeds.
+    if (this.starting) {
+      try {
+        await this.starting
+      } catch (error) {
+        this.leases--
+        throw error
+      }
+      return
+    }
+
+    if (this.bridge?.connected) return
+
+    // A bridge that lost its socket cannot be reused; `HelperBridge.start()`
+    // would create a new listener over the old one and leak it.
+    if (this.bridge) {
+      this.bridge.dispose()
+      this.bridge = null
+    }
+
+    const attempt = (async () => {
+      const candidate = this.create(this.executable)
+      try {
+        await candidate.start()
+      } catch (error) {
+        candidate.dispose()
+        throw error
+      }
+      // Everyone left while the UAC prompt was open: do not keep an elevated
+      // helper alive with nobody holding a lease.
+      if (this.leases === 0) {
+        candidate.dispose()
+        return
+      }
+      this.bridge = candidate
+    })()
+    this.starting = attempt
+
+    try {
+      await attempt
+    } catch (error) {
+      this.leases--
+      throw error
+    } finally {
+      if (this.starting === attempt) this.starting = null
+    }
+  }
+
+  request<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+    if (!this.bridge) {
+      return Promise.reject(new Error('O helper não está conectado.'))
+    }
+    return this.bridge.request<T>(cmd, args)
+  }
+
+  /** Release one lease; the last one closes the helper. Safe to call twice. */
+  dispose(): void {
+    if (this.leases > 0) this.leases--
+    if (this.leases > 0) return
+    this.bridge?.dispose()
+    this.bridge = null
+  }
+}
+
+let sharedHelper: SharedHelper | null = null
+let sharedExecutable = ''
+
+/** The process-wide helper for this executable, shared by every consumer. */
+export function getSharedHelper(executable: string): SharedHelper {
+  if (!sharedHelper || sharedExecutable !== executable) {
+    sharedHelper = new SharedHelper(executable)
+    sharedExecutable = executable
+  }
+  return sharedHelper
+}
+
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }

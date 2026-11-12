@@ -88,7 +88,7 @@ root consegue abri-lo.
 O `.deb` instala a regra sozinho durante o `dpkg -i`:
 
 ```bash
-sudo dpkg -i release/my-rgb_0.2.0_amd64.deb
+sudo dpkg -i release/my-rgb_*_amd64.deb
 ```
 
 Depois, **desligue e religue o cabo do controlador** (ou reinicie) para que a
@@ -219,12 +219,26 @@ node tools/compare-frames.mjs frames-linux frames-windows
 Saída esperada:
 
 ```
-IDENTICAL: 60 frames match byte for byte
+IDENTICAL: 60 frames match byte for byte, manifest identical
 ```
 
 Cada arquivo `.bin` contém o cabeçalho do formato, a contagem de LEDs por zona
-e os trios RGB de todos os LEDs. O `manifest.json` traz o perfil usado, para
-garantir que as duas execuções usaram a mesma configuração.
+e os trios RGB de todos os LEDs. O `manifest.json` traz o perfil usado e é
+comparado pelo `compare-frames`: se as duas máquinas usaram perfis, layouts ou
+quantidades de LEDs diferentes, a ferramenta falha antes de comparar os bytes.
+
+Sem o controlador (ou em CI) use `--dump-offline`: ele usa um layout sintético
+fixo — 1 LED onboard + 3 headers de 72 LEDs — então o dump é reproduzível em
+qualquer máquina:
+
+```bash
+npm run dump:frames:offline   # gera frames-offline/ com 60 quadros
+```
+
+O mesmo teste roda automaticamente no CI, nos jobs Linux **e** Windows, contra
+uma fixture dourada de hashes (`npm run test:parity`). Se qualquer plataforma
+mudar um byte, o build falha. Depois de uma mudança intencional no render,
+regenere a fixture com `npm run parity:golden`.
 
 ---
 
@@ -277,7 +291,7 @@ desinstalador, e isso exige o `wine` no Linux.
 
 ```bash
 # no Windows
-npm run build:win        # release/MyRGB-0.2.0-setup.exe
+npm run build:win        # release/MyRGB-<versão>-setup.exe
 ```
 
 O `build:win:dir` funciona em qualquer sistema e serve para conferir o

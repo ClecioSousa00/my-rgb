@@ -1,14 +1,15 @@
 /**
- * One sensors collection: CPU/memory (systeminformation), Linux hwmon and
- * NVIDIA (nvidia-smi).
+ * One sensors collection: CPU/memory (systeminformation), Linux hwmon,
+ * NVIDIA (nvidia-smi) and Windows board sensors (LibreHardwareMonitorLib
+ * via the .NET helper).
  *
  * Each source is independent and can fail on its own. A failure never removes
  * the other readings - it adds a note explaining what is missing, so the page
  * can show the values it has and say why the rest is not there.
  *
- * Windows has no hwmon and the .NET helper only measures FPS, so board
- * temperatures, fans and voltages are not available there yet; the page shows
- * load, clocks, memory and (with an NVIDIA card) the GPU sensors, plus a note.
+ * Windows has no hwmon, so board temperatures, fans and voltages come from
+ * LibreHardwareMonitorLib through the helper (.NET). The helper is started on
+ * demand for FPS; the same process answers `sensors.poll` over the named pipe.
  */
 
 import type { SensorsSnapshot, SensorReading } from '@shared/features/sensors'
@@ -16,6 +17,7 @@ import { getSystem } from '../system/info'
 import { readHwmonSensors } from './hwmon'
 import { readNvidiaSensors } from './nvidia'
 import { readSystemSensors } from './system'
+import { readWindowsSensors } from './windows'
 
 const GROUP_ORDER: Record<SensorReading['group'], number> = {
   cpu: 0,
@@ -68,7 +70,7 @@ export async function collectSensors(now = Date.now()): Promise<SensorsSnapshot>
   const system = await getSystem().catch(() => null)
   const cpuBrand = system?.cpu.brand
 
-  const [base, hwmon, nvidia] = await Promise.all([
+  const [base, board, nvidia] = await Promise.all([
     readSystemSensors(cpuBrand).catch((err: unknown) => {
       notes.push(`Não foi possível ler carga, clocks e memória: ${errorMessage(err)}`)
       return [] as SensorReading[]
@@ -78,14 +80,19 @@ export async function collectSensors(now = Date.now()): Promise<SensorsSnapshot>
           notes.push(`Não foi possível ler /sys/class/hwmon: ${errorMessage(err)}`)
           return [] as SensorReading[]
         })
-      : Promise.resolve([] as SensorReading[]),
+      : process.platform === 'win32'
+        ? readWindowsSensors().then((result) => {
+            if (result?.note) notes.push(result.note)
+            return result?.readings ?? [] as SensorReading[]
+          })
+        : Promise.resolve([] as SensorReading[]),
     readNvidiaSensors().catch((err: unknown) => {
       notes.push(`Não foi possível ler os sensores da NVIDIA: ${errorMessage(err)}`)
       return { readings: [] as SensorReading[], available: false }
     })
   ])
 
-  if (process.platform === 'linux' && hwmon.length === 0) {
+  if (process.platform === 'linux' && board.length === 0) {
     notes.push(
       'Nenhum sensor de temperatura, ventoinha ou tensão apareceu em /sys/class/hwmon. ' +
         'Isso costuma acontecer quando o driver de sensores da placa-mãe não está carregado.'
@@ -94,12 +101,6 @@ export async function collectSensors(now = Date.now()): Promise<SensorsSnapshot>
 
   if (process.platform === 'win32') {
     const hasNvidia = nvidia.readings.length > 0
-    notes.push(
-      'Temperaturas do processador, ventoinhas, tensões e consumo da placa-mãe ainda não são ' +
-        'lidos no Windows: o helper existe, mas por enquanto só mede FPS. Só carga, clocks e ' +
-        'memória são lidos' +
-        (hasNvidia ? ', além dos sensores da GPU NVIDIA.' : '.')
-    )
     if (!hasNvidia && system && system.gpus.some((gpu) => /nvidia/i.test(gpu.name))) {
       notes.push(
         'A placa NVIDIA foi identificada, mas o nvidia-smi não está disponível: os sensores ' +
@@ -110,7 +111,7 @@ export async function collectSensors(now = Date.now()): Promise<SensorsSnapshot>
 
   return {
     at: now,
-    readings: sortReadings([...base, ...hwmon, ...nvidia.readings]),
+    readings: sortReadings([...base, ...board, ...nvidia.readings]),
     notes
   }
 }

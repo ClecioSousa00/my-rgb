@@ -11,6 +11,7 @@ import { buildOverlayFrame } from '@main/features/overlay/frame'
 import { positionOverlay } from '@main/features/overlay/position'
 import { FpsService, type FpsBridge } from '@main/features/overlay/fps'
 import {
+  SharedHelper,
   findHelperPath,
   helperCandidates,
   helperPipePath,
@@ -354,13 +355,17 @@ const sample: HelperStats = {
 class StubBridge implements FpsBridge {
   readonly requests: string[] = []
   disposed = false
+  /** `SharedHelper` asks whether the socket is still alive. */
+  connected = false
 
   constructor(
     private readonly poll: () => Promise<HelperStats | null> | HelperStats | null = () => sample,
     private readonly failStart?: Error
   ) {}
 
-  async start(): Promise<void> {}
+  async start(): Promise<void> {
+    this.connected = true
+  }
 
   async request<T>(cmd: string): Promise<T> {
     this.requests.push(cmd)
@@ -374,6 +379,7 @@ class StubBridge implements FpsBridge {
 
   dispose(): void {
     this.disposed = true
+    this.connected = false
   }
 }
 
@@ -428,7 +434,7 @@ describe('FpsService', () => {
     expect(service.latest()).toBeNull()
 
     service.stop()
-    expect(bridge.disposed).toBe(true)
+    await vi.waitFor(() => expect(bridge.disposed).toBe(true))
   })
 
   it('counts subscribers: the helper lives until the last one leaves', async () => {
@@ -453,7 +459,10 @@ describe('FpsService', () => {
     expect(service.capabilities().available).toBe(true)
 
     service.stop()
-    expect(bridges[0].disposed).toBe(true)
+    await vi.waitFor(() => expect(bridges[0].disposed).toBe(true))
+    // The shared helper must stop capturing before the lease is released;
+    // otherwise an open Sensors page would keep ETW running for nobody.
+    expect(bridges[0].requests).toContain('fps.stop')
     service.dispose()
   })
 
@@ -527,7 +536,7 @@ describe('FpsService', () => {
     })
     expect(service.capabilities().available).toBe(false)
     expect(service.latest()).toBeNull()
-    expect(bridge.disposed).toBe(true)
+    await vi.waitFor(() => expect(bridge.disposed).toBe(true))
     service.dispose()
   })
 
@@ -538,5 +547,32 @@ describe('FpsService', () => {
     service.start()
 
     expect(createBridge).not.toHaveBeenCalled()
+  })
+
+  it('shares one helper with the sensors and stops the capture without killing it', async () => {
+    const bridge = new StubBridge()
+    const shared = new SharedHelper('/helper.exe', () => bridge)
+
+    // The Sensors page took its lease first; both consumers now share the one
+    // elevated process, so opening the overlay must not launch another.
+    await shared.start()
+    const service = new FpsService({
+      platform: 'win32',
+      createBridge: () => shared,
+      pollMs: 60_000
+    })
+
+    service.start()
+    await vi.waitFor(() => expect(service.capabilities().available).toBe(true))
+
+    service.stop()
+    await vi.waitFor(() => expect(bridge.requests).toContain('fps.stop'))
+    // The sensors still hold a lease: the helper must stay alive, but the ETW
+    // capture (which only the overlay needed) must be stopped.
+    expect(bridge.disposed).toBe(false)
+
+    shared.dispose()
+    await vi.waitFor(() => expect(bridge.disposed).toBe(true))
+    service.dispose()
   })
 })

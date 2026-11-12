@@ -1,0 +1,357 @@
+name: Release
+
+# Uma release nasce sempre de uma tag `vX.Y.Z` cujo commit já está na `main`.
+# O build corre sem segredos de escrita; só o último job, dentro do environment
+# `release`, pode criar a release no GitHub. Ver documentation/release.md para
+# a configuração única do repositório (environment e proteção de tags).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag existente a publicar (ex.: v0.3.0)'
+        required: true
+        type: string
+
+# Sem permissões implícitas: cada job pede só o que precisa.
+permissions:
+  contents: read
+
+# Duas releases ao mesmo tempo escreveriam na mesma release do GitHub.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  meta:
+    name: Validar a tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.info.outputs.tag }}
+      version: ${{ steps.info.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # `workflow_dispatch` recebe a tag; num push de tag, o próprio ref.
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the tag, the version and the branch
+        id: info
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$REF_NAME}"
+
+          # Só versões estáveis: um pré-lançamento marcado como "latest"
+          # chegaria a todos os utilizadores através do auto-update.
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag inválida: '$TAG'. Use vX.Y.Z, sem pré-lançamentos."
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "::error::A tag $TAG não corresponde à versão $PACKAGE_VERSION do package.json."
+            exit 1
+          fi
+
+          # `refs/tags/` explícito: um ramo chamado v0.3.0 não serve.
+          if ! git rev-parse --verify --quiet "refs/tags/$TAG^{commit}" >/dev/null; then
+            echo "::error::A tag $TAG não existe no repositório."
+            exit 1
+          fi
+
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "refs/tags/$TAG^{commit}" origin/main; then
+            echo "::error::O commit de $TAG não está na main. Releases saem sempre da main."
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "A publicar $TAG ($VERSION) do commit $(git rev-parse --short "$TAG^{commit}")"
+
+  verify:
+    name: Testes e typecheck
+    needs: meta
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      # The exact gate the CI runs on main; publishing from a red commit is
+      # not possible even if the tag is pushed.
+      - name: Run tests
+        run: npm run test:ci
+
+      # The Linux build job packages the app, but this job is the one that
+      # proves the exact tagged commit compiles before anything is built.
+      - name: Build
+        run: npm run build
+
+  windows:
+    name: Windows (NSIS)
+    needs: [meta, verify]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # provenance attestation
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the FPS/sensors helper
+        run: npm run build:helper
+
+      - name: Build the NSIS installer
+        run: npm run build:win
+
+      - name: Check the release layout
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          $required = @(
+            "release/MyRGB-$env:VERSION-setup.exe",
+            "release/MyRGB-$env:VERSION-setup.exe.blockmap",
+            "release/latest.yml",
+            "release/win-unpacked/resources/helper/MyRgb.Helper.exe",
+            "release/win-unpacked/resources/app-update.yml"
+          )
+          $missing = $required | Where-Object { -not (Test-Path $_) }
+          if ($missing) {
+            Write-Error "Faltam artefactos no pacote:`n$($missing -join "`n")"
+            exit 1
+          }
+
+          $latest = Get-Content release/latest.yml -Raw
+          if ($latest -notmatch "(?m)^version:\s*$([regex]::Escape($env:VERSION))\s*$") {
+            Write-Error "latest.yml não aponta para a versão $env:VERSION"
+            exit 1
+          }
+
+          $update = Get-Content release/win-unpacked/resources/app-update.yml -Raw
+          if ($update -notmatch 'provider:\s*github') {
+            Write-Error "app-update.yml não aponta para o GitHub Releases"
+            exit 1
+          }
+
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release -File | Where-Object {
+            $_.Name -like 'MyRGB-*-setup.exe' -or
+            $_.Name -like '*.blockmap' -or
+            $_.Name -eq 'latest.yml'
+          } | Sort-Object Name
+          if (-not $files) {
+            Write-Error 'Sem ficheiros para somar'
+            exit 1
+          }
+          $lines = $files | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "{0}  {1}" -f $hash, $_.Name
+          }
+          # LF explícito: o job de publicação confere com o sha256sum do Linux.
+          [IO.File]::WriteAllText(
+            (Join-Path $PWD 'release/SHA256SUMS-windows.txt'),
+            (($lines -join "`n") + "`n"),
+            [Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Attest provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/MyRGB-*-setup.exe
+            release/*.blockmap
+            release/latest.yml
+
+      - name: Upload the Windows artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-release
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            release/MyRGB-*-setup.exe
+            release/*.blockmap
+            release/latest.yml
+            release/SHA256SUMS-windows.txt
+
+  linux:
+    name: Linux (AppImage + deb)
+    needs: [meta, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # provenance attestation
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the AppImage and the deb
+        run: npm run build:linux
+
+      - name: Check the release layout
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "$(find release -maxdepth 1 -name '*.AppImage' -print -quit)" || {
+            echo "::error::sem AppImage em release/"; exit 1
+          }
+          test -n "$(find release -maxdepth 1 -name '*.deb' -print -quit)" || {
+            echo "::error::sem .deb em release/"; exit 1
+          }
+          test -f release/latest-linux.yml || {
+            echo "::error::sem latest-linux.yml (o auto-update do AppImage não funcionaria)"; exit 1
+          }
+          grep -q "^version: $VERSION$" release/latest-linux.yml || {
+            echo "::error::latest-linux.yml não aponta para a versão $VERSION"; exit 1
+          }
+
+      - name: Write checksums
+        working-directory: release
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(*.AppImage *.deb *.blockmap latest-linux.yml)
+          sha256sum "${files[@]}" > SHA256SUMS-linux.txt
+          cat SHA256SUMS-linux.txt
+
+      - name: Attest provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.blockmap
+            release/latest-linux.yml
+
+      - name: Upload the Linux artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-release
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.blockmap
+            release/latest-linux.yml
+            release/SHA256SUMS-linux.txt
+
+  publish:
+    name: Publicar no GitHub Releases
+    needs: [meta, windows, linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A aprovação é deste environment. Sem "Required reviewers" configurado,
+    # a publicação é automática; com reviewers, fica à espera da aprovação.
+    # O token só existe neste job e só tem contents:write.
+    environment:
+      name: release
+      url: ${{ steps.release.outputs.url }}
+    permissions:
+      contents: write
+      actions: read # download-artifact no mesmo run
+    steps:
+      - name: Download the artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '*-release'
+          merge-multiple: true
+          path: dist
+
+      - name: Verify the checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sed -i 's/\r$//' SHA256SUMS-windows.txt SHA256SUMS-linux.txt
+          cat SHA256SUMS-windows.txt SHA256SUMS-linux.txt | sort > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+
+      - name: Create or update the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.meta.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            # Re-execução do workflow: substituir os artefactos, sem duplicar.
+            gh release upload "$TAG" dist/* --repo "$REPO" --clobber
+            gh release edit "$TAG" --repo "$REPO" --latest --title "MyRGB $TAG"
+          else
+            gh release create "$TAG" dist/* \
+              --repo "$REPO" \
+              --verify-tag \
+              --latest \
+              --title "MyRGB $TAG" \
+              --generate-notes
+          fi
+          echo "url=https://github.com/$REPO/releases/tag/$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release publicada: https://github.com/$REPO/releases/tag/$TAG"

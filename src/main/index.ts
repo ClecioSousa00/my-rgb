@@ -18,7 +18,7 @@ import { buildZones } from './zones'
 import { createTray, type TrayHandle } from './tray'
 import { resolveResource } from './resources'
 import { detectConflicts, type ConflictReport } from './platform/conflict'
-import { runFrameDump } from './dumpFrames'
+import { runFrameDump, syntheticDumpInput } from './dumpFrames'
 import { buildEffectsDoc } from './docs/effectsDoc'
 import { initAutoUpdater } from './updater'
 import { registerIpc } from './ipc/register'
@@ -26,7 +26,7 @@ import { SensorsStore } from './features/sensors/store'
 import { BottleneckService } from './features/bottleneck'
 import { FpsService } from './features/overlay/fps'
 import { OverlayService } from './features/overlay/manager'
-import { findHelperPath, helperCandidates, HelperBridge } from './features/overlay/helper'
+import { findHelperPath, getSharedHelper, helperCandidates } from './features/overlay/helper'
 import type { OverlayState } from '@shared/features/overlay'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
@@ -184,10 +184,12 @@ class MyRgbApp {
     this.fps = new FpsService({
       createBridge: () => {
         // Absent helper is a capability, not an error: no FPS, overlay still on.
+        // The same shared helper serves the Windows board sensors, so starting
+        // the overlay and then the Sensors page asks for elevation only once.
         const executable = findHelperPath(
           helperCandidates(app.getAppPath(), process.resourcesPath)
         )
-        return executable ? new HelperBridge({ executable }) : null
+        return executable ? getSharedHelper(executable) : null
       },
       onStatus: (capabilities) => {
         const status = `${capabilities.supported ? 'supported' : 'unsupported'}/${
@@ -700,14 +702,22 @@ async function runHeadlessDump(): Promise<void> {
   const offline = process.argv.includes('--dump-offline')
 
   const device = new AuraUsbDevice()
-  let zones: ZoneState[] = []
-  if (!offline) {
+  let zones: ZoneState[]
+  let reconciled: Profile
+
+  if (offline) {
+    // No hardware: use the fixed synthetic layout so the dump is reproducible
+    // on any machine (and in CI). See SYNTHETIC_LAYOUT in dumpFrames.ts.
+    const input = syntheticDumpInput()
+    zones = input.zones
+    reconciled = input.profile
+  } else {
+    zones = []
     const ok = await device.open()
     if (ok && device.info.layout) zones = buildZones(device.info.layout)
+    reconciled = reconcileProfile(defaultProfile(zones), zones)
   }
 
-  const profile = defaultProfile(zones)
-  const reconciled = reconcileProfile(profile, zones)
   const files = await runFrameDump({
     outDir,
     frameCount,

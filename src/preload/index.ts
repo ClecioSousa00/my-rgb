@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '@shared/types'
-import type { EngineState, LogsFolderResult, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
+import type { AutoUpdateState, EngineState, LogsFolderResult, MyRgbApi, ProfileSavedEvent, Unsubscribe } from '@shared/api'
 import type {
   AppSettings,
   DeviceInfo,
@@ -186,6 +186,15 @@ const api: MyRgbApi = {
     subscribe(IPC.overlayState, callback),
   onOverlayFrame: (callback: (frame: OverlayFrame) => void) =>
     subscribe(IPC.overlayFrame, callback),
+
+  // auto-update
+  getAutoUpdateState: (): Promise<AutoUpdateState> =>
+    ipcRenderer.invoke(IPC.autoUpdateState),
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke(IPC.autoUpdateCheck),
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.autoUpdateDownload),
+  quitAndInstall: (): Promise<void> => ipcRenderer.invoke(IPC.autoUpdateQuitAndInstall),
+  onAutoUpdateState: (callback: (state: AutoUpdateState) => void) =>
+    subscribe(IPC.autoUpdateChanged, callback),
 
   // events
   onFrame: (callback: (frame: Frame) => void) => subscribe(IPC.engineFrame, callback),

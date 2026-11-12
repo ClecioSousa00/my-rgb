@@ -16,6 +16,10 @@ comportam, e como desenvolver.
 | [zonas-e-perfis.md](zonas-e-perfis.md) | Zonas, quantidade de LEDs, nomes, o botão "aplicar a todas" e o workings de perfis |
 | [windows.md](windows.md) | O passo a passo no Windows, o Armoury Crate e o diagnóstico de cintilação |
 | [desenvolvimento.md](desenvolvimento.md) | A stack, os scripts, os testes, as ferramentas e como adicionar um efeito novo |
+| [release.md](release.md) | Como uma tag `vX.Y.Z` vira uma release: o workflow, a configuração do GitHub, checksums, proveniência e assinatura |
+| [formato-exportacao-perfil.md](formato-exportacao-perfil.md) | Especificação do formato `.myrgb.json` (português) |
+| [profile-export-format.md](profile-export-format.md) | Especificação do formato `.myrgb.json` (inglês) |
+| [en/README.md](en/README.md) | Documentação em inglês: índice e páginas traduzidas |
 | [planejamento-iluminacao-externa.md](planejamento-iluminacao-externa.md) | **Planejamento, não implementado:** por que OpenRGB, Razer e Corsair ficaram para depois, o que já está pronto e como retomar |
 
 ## Em uma página

@@ -169,7 +169,7 @@ export function buildCooling(
   if (channels.length === 0) {
     notes.push(
       platform === 'win32'
-        ? 'O Windows não expõe ventoinhas nem bomba sem um driver de sensores: o helper do MyRGB mede FPS e ainda não lê essas rotações. Só a ventoinha da GPU NVIDIA aparece, em percentual.'
+        ? 'Temperaturas, ventoinhas e bomba da placa-mãe ainda não apareceram no Windows. O helper do MyRGB lê essas rotações via LibreHardwareMonitorLib; confira se ele foi iniciado (o overlay ou o FPS precisam ter sido abertos pelo menos uma vez).'
         : 'Nenhuma ventoinha ou bomba apareceu em /sys/class/hwmon. Se a placa-mãe tem o sensor e o driver não está carregado, carregue-o (por exemplo: sudo modprobe nct6775); se o water cooler é ligado por USB, o RPM só existe no software do fabricante.'
     )
   } else if (pumps.length === 0) {

@@ -214,6 +214,8 @@ export interface AppSettings {
   ui?: UiSettings
   /** On-screen display: switch, metrics, position and shortcut. */
   overlay?: OverlayConfig
+  /** Check GitHub Releases for updates on startup and notify the user. */
+  autoUpdateEnabled?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +330,16 @@ export const IPC = {
   logsRead: 'logs:read',
   /** Save one log file as plain text somewhere the user chooses. */
   logsExport: 'logs:export',
+  /** Auto-update: check the release server now. */
+  autoUpdateCheck: 'auto-update:check',
+  /** Auto-update: current state snapshot. */
+  autoUpdateState: 'auto-update:state',
+  /** Auto-update: download the available update. */
+  autoUpdateDownload: 'auto-update:download',
+  /** Auto-update: quit and install the downloaded update. */
+  autoUpdateQuitAndInstall: 'auto-update:quit-and-install',
+  /** Auto-update: state changes pushed to the renderer. */
+  autoUpdateChanged: 'auto-update:changed',
   /** Start (or attach to) a storage scan. */
   storageStart: 'storage:start',
   /** Cancel the scan in flight; its call resolves to null. */
