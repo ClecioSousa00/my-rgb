@@ -17,6 +17,10 @@ publica-os no GitHub Releases. O auto-update do aplicativo lê essa release.
    *latest* chegaria a todos os utilizadores pelo auto-update.
 4. A tag tem de existir no GitHub (`git push origin v0.3.0`); o workflow usa
    `--verify-tag` e não cria tags.
+5. **Opcional — notas curadas:** crie `release-notes/vX.Y.Z.md` nesse commit.
+   O job `publish` usa esse ficheiro como descrição da release. Sem ele, o
+   GitHub gera as notas automaticamente (`--generate-notes`), o que num
+   repositório sem pull requests produz uma página quase vazia.
 
 ## O que acontece depois do push da tag
 
@@ -26,7 +30,7 @@ publica-os no GitHub Releases. O auto-update do aplicativo lê essa release.
 | `verify` | `npm ci`, `typecheck`, `npm run test:ci` e `build` no commit da tag |
 | `windows` | Publica o helper .NET x64, gera o NSIS, confere o helper e o `app-update.yml` dentro do pacote e escreve `SHA256SUMS-windows.txt` |
 | `linux` | Gera AppImage + deb, confere o `latest-linux.yml` e escreve `SHA256SUMS-linux.txt` |
-| `publish` | Confere os checksums, cria a release (ou substitui os assets numa re-execução) e marca-a como *latest* |
+| `publish` | Confere os checksums, cria a release (ou substitui os assets numa re-execução), usa `release-notes/<tag>.md` quando existe e marca-a como *latest* |
 
 Os jobs de build correm com `contents: read` e sem credenciais guardadas no
 checkout. Só o `publish` recebe `contents: write`, e apenas dentro do
