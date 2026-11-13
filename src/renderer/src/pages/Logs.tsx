@@ -68,6 +68,7 @@ export function LogsPage(): React.JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const alive = useRef(true)
+  const autoRead = useRef(false)
 
   useEffect(() => {
     alive.current = true
@@ -80,13 +81,10 @@ export function LogsPage(): React.JSX.Element {
     try {
       const result = await window.myrgb.listLogs()
       if (alive.current) setList(result)
-      if (alive.current && result.files.length > 0 && !selected) {
-        setSelected(result.files[0])
-      }
     } catch (err) {
       if (alive.current) setError(err instanceof Error ? err.message : String(err))
     }
-  }, [selected])
+  }, [])
 
   useEffect(() => {
     loadList()
@@ -108,16 +106,22 @@ export function LogsPage(): React.JSX.Element {
     }
   }, [])
 
+  // The first file is the current log. Open it without making the user click
+  // the card that is already highlighted.
+  useEffect(() => {
+    if (autoRead.current || !list || list.files.length === 0) return
+    autoRead.current = true
+    void readLog(list.files[0])
+  }, [list, readLog])
+
   const exportLog = useCallback(async () => {
     if (!selected) return
     setLoading(true)
     try {
       const path = await window.myrgb.exportLog(selected.name)
-      if (alive.current && path) {
-        setError(null)
-      } else if (alive.current) {
-        setError('Não foi possível exportar o ficheiro.')
-      }
+      // A null path means the user closed the save dialog; there is nothing
+      // to report. A write failure rejects and reaches the catch below.
+      if (alive.current && path) setError(null)
     } catch (err) {
       if (alive.current) setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -130,15 +134,6 @@ export function LogsPage(): React.JSX.Element {
     if (filter === 'all') return read.entries
     return read.entries.filter((entry) => entry.level === filter)
   }, [read, filter])
-
-  const worstLevel = useMemo(() => {
-    if (!read || read.entries.length === 0) return undefined
-    const order: LogEntry['level'][] = ['error', 'warn', 'info', 'debug']
-    for (const level of order) {
-      if (read.entries.some((entry) => entry.level === level)) return level
-    }
-    return undefined
-  }, [read])
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
@@ -208,13 +203,6 @@ export function LogsPage(): React.JSX.Element {
                         {formatBytes(file.size)} · {formatDate(new Date(file.mtimeMs).toISOString())}
                       </div>
                     </div>
-                    <span
-                      className={`shrink-0 text-[10px] px-2 py-0.5 rounded border ${
-                        LEVEL_COLOR[worstLevel ?? 'info']
-                      }`}
-                    >
-                      {LEVEL_LABEL[worstLevel ?? 'info']}
-                    </span>
                   </button>
                 )
               })}

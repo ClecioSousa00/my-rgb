@@ -383,8 +383,12 @@ export function registerIpc(host: IpcHost): void {
     try {
       writeFileSync(result.filePath, content, 'utf8')
       return result.filePath
-    } catch {
-      return null
+    } catch (error) {
+      // A failed write is not a cancellation: reject so the page can show the
+      // error instead of silently doing nothing.
+      throw new Error(
+        `Não foi possível gravar o registo: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   })
 
