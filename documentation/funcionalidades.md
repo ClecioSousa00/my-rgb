@@ -1,9 +1,9 @@
 # Funcionalidades
 
-O MyRGB tem uma navegação lateral com dez páginas: a de **Iluminação** (a tela
-original, descrita abaixo) e nove páginas de diagnóstico e desempenho, no
-visual monocromático inspirado no Reset Explode. Este documento começa pela
-navegação e depois detalha cada tela.
+O MyRGB tem uma navegação lateral com onze páginas: a de **Iluminação** (a tela
+original, descrita abaixo) e dez outras de diagnóstico, desempenho e
+integrações, no visual monocromático inspirado no Reset Explode. Este documento
+começa pela navegação e depois detalha cada tela.
 
 ---
 
@@ -21,6 +21,7 @@ navegação e depois detalha cada tela.
 │  Sensores    │                                                        │
 │  Discos      │                                                        │
 │  Rede        │                                                        │
+│  Registos    │                                                        │
 │ DESEMPENHO▾  │                                                        │
 │  Jogos       │                                                        │
 │  Gargalo     │                                                        │
@@ -48,6 +49,7 @@ navegação e depois detalha cada tela.
 | Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
 | Discos | Unidades, Saúde e Análise — **prontas** |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
+| Registos | Os ficheiros de log, com filtro por nível e exportação em texto — **pronta** |
 | Jogos | FPS medido ou estimado por jogo, com fonte e confiança — **pronta** |
 | Gargalo | Equilíbrio GPU × CPU, leitura ao vivo e sessão — **pronta** |
 | Overlay | Métricas por cima do jogo — **pronta** |
@@ -193,9 +195,13 @@ escondida.
     do driver, que é convertida aqui. Rótulos de header (`AIO Pump`, `CPU
     Fan`, `Chassis Fan 2`) são traduzidos, e um canal sem rótulo permanece
     genérico;
-  - Windows — carga, clocks e memória pelo `systeminformation`. Não há
-    leitura de temperatura e ventoinha da placa-mãe: o helper do Windows mede
-    FPS por ETW, não sensores, e a página diz isso em vez de mostrar zeros;
+  - Windows — carga, clocks e memória pelo `systeminformation`; temperatura,
+    ventoinhas, bomba, tensões e consumo da placa-mãe pelo **helper** .NET
+    (LibreHardwareMonitor), no mesmo processo elevado que mede o FPS. O helper
+    é compartilhado pelas duas funções e só sobe quando alguma delas pede;
+    se ele não estiver instalado ou o UAC for recusado, a página explica o
+    motivo em vez de mostrar zeros. Sem leitura do helper, o cartão de
+    refrigeração e as observações dizem exatamente o que faltou;
   - NVIDIA — `nvidia-smi` nos dois sistemas, quando instalado. A ventoinha da
     GPU vem em **percentual**, não em RPM, e o cartão avisa que não converte
     uma coisa na outra. Campos que o driver não responde (`[N/A]`)
@@ -204,8 +210,8 @@ escondida.
   que um NVMe pode devolver quando o arquivo falha) é descartado, e um sensor
   que não puder ser lido vira **—**, nunca zero.
 - **Observações** no rodapé explicam o que faltou e por quê — por exemplo, que
-  o driver `asus` não expôs ventoinhas ou que o helper do Windows ainda não
-  existe.
+  o driver `asus` não expôs ventoinhas, que o helper do Windows não foi
+  encontrado ou que o utilizador recusou a elevação (UAC).
 
 ---
 
@@ -362,6 +368,37 @@ o teste o botão vira **Cancelar**; recusar mantém o último resultado na tela.
 - Quando o Cloudflare recusa a medição (HTTP 429, por excesso de testes), o
   download aparece como **—** e uma observação explica o motivo, em vez de um
   zero falso.
+
+---
+
+## A tela de Registos
+
+Mostra os mesmos registos descritos em **Registos e relatórios de crash**, mas
+sem precisar abrir a pasta no gerenciador de arquivos. É a página para consultar
+o que aconteceu e **exportar** o texto quando for pedir ajuda.
+
+- **Lista de ficheiros** — `my-rgb.log` (o atual) e os rotacionados
+  `my-rgb.log.1` a `.3`, com nome, tamanho e data da última alteração. O atual
+  leva a etiqueta **atual**.
+- **Conteúdo** — ao abrir a página, o registo atual (`my-rgb.log`) já é lido;
+  ao selecionar outro ficheiro, ele substitui o conteúdo. Cada linha é
+  separada em data e hora, nível (**Erro**, **Aviso**, **Info** ou
+  **Depuração**) e mensagem. As datas aparecem no formato local; o texto da
+  mensagem é exibido como está, inclusive traços de pilha.
+- **Filtro por nível** — Todos, Erro, Aviso, Info ou Depuração. O filtro vale só
+  para a exibição: o ficheiro não é alterado.
+- **Exportar .txt** — abre o diálogo do sistema para escolher onde salvar. O
+  texto exportado é uma linha por evento, no formato
+  `data hora NÍVEL mensagem`; o utilizador decide para quem enviar.
+- **Abrir pasta** — o ícone no cabeçalho abre `logs/` no gerenciador de
+  arquivos, onde também estão os minidumps de `logs/crash/`.
+- As linhas de continuação de um traço de pilha ficam anexadas ao evento que
+  as originou, então exportar o registo não perde a explicação da falha. Só
+  uma linha sem evento antes dela é descartada, e o rodapé informa quantas
+  foram ignoradas.
+- Nada é enviado para servidor nenhum. A página apenas lê os ficheiros que o
+  próprio programa já grava em `<userData>/logs`; exportar é uma cópia local,
+  e os registos continuam sujeitos à rotação de 2 MB.
 
 ---
 
@@ -650,6 +687,9 @@ motor, erros de escrita e mensagens do renderer.
 - **Nível por ambiente:** `MYRGB_LOG_LEVEL=debug npm run dev` sobrepõe a opção
   da interface, o que é útil para acompanhar um problema sem mexer nas
   configurações salvas.
+- **Ver e exportar sem sair do programa:** a página **Registos** (grupo
+  Diagnóstico) lista esses ficheiros, filtra por nível e salva uma cópia em
+  `.txt` para anexar a um relato — veja [A tela de Registos](#a-tela-de-registos).
 
 ---
 

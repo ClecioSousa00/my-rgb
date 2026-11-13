@@ -59,12 +59,15 @@ experimento, ele fica na `dev` (ou na branch `feat/...`).
 | Hardware | node-hid 3.4 |
 | Diagnóstico | systeminformation 5 (SO, CPU, RAM, GPU e discos) + hwmon/nvidia-smi (sensores) |
 | FPS (Windows) | helper .NET 8 + ETW (`Microsoft.Diagnostics.Tracing.TraceEvent`) |
+| Sensores (Windows) | o mesmo helper .NET 8, via LibreHardwareMonitor |
 
 Uma coisa que economiza muito trabalho: **o caminho da iluminação não tem
 código específico de sistema operacional**. O node-hid fala HID puro, que se
 comporta igual no Linux (`hidraw`) e no Windows (`hid.dll`). O mesmo binário
-funciona nos dois. A única exceção é a leitura de FPS, que depende do ETW do
-Windows e fica isolada em `src/main/features/overlay/` e no helper .NET.
+funciona nos dois. A única exceção é o que só existe no Windows: o **FPS** e
+os **sensores da placa-mãe**, que dependem do ETW e do LibreHardwareMonitor e
+ficam isolados no helper .NET (`src/main/features/overlay/helper.ts` e
+`src/main/features/sensors/windows.ts`).
 
 ---
 
@@ -77,7 +80,7 @@ npm run typecheck    # tsc nos dois projetos (node + web)
 npm test             # vitest — a suíte completa (inclui os testes que dependem do ambiente)
 npm run test:ci      # o subconjunto que o CI e a release correm (sem conflict.test.ts)
 npm run build        # build de produção em out/
-npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
+npm run build:helper # helper do Windows: FPS e sensores (precisa do .NET 8 SDK)
 npm run selftest     # build + UI real, conferindo páginas, IPC e quadros
 ```
 
@@ -89,9 +92,10 @@ npm run build:win        # instalador NSIS (precisa do Windows ou do wine)
 npm run build:win:dir    # release/win-unpacked/ — funciona em qualquer sistema
 ```
 
-Rode `npm run build:helper` **antes** do `build:win` para incluir o helper de
-FPS no instalador. Sem ele, o instalador continua válido: o overlay abre, só o
-FPS fica "indisponível" e a página oferece **Tentar novamente**.
+Rode `npm run build:helper` **antes** do `build:win` para incluir no instalador
+o helper que lê FPS e sensores no Windows. Sem ele, o instalador continua
+válido: o overlay abre sem FPS, a página Sensores explica que a placa-mãe não
+pôde ser lida e as duas páginas oferecem **Tentar novamente**.
 
 Os recursos extras são declarados **por plataforma** no `electron-builder.yml`,
 não no topo: um bloco de plataforma (`linux:`, `win:`) substitui a lista
@@ -114,6 +118,7 @@ diagnóstico:
 | `--dump-count <n>` | quantidade de quadros do dump (padrão 120) |
 | `--gen-docs <arquivo>` | regera o catálogo de efeitos |
 | `--storage-bench <pasta>` | varre a pasta com o motor a rodar e imprime FPS antes/durante, tempo e progresso |
+| `--storage-growth-bench` | duas varreduras de uma árvore temporária para provar a deteção de crescimento do diagnóstico |
 | `--hidden` | sobe sem janela (usado pelo autostart) |
 
 ```bash
@@ -488,16 +493,26 @@ acessar hardware.
   pipe, `Start-Process -Verb RunAs`, uma linha JSON por comando e um `ping`
   antes de pedir frames.
 
-### O helper do Windows
+### O helper do Windows (FPS e sensores)
 
-`helper/MyRgb.Helper` é um executável .NET 8 (`net8.0-windows`) que lê os
-eventos "Present" do DXGI (evento 42) e do D3D9 (evento 1) via ETW — a mesma
-técnica do PresentMon, sem injetar nada no jogo. Ele responde com o processo em
-primeiro plano:
+`helper/MyRgb.Helper` é um executável .NET 8 (`net8.0-windows`) com duas
+funções, servidas pelo mesmo processo elevado:
 
-```json
-{"pid":4242,"process":"Cyberpunk2077","fps":143.8,"frameTimeMs":6.94,"low1Fps":121.2,"recent":[6.9,7.1]}
-```
+- **FPS** — lê os eventos "Present" do DXGI (evento 42) e do D3D9 (evento 1)
+  via ETW, a mesma técnica do PresentMon, sem injetar nada no jogo. Responde
+  com o processo em primeiro plano:
+
+  ```json
+  {"pid":4242,"process":"Cyberpunk2077","fps":143.8,"frameTimeMs":6.94,"low1Fps":121.2,"recent":[6.9,7.1]}
+  ```
+
+- **Sensores da placa-mãe** — LibreHardwareMonitor lê temperatura, ventoinhas,
+  bomba, tensões e consumo, no mesmo formato que o coletor hwmon do Linux.
+  `sensors.poll` devolve a lista de leituras; `sensors.status` informa se o
+  subsistema está disponível.
+
+Comandos do protocolo: `ping`, `fps.start`, `fps.stop`, `fps.poll`,
+`fps.status`, `sensors.poll`, `sensors.status` e `shutdown`.
 
 - O app **não** roda elevado: o helper é iniciado sob demanda com UAC. Como um
   processo elevado não herda o stdout do pai, o protocolo usa um named pipe
@@ -505,11 +520,14 @@ primeiro plano:
   helper o cliente. Sem `--pipe`, ele também aceita stdio, para depuração.
 - O FPS é calculado pelo relógio dos eventos (imune ao atraso de entrega do
   ETW); o 1% low é o percentil 99 do frametime dos últimos 10 s.
-- Esta versão lê **só FPS**. Temperaturas, ventoinhas e tensões no Windows
-  continuam pendentes (a página Sensores diz isso).
+- Um **único helper** atende overlay, Gargalo e página Sensores
+  (`getSharedHelper`), em vez de um UAC por página. A bridge dos sensores
+  libera a lease depois de 20 s sem pedidos, e uma falha (UAC recusado, helper
+  morto) fica em cache por 5 minutos para não repetir o pedido a cada segundo.
 - `npm run build:helper` publica um executável único e autossuficiente em
   `helper/publish/win-x64/`; o electron-builder copia para `resources/helper/`.
-  Sem ele, nada quebra: só o FPS fica indisponível.
+  Sem ele, nada quebra: o FPS fica indisponível e a página Sensores explica
+  que temperaturas e ventoinhas da placa-mãe não puderam ser lidas.
 
 ---
 
@@ -552,6 +570,14 @@ iniciar não impede o arranque (devolve `false`).
 O `--selftest` confirma as duas pontas: `logReady` verifica que o ficheiro
 existe e tem conteúdo, e `logsUi` verifica que o selector de nível e o botão
 "Abrir pasta de registos" chegaram ao build.
+
+A página **Registos** (`src/renderer/src/pages/Logs.tsx`) lê os ficheiros pelo
+processo principal: `listLogs()` em `src/main/features/logs/index.ts` devolve
+nome, tamanho, data e qual é o atual; `readLog(name)` separa cada linha em
+data, nível e mensagem; `exportLog(name)` grava o texto onde o utilizador
+escolher, pelo diálogo do sistema. Nada sai do processo principal sem ser por
+um desses três canais (`logs:list`, `logs:read`, `logs:export`), e a página
+nunca toca no disco diretamente.
 
 ---
 
@@ -598,7 +624,7 @@ byte a byte o mesmo que aparece na prévia.
 
 ## Os testes
 
-318 testes em 18 arquivos, todos rodando em alguns segundos.
+412 testes em 27 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -620,6 +646,15 @@ byte a byte o mesmo que aparece na prévia.
 | `tests/light.test.ts` | Os alvos de iluminação, a migração implícita dos perfis antigos e as regras do roteador (throttle, acquire/release, isolamento de erro por backend) |
 | `tests/format.test.ts` | Bytes, clocks, datas de BIOS, sensores e tempo relativo são formatados sem inventar valor |
 | `tests/logging.test.ts` | O nível filtra como esperado, a rotação mantém três arquivos, uma pasta sem permissão nunca derruba o programa, o relatório de crash não envia nada e as configurações reparam um nível inválido |
+| `tests/storage.test.ts` | O percurso de uma árvore real: totais, hard links contados uma vez, links não seguidos, pastas sem permissão e os limites da árvore |
+| `tests/storage-view.test.ts` | O resumo, a busca, os filtros e a ordenação das listas da aba Análise, sem React |
+| `tests/storage-diagnose.test.ts` | As regras do diagnóstico: espaço livre, arquivos notáveis, temporários/caches e crescimento desde a análise anterior |
+| `tests/storage-history.test.ts` | O snapshot por raiz em `scans.json`: gravação atómica, raízes limitadas e ficheiro corrompido tratado como sem histórico |
+| `tests/storage-games.test.ts` | A deteção de jogos pelo layout (Steam, Epic, Riot), o nome do manifesto, as exclusões e o limite de 300 |
+| `tests/storage-duplicates.test.ts` | A ordem tamanho → hash parcial → hash completo, o agrupamento e o cancelamento sem apagar nada |
+| `tests/sensors-windows.test.ts` | A conversão das leituras do helper nos sensores da página e o descarte de valores fora dos limites |
+| `tests/helper-shared.test.ts` | A bridge compartilhada do helper: uma instância para FPS e sensores, a lease e o cache de falhas |
+| `tests/parity.test.ts` | O dump offline de frames bate byte a byte com a fixture dourada nos dois sistemas |
 
 ```bash
 npm test                  # tudo
@@ -718,6 +753,47 @@ binário da plataforma certa.
 
 ---
 
+## O pacote .deb (Linux)
+
+O `.deb` é gerado pelo alvo `deb` do electron-builder. O script
+`packaging/linux/after-install.sh` roda como root no `dpkg -i` e faz três
+coisas:
+
+- cria o link `/usr/bin/my-rgb` para `/opt/MyRGB/my-rgb`;
+- ajusta o `chrome-sandbox` para **4755** (root, setuid);
+- instala a regra udev e o perfil AppArmor do Electron.
+
+Um `afterInstall` próprio **substitui** o template padrão do electron-builder,
+não o completa. Foi por isso que a 0.3.0 saiu sem o ajuste do sandbox: o script
+antigo só instalava a regra udev, e o `chrome-sandbox` ficava em 0755. O
+Electron então aborta no arranque com:
+
+```text
+The SUID sandbox helper binary was found, but is not configured correctly.
+```
+
+Isso acontece porque o pacote não pode carregar o modo setuid do staging do
+fpm; quem dá a permissão é o `postinst`, já como root. O script atual usa 4755
+sempre, porque o teste de *user namespaces* do template padrão pode passar no
+shell do `postinst` e mesmo assim o Electron ser bloqueado pelo AppArmor do
+Ubuntu 24 (`kernel.apparmor_restrict_unprivileged_userns=1`). O perfil
+AppArmor continua a ser instalado para o sandbox por namespaces.
+
+Para conferir um pacote instalado:
+
+```bash
+stat -c '%a %U' /opt/MyRGB/chrome-sandbox   # espera: 4755 root
+readlink -f /usr/bin/my-rgb                 # espera: /opt/MyRGB/my-rgb
+```
+
+Num pacote antigo (0.3.0), o contorno é:
+
+```bash
+sudo chmod 4755 /opt/MyRGB/chrome-sandbox
+```
+
+---
+
 ## O instalador do Windows
 
 O instalador NSIS (`MyRGB-<versão>-setup.exe`) precisa ser gerado **no
@@ -736,10 +812,11 @@ O `build:win:dir` funciona em qualquer sistema e serve para conferir o
 empacotamento (estrutura do asar, binário nativo, ícones) antes de ir para o
 Windows.
 
-O helper de FPS entra como recurso extra (`resources/helper/MyRgb.Helper.exe`)
-quando `helper/publish/win-x64/MyRgb.Helper.exe` existir. Ele é publicado à
-parte com `npm run build:helper`, porque precisa do .NET 8 SDK no Windows; o
-instalador gerado sem ele continua válido, apenas sem FPS.
+O helper do Windows entra como recurso extra
+(`resources/helper/MyRgb.Helper.exe`) quando
+`helper/publish/win-x64/MyRgb.Helper.exe` existir. Ele é publicado à parte com
+`npm run build:helper`, porque precisa do .NET 8 SDK no Windows; o instalador
+gerado sem ele continua válido, apenas sem FPS e sem os sensores da placa-mãe.
 
 ---
 
@@ -747,10 +824,11 @@ instalador gerado sem ele continua válido, apenas sem FPS.
 
 `.github/workflows/ci.yml` roda em dois sistemas:
 
-- **Linux**: `npm run typecheck`, `npm run test:ci` (o mesmo subconjunto que a
-  release corre; `conflict.test.ts` fica de fora porque lê processos reais e é
-  instável num runner compartilhado) e `npm run build`.
-- **Windows**: `npm install`, `npm run build:helper` com o .NET 8 e
+- **Linux**: `npm ci`, `npm run typecheck`, `npm run test:ci` (o mesmo
+  subconjunto que a release corre; `conflict.test.ts` fica de fora porque lê
+  processos reais e é instável num runner compartilhado) e `npm run build`.
+- **Windows**: `npm ci`, `npm run test:parity` (confere os frames contra a
+  fixture dourada), `npm run build:helper` com o .NET 8 e
   `npm run build:win:dir`. No fim, confere que o pacote gerado tem o
   `MyRGB.exe`, o helper em `resources/helper/`, o `icon.png` e o `tray.png`.
   É essa checagem que impede o pacote de sair sem os ícones de novo.

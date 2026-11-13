@@ -37,10 +37,11 @@ operacionais.
   OpenRGB) também está controlando o mesmo controlador — inclusive se ele
   começou a rodar depois do app.
 - **Dashboard de diagnóstico**: navegação lateral com Visão geral, Sistema,
-  Sensores, Discos, Rede, Jogos, Gargalo, Overlay e Integrações, no visual
-  monocromático do Reset Explode. A Visão geral junta hardware, limitador ao
-  vivo, discos, rede e o que precisa de atenção em uma tela; Integrações é a
-  única que ainda diz o que vai conter, em vez de mostrar um número inventado.
+  Sensores, Discos, Rede, Registos, Jogos, Gargalo, Overlay e Integrações, no
+  visual monocromático do Reset Explode. A Visão geral junta hardware,
+  limitador ao vivo, discos, rede e o que precisa de atenção em uma tela;
+  Integrações é a única que ainda diz o que vai conter, em vez de mostrar um
+  número inventado.
 - **Overlay sobre o jogo**: janela transparente, sempre no topo, que ignora o
   mouse e não aparece na barra de tarefas. Mostra FPS, frametime, 1% low e os
   sensores que você escolher; liga e desliga com um atalho global.
@@ -52,8 +53,9 @@ operacionais.
 | Iluminação | pronta (tela original) |
 | Sistema | pronto: SO, placa-mãe/BIOS, CPU, memória, GPU e discos físicos |
 | Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx, histórico e o cartão de refrigeração (RPM da bomba e das ventoinhas) |
-| Discos | pronta: abas Unidades e Saúde (S.M.A.R.T. / CIM) |
+| Discos | pronta: abas Unidades, Saúde (S.M.A.R.T. / CIM) e Análise (maiores arquivos, pastas, jogos e duplicados) |
 | Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
+| Registos | pronta: ficheiros de log, filtro por nível e exportação em `.txt` |
 | Jogos | pronta: base offline com 17 mil jogos, FPS medido ou estimado, com fonte e confiança ([metodologia](documentation/jogos.md)) |
 | Gargalo | pronto: equilíbrio GPU × CPU, limitador ao vivo e sessão de 1/3/5 min |
 | Overlay | pronto: métricas sobre o jogo, atalho global e escolha do que mostrar; FPS real no Windows, "indisponível" no Linux |
@@ -130,11 +132,11 @@ O instalador NSIS registra a entrada de autostart do Windows quando a opção
 
 ### FPS no overlay
 
-O FPS real do jogo vem de um helper (.NET, ETW) que precisa de permissão de
-administrador. Ele é iniciado sob demanda: a primeira vez que você liga o
-overlay (ou o FPS) o Windows mostra **um** pedido de UAC; recusar não quebra
-nada, o overlay continua mostrando os sensores e a página Overlay diz o que
-faltou.
+O FPS real do jogo e os sensores da placa-mãe vêm de um helper (.NET) que
+precisa de permissão de administrador. Ele é iniciado sob demanda: a primeira
+vez que você liga o overlay, inicia uma sessão do Gargalo ou abre a página
+Sensores, o Windows mostra **um** pedido de UAC; recusar não quebra nada — o
+overlay continua abrindo e as páginas dizem o que faltou.
 
 O instalador só inclui o helper se ele tiver sido gerado antes:
 
@@ -144,7 +146,8 @@ npm run build:win
 ```
 
 Sem o helper, a página Overlay mostra "indisponível" e oferece **Tentar
-novamente** — nenhum FPS é inventado.
+novamente** — nenhum FPS é inventado —, e a página Sensores explica que
+temperaturas e ventoinhas da placa-mãe não puderam ser lidas.
 
 ---
 
@@ -248,9 +251,9 @@ regenere a fixture com `npm run parity:golden`.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest (318 testes, 18 arquivos)
+npm test             # vitest (412 testes, 27 arquivos)
 npm run build        # build de produção em out/
-npm run build:helper # helper de FPS do Windows (precisa do .NET 8 SDK)
+npm run build:helper # helper do Windows: FPS e sensores (precisa do .NET 8 SDK)
 npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
 ```
 
