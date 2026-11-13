@@ -121,6 +121,7 @@
 - [ ] **Logs estruturados** - Melhorar sistema de logs para debug. Hoje são ~15 `console.*` no main, sem ficheiro, sem nível e sem timestamp; um problema em campo não deixa rasto.
 - [ ] **Crash reporting** - Adicionar report de crashes (opcional). `crashReporter` não é inicializado em lado nenhum.
 - [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC". Caminho escolhido (12/11/2026): **SignPath Foundation** (gratuito para OSS); alternativa Azure Trusted Signing. Passos em `documentation/release.md`.
+- [x] **Corrigir o `.deb` no Debian/Ubuntu** - **Concluído na 0.3.1 (13/11/2026):** a 0.3.0 instalava o `chrome-sandbox` em `0755` e o Electron abortava no arranque ("The SUID sandbox helper binary was found, but is not configured correctly"). O `afterInstall` próprio substituía o template do electron-builder e não repetia o `chmod 4755`; o script voltou a criar o link `/usr/bin/my-rgb` e a instalar o perfil AppArmor. Para a 0.3.0 já instalada: `sudo chmod 4755 /opt/MyRGB/chrome-sandbox`. Detalhes em `documentation/desenvolvimento.md` (seção **O pacote .deb**).
 - [ ] **Ignorar artefactos de teste** - `.vitest/` (cache do reporter JSON) não está no `.gitignore` e aparece como untracked.
 
 ---
