@@ -21,7 +21,7 @@ MyRGB talks directly to the AURA USB controller HID protocol (`0b05:19af`). It i
 - **Built-in help**: a **?** on each panel and on each parameter explains what that control does.
 - **System tray** with quick light control.
 - **Continuous conflict detection**: warns when another program (Armoury Crate, OpenRGB) is also controlling the same controller — even if it started after the app.
-- **Diagnostic dashboard**: side navigation with Overview, System, Sensors, Disks, Network, Games, Bottleneck, Overlay and Integrations, in the monochrome Reset Explode look. Overview brings hardware, live limiter, disks, health, network and what needs attention on one screen; Integrations is the only one that still says what it will contain instead of showing an invented number.
+- **Diagnostic dashboard**: side navigation with Overview, System, Sensors, Disks, Network, Logs, Games, Bottleneck, Overlay and Integrations, in the monochrome Reset Explode look. Overview brings hardware, live limiter, disks, health, network and what needs attention on one screen; Integrations is the only one that still says what it will contain instead of showing an invented number.
 - **Game overlay**: transparent, always-on-top window that ignores the mouse and does not appear on the taskbar. Shows FPS, frametime, 1% low and the sensors you choose; toggles with a global shortcut.
 
 ### Dashboard status
@@ -31,8 +31,9 @@ MyRGB talks directly to the AURA USB controller HID protocol (`0b05:19af`). It i
 | Lighting | ready (original screen) |
 | System | ready: OS, motherboard/BIOS, CPU, memory, GPU and physical disks |
 | Sensors | ready: live reading (1 s), filters, min/max, history and the cooling card (pump and fan RPM) |
-| Disks | ready: Units and Health tabs (S.M.A.R.T. / CIM) |
+| Disks | ready: Units, Health (S.M.A.R.T. / CIM) and Analysis tabs (largest files and folders, games and duplicates) |
 | Network | ready: latency, jitter, loss, DNS, speed and bufferbloat |
+| Logs | ready: log files, level filter and export as `.txt` |
 | Games | ready: offline base with 17 thousand games, measured or estimated FPS, with source and confidence ([methodology](documentation/jogos.md)) |
 | Bottleneck | ready: GPU × CPU balance, live limiter and 1/3/5 min session |
 | Overlay | ready: metrics over the game, global shortcut and choice of what to show; real FPS on Windows, "unavailable" on Linux |
@@ -99,7 +100,7 @@ The NSIS installer registers the Windows autostart entry when "Start with system
 
 ### FPS in the overlay
 
-Real game FPS comes from a .NET helper (ETW) that needs administrator permission. It is started on demand: the first time you turn on the overlay (or FPS), Windows shows **one** UAC prompt; refusing does not break anything, the overlay continues showing sensors and the Overlay page says what was missing.
+Real game FPS and motherboard sensors come from a .NET helper that needs administrator permission. It is started on demand: the first time you turn on the overlay, start a Bottleneck session or open the Sensors page, Windows shows **one** UAC prompt; refusing does not break anything — the overlay still opens and the pages say what was missing.
 
 The installer only includes the helper if it has been generated before:
 
@@ -108,7 +109,7 @@ npm run build:helper     # needs .NET 8 SDK, on Windows
 npm run build:win
 ```
 
-Without the helper, the Overlay page shows "unavailable" and offers **Try again** — no FPS is invented.
+Without the helper, the Overlay page shows "unavailable" and offers **Try again** — no FPS is invented —, and the Sensors page explains that motherboard temperatures and fans could not be read.
 
 ---
 
@@ -182,9 +183,9 @@ Each `.bin` file contains the format header, the LED count per zone, and the RGB
 npm install          # installs and checks the node-hid native binary
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc for both projects (node + web)
-npm test             # vitest (318 tests, 18 files)
+npm test             # vitest (412 tests, 27 files)
 npm run build        # production build in out/
-npm run build:helper # Windows FPS helper (needs .NET 8 SDK)
+npm run build:helper # Windows helper: FPS and sensors (needs .NET 8 SDK)
 npm run selftest     # starts the packaged UI and checks pages, IPC and frames
 ```
 
@@ -221,7 +222,7 @@ npm run build:win        # release/MyRGB-<version>-setup.exe
 
 `build:win:dir` works on any system and is useful for checking packaging (asar structure, native binary, icons) before going to Windows.
 
-The FPS helper enters as an extra resource (`resources/helper/MyRgb.Helper.exe`) when `helper/publish/win-x64/MyRgb.Helper.exe` exists. It is published separately with `npm run build:helper`, because it needs the .NET 8 SDK on Windows; the installer generated without it is still valid, just without FPS.
+The Windows helper enters as an extra resource (`resources/helper/MyRgb.Helper.exe`) when `helper/publish/win-x64/MyRgb.Helper.exe` exists. It is published separately with `npm run build:helper`, because it needs the .NET 8 SDK on Windows; the installer generated without it is still valid, just without FPS and without motherboard sensors on the Sensors page.
 
 ---
 

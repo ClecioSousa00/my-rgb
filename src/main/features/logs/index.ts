@@ -70,8 +70,13 @@ export function readLog(name: string): LogRead {
 
     const match = LINE_RE.exec(line)
     if (!match) {
-      // Continuation of a previous stack trace or an unparsable line.
-      skipped += 1
+      // A stack trace continues on the following lines. Keep them attached to
+      // the event that produced them, otherwise exporting the log would lose
+      // the part that actually explains the failure. A line with no event
+      // before it cannot be attached and is counted as skipped.
+      const previous = entries[entries.length - 1]
+      if (previous) previous.message += `\n${rawLine}`
+      else skipped += 1
       continue
     }
 
