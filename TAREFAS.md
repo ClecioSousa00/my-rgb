@@ -118,11 +118,11 @@
 - [x] **CI/CD** - GitHub Actions para build/test
 - [x] **Versionamento semântico** - Adotar semver corretamente
 - [x] **Auto-update** - Implementar electron-updater. Configurado contra GitHub Releases (`publish` no `electron-builder.yml`), UI nas Configurações com verificar/baixar/instalar e reiniciar. `updater.ts` gerencia estado, eventos e push via IPC para o renderer.
-- [ ] **Logs estruturados** - Melhorar sistema de logs para debug. Hoje são ~15 `console.*` no main, sem ficheiro, sem nível e sem timestamp; um problema em campo não deixa rasto.
-- [ ] **Crash reporting** - Adicionar report de crashes (opcional). `crashReporter` não é inicializado em lado nenhum.
+- [x] **Logs estruturados** - **Concluído:** o main espelha `console.*` em `<userData>/logs/my-rgb.log`, com timestamp, nível, rotação de 2 MB e três arquivos antigos. `MYRGB_LOG_LEVEL` sobrepõe o nível salvo, e a página **Registos** lê e exporta os ficheiros.
+- [x] **Crash reporting** - **Concluído:** o Crashpad é inicializado no arranque e grava os relatórios em `logs/crash/`, só na máquina — nunca são enviados. `MYRGB_CRASH_REPORTER=0` ou `--no-crash-reporter` desliga.
 - [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC". Caminho escolhido (12/11/2026): **SignPath Foundation** (gratuito para OSS); alternativa Azure Trusted Signing. Passos em `documentation/release.md`.
 - [x] **Corrigir o `.deb` no Debian/Ubuntu** - **Concluído na 0.3.1 (13/11/2026):** a 0.3.0 instalava o `chrome-sandbox` em `0755` e o Electron abortava no arranque ("The SUID sandbox helper binary was found, but is not configured correctly"). O `afterInstall` próprio substituía o template do electron-builder e não repetia o `chmod 4755`; o script voltou a criar o link `/usr/bin/my-rgb` e a instalar o perfil AppArmor. Para a 0.3.0 já instalada: `sudo chmod 4755 /opt/MyRGB/chrome-sandbox`. Detalhes em `documentation/desenvolvimento.md` (seção **O pacote .deb**).
-- [ ] **Ignorar artefactos de teste** - `.vitest/` (cache do reporter JSON) não está no `.gitignore` e aparece como untracked.
+- [x] **Ignorar artefactos de teste** - **Concluído:** `.vitest/` está no `.gitignore`.
 
 ---
 
@@ -238,7 +238,7 @@
 
 ### 9.4 Windows — o que funciona e o que falta
 
-**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **release automática** (`release.yml`: NSIS + helper + `latest.yml`, com checksums e proveniência; a `v0.3.0` foi publicada em 12/11/2026).
+**Funciona:** controlo AURA com deteção contínua de conflito, autostart (`setLoginItemSettings`), bandeja, S.M.A.R.T. por CIM (`health/windows.ts`), GPU por `nvidia-smi`, FPS por ETW no helper, **sensores de placa-mãe** por `LibreHardwareMonitorLib`, overlay sempre no topo e **release automática** (`release.yml`: NSIS + helper + `latest.yml`, com checksums e proveniência; a `v0.3.0` foi publicada em 12/11/2026 e a `v0.3.1` em 13/11/2026 com a correção do `.deb`).
 
 **Falta ou está frágil:**
 
@@ -276,4 +276,4 @@
 - **Compatibilidade**: Manter suporte apenas para ASUS AURA USB (`0x0B05:0x19AF`)
 - **Branch**: Trabalhar sempre em `dev`, merge para `main` apenas sob solicitação explícita
 
-_Última atualização: 29 de Outubro de 2026_
+_Última atualização: 13 de Novembro de 2026_
