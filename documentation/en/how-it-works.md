@@ -8,33 +8,37 @@ This document explains MyRGB from the inside: what happens between clicking an e
 
 ```
    ┌───────────────────────────────────────────────────────────┐
-   │ renderer (React)                                        │
-   │  TopBar · ZoneRail · StripPreview · PatternPicker ·      │
-   │  GradientEditor · ParamSliders                           │
+   │ renderer (React)                                          │
+   │  Sidebar · TopBar · ZoneRail · StripPreview ·             │
+   │  PatternPicker · GradientEditor · ParamSliders            │
+   │  diagnostics pages and overlay                            │
    │                                                           │
    │  Does not know the hardware. No timers. Does not write    │
-   │  anything to disk.                                        │
+   │  anything to disk.                                       │
    └───────────────┬───────────────────────────────────────────┘
                    │  window.myrgb.*  (contextBridge)
    ┌───────────────▼───────────────────────────────────────────┐
-   │ preload                                                  │
-   │  Typed API: call → invoke, event → onX(callback)         │
+   │ preload                                                   │
+   │  Typed API: call → invoke, event → onX(callback)          │
    └───────────────┬───────────────────────────────────────────┘
                    │  IPC (invoke / send)
    ┌───────────────▼───────────────────────────────────────────┐
-   │ main                                                     │
-   │  EffectEngine  ──►  AuraUsbDevice  ──►  HID (node-hid)   │
+   │ main                                                      │
+   │  EffectEngine ──► LightRouter ──► AURA backend ──► HID    │
    │  ProfileStore  ──►  JSON on disk                          │
    │  SettingsStore ──►  JSON on disk                          │
-   │  Tray · conflict detection                               │
+   │  features/     ──►  sensors, disks, network, games,       │
+   │                     bottleneck, overlay and logs          │
+   │  Tray · conflict detection · file log                     │
    └───────────────────────────────────────────────────────────┘
 ```
 
-Three rules the code respects:
+Four rules the code respects:
 
 1. **The renderer never talks to HID.** It only asks things through the preload bridge. The main process opens the device.
 2. **The effects engine owns the frames.** The renderer draws no frame: it receives the buffer already destined for the hardware and paints it on the canvas.
-3. **The main process owns the disk.** The renderer never writes a file; it calls an API and the main process writes.
+3. **The engine does not know the device.** It hands each zone's colours to the router (`light/router.ts`), which decides which backend writes — today, the AURA controller.
+4. **The main process owns the disk.** The renderer never writes a file; it calls an API and the main process writes.
 
 ---
 
@@ -45,7 +49,7 @@ Three rules the code respects:
 3. The preload does `ipcRenderer.invoke('profile:setZone', ...)`.
 4. The main process applies the change to the profile, **writes the JSON to disk** (with a 250 ms delay to group consecutive changes) and returns the updated profile.
 5. The renderer receives the new profile and redraws.
-6. The effects engine, which is in the main process, starts using the new profile on the next frame.
+6. The effects engine, which is in the main process, starts using the new profile on the next frame and hands the colours to the lighting router.
 
 No step has a copy of the truth: the profile on disk, the profile in the main process memory and the profile in the renderer are the same object, synchronized via IPC.
 
@@ -62,7 +66,8 @@ Every frame (30 fps by default), the engine:
 3. For each LED in the zone, calls the pattern and receives a number between 0 and 1.
 4. Converts that number into a color using the palette gradient.
 5. Applies intensity and global brightness.
-6. Delivers the ready buffer: the hardware receives the same buffer the interface receives.
+6. Hands each zone's colours to the router, which writes to the target's backend. A zone switched off **is not skipped**: it is written in black, LED by LED, otherwise the LEDs would keep the last colour they received.
+7. The hardware and the interface receive the same buffer.
 
 ### The contract with patterns
 
@@ -77,6 +82,8 @@ A pattern (`src/main/engine/patterns/*.ts`) receives a `PatternContext`:
 | `speed` | the global speed multiplier |
 | `params` | the effect parameters, already filled with defaults |
 | `sampleGradient(u)` | the gradient color at position `u` |
+| `hash(n)` | deterministic pseudo-random number, from 0 to 1 |
+| `noise(x)` | smooth 1D noise, from -1 to 1 |
 
 And returns one of two things:
 
@@ -102,6 +109,36 @@ As a consequence, frame 42 is the same on Linux, Windows and any machine — and
 `StripPreview` draws the buffer the engine just produced. It does not run a second version of the engine, nor recalculate anything: it just paints pixels. If the preview shows purple, the LED turns purple.
 
 The only difference between the preview and the hardware is **scale**: the large strip in the interface represents the zone being edited, and the thin strips represent the other zones.
+
+---
+
+## The lighting router
+
+The engine does not call the controller. It calls `LightRouter.write(zoneId, colors)` (`src/main/light/router.ts`), and the router looks up that zone's **target** in the profile:
+
+```jsonc
+"targets": [
+  {
+    "id": "aura:argb0",
+    "backend": "aura",
+    "deviceId": "aura",
+    "zoneIndex": 0,
+    "label": "ARGB Header 1",
+    "ledCount": 72,
+    "enabled": true
+  }
+]
+```
+
+`targets` is **optional**: an old profile opens unchanged, because `reconcileProfile` synthesizes the AURA targets from the hardware layout. The short `zoneId` (`argb0`, `mainboard`) remains the key used by the interface and the engine.
+
+There is one backend today, `aura`, which maps `zoneIndex` straight to the controller channel. The split exists for the future: OpenRGB, Razer and Corsair arrive as new backends without touching the engine.
+
+Three router rules:
+
+- **Only the AURA backend is critical.** A failure there stops the output with the usual message; a failure in another backend is reported and the frame continues.
+- **`minIntervalMs` throttles writes per target**, so a slower backend is not flooded with 30 writes per second.
+- **`acquire()`/`release()`** run when that backend's targets appear or disappear — where an external backend would open and close its connection.
 
 ---
 
@@ -162,15 +199,38 @@ node tools/compare-frames.mjs frames-linux frames-windows
 Expected output:
 
 ```
-IDENTICAL: 60 frames match byte for byte
+IDENTICAL: 60 frames match byte for byte, manifest identical
 ```
 
 Each `.bin` file contains the format header, the LED count per zone, and the RGB triplets of all LEDs. The `manifest.json` brings the profile used, to ensure both runs used the same configuration.
 
+The file format:
+
+```
+magic    8 bytes  "MYRGBFRM"
+u32      version
+u32      frame index
+u32      number of zones
+u32[]    LEDs per zone
+u32      pixel buffer size
+bytes    RGB triplets
+```
+
 ### The two conditions that must hold
 
-1. **The same profile.** `--dump-frames` uses the default profile reconciled with the real hardware layout. Since the layout comes from the controller's configuration table, both machines need the same board (or at least the same number of headers).
+1. **The same profile.** `--dump-frames` uses the default profile reconciled with the real hardware layout. Since the layout comes from the controller's configuration table, both machines need the same board (or at least the same number of headers). `manifest.json` records that layout and `compare-frames` compares it: if it differs, the tool fails instead of comparing bytes from different jobs.
 2. **The same clock.** The dump uses a deterministic clock: frame *n* is always at exactly `n / fps` seconds from a fixed origin. It doesn't matter what the system time is, nor the machine load.
+
+### Without hardware: offline mode and CI
+
+`--dump-offline` replaces the layout read from the controller with a fixed synthetic layout (`SYNTHETIC_LAYOUT` in `src/main/dumpFrames.ts`: 1 onboard LED and 3 headers of 72 LEDs). The dump then runs on any machine and in CI, where no AURA hardware exists.
+
+`tests/parity.test.ts` uses exactly that path: it renders 60 frames, computes the SHA-256 of each one and compares with `tests/fixtures/parity-frames.json`. The Linux and Windows CI jobs run the same test against the same fixture — if both platforms pass, the bytes are identical on both. The test also exercises `compare-frames` for real: two identical dumps pass, a changed byte or a different manifest fails.
+
+```bash
+npm run test:parity      # runs only the parity test
+npm run parity:golden    # regenerates the fixture (only after an intentional change)
+```
 
 ---
 
@@ -211,7 +271,10 @@ The step-by-step to resolve it is in [windows.md](windows.md).
 | | Path | Content |
 |---|---|---|
 | Profiles | `profiles/<name>.json` | zones, effects, palettes, global configuration |
-| Settings | `settings.json` | autostart, minimize to tray, last profile, start with lights off |
+| Settings | `settings.json` | autostart, minimize to tray, last profile, start with lights off, log level, overlay and updates |
+| Logs | `logs/my-rgb.log` | file log, with 2 MB rotation and three old files |
+| Crash | `logs/crash/` | local Crashpad reports; never uploaded |
+| Disk history | `storage/scans.json` | totals and the 1000 largest folders per scanned root |
 
 `profiles/` is inside the application data folder:
 
@@ -250,7 +313,8 @@ The main process notifies the interface when writing actually happens (event `pr
     "speed": 1,
     "fps": 30,
     "outputEnabled": true
-  }
+  },
+  "targets": [ /* optional: where each zone is written; absent = AURA */ ]
 }
 ```
 
@@ -263,13 +327,18 @@ The schema is the same on Linux and Windows: you can copy the file from one mach
 ```
 src/
   shared/            types + color math (used by both sides)
-    types.ts         ZoneConfig, ParamSpec, Profile, IPC channels
+    types.ts         ZoneConfig, ParamSpec, Profile, AppSettings
     color.ts         HSV, RGB, gradient sampling
     api.ts           the typed bridge surface
+    features/        diagnostics page contracts
+    format.ts        bytes, clocks and dates
   main/
     aura/
       auraProtocol.ts  pure frames, without hardware
       auraDevice.ts    HID transport
+    light/
+      router.ts        decides which backend writes each target
+      backends/aura.ts AURA backend (direct channel)
     engine/
       engine.ts        the frame loop
       palette.ts       built-in palettes + sampling
@@ -277,19 +346,29 @@ src/
     store/
       profileStore.ts  profiles on disk, hardware reconciliation
       settings.ts      application settings
+    features/        system, sensors, health, disks, network, logs,
+                     games, bottleneck and overlay
     platform/
       conflict.ts      Armoury Crate / OpenRGB detection
+    ipc/
+      register.ts      every IPC channel
+    logging/
+      index.ts         file log; local crash reporter
     docs/
       effectsDoc.ts    effects catalog generator
-    index.ts           the main process, IPC, window, tray, CLI modes
+    index.ts           window, tray, CLI modes and lifecycle
     dumpFrames.ts      the frame recorder
     zones.ts           builds zones from the hardware layout
     tray.ts            tray icon and menu
-  preload/index.ts   the contextBridge bridge
+  preload/index.ts     the contextBridge bridge
   renderer/src/
-    store.ts          state (zustand) and the API bridge
-    components/       TopBar, ZoneRail, StripPreview, PatternPicker,
-                       GradientEditor, ParamSliders, HelpTip, Toast
+    store.ts           state (zustand) and the API bridge
+    navigation.ts      the page list and sidebar groups
+    pages/             Overview, Lighting, System, Sensors, Disks,
+                       Network, Logs, Games, Bottleneck, Overlay, Integrations
+    components/        TopBar, Sidebar, ZoneRail, StripPreview, PatternPicker,
+                       GradientEditor, ParamSliders, HelpTip, Toast, ui/*
+    overlay/           separate bundle for the overlay window
 tests/               vitest
 tools/               command-line scripts
 documentation/       this folder

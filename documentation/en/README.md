@@ -4,9 +4,9 @@ RGB lighting control for ASUS AURA boards — **the same program, the same effec
 
 MyRGB talks directly to the AURA USB controller HID protocol (`0b05:19af`). It is not an OpenRGB wrapper: it is its own protocol implementation, which makes behavior identical on both operating systems.
 
-![MyRGB](build/icon-256.png)
+![MyRGB](../../build/icon-256.png)
 
-> **Documentation:** the [`documentation/`](documentation/) folder explains the program from the inside, what each part of the interface does, the catalog of 50 effects, zones and profiles, and how to develop.
+> **Documentation:** the [`documentation/`](../README.md) folder explains the program from the inside, what each part of the interface does, the catalog of 50 effects, zones and profiles, and how to develop.
 
 ---
 
@@ -34,11 +34,11 @@ MyRGB talks directly to the AURA USB controller HID protocol (`0b05:19af`). It i
 | Disks | ready: Units, Health (S.M.A.R.T. / CIM) and Analysis tabs (largest files and folders, games and duplicates) |
 | Network | ready: latency, jitter, loss, DNS, speed and bufferbloat |
 | Logs | ready: log files, level filter and export as `.txt` |
-| Games | ready: offline base with 17 thousand games, measured or estimated FPS, with source and confidence ([methodology](documentation/jogos.md)) |
+| Games | ready: offline base with 17,230 games, measured or estimated FPS, with source and confidence ([methodology](../jogos.md)) |
 | Bottleneck | ready: GPU × CPU balance, live limiter and 1/3/5 min session |
 | Overlay | ready: metrics over the game, global shortcut and choice of what to show; real FPS on Windows, "unavailable" on Linux |
 | Overview | ready: hardware summary, live limiter, disks, health, network and shortcuts to what needs attention |
-| Integrations | **not implemented**: the reason and the plan are in [documentation/planejamento-iluminacao-externa.md](documentation/planejamento-iluminacao-externa.md) |
+| Integrations | **not implemented**: the reason and the plan are in [planejamento-iluminacao-externa.md](../planejamento-iluminacao-externa.md) |
 
 The lighting router already exists and accepts other backends without touching the engine; OpenRGB, Razer and Corsair are for later, and the Integrations page is the only one that still has no content.
 
@@ -94,7 +94,7 @@ npm run build:linux  # AppImage + .deb in release/
 ## Installation on Windows
 
 1. Install MyRGB (`MyRGB-<version>-setup.exe`).
-2. **Disable Armoury Crate / Aura Sync lighting** — see [documentation/windows.md](documentation/windows.md) for the step-by-step and to diagnose flickering.
+2. **Disable Armoury Crate / Aura Sync lighting** — see [windows.md](windows.md) for the step-by-step and to diagnose flickering.
 
 The NSIS installer registers the Windows autostart entry when "Start with system" is enabled in MyRGB settings.
 
@@ -125,11 +125,11 @@ Without the helper, the Overlay page shows "unavailable" and offers **Try again*
 | Turn on/off | **Lights on** button in the top bar (preview keeps running) |
 | Apply to all zones | **⇉ Apply to all zones** button at the top of the zones bar |
 | Rename a zone | **✎** button on the zone card |
-| Profiles | The profile is saved automatically on each change; **Save as…** creates a copy with another name; **✎** renames |
+| Profiles | The profile is saved automatically on each change; **Save** opens the current name (keeping it overwrites; changing it creates a copy); **✎** renames |
 
 Each zone has its own effect. The eye/style button in the **Gradient** panel duplicates a palette so you can experiment without losing the original.
 
-Every panel has a **?** that explains what it does, and each parameter has a **?** next to the label that explains that control. The complete effects catalog is in [documentation/efeitos.md](documentation/efeitos.md).
+Every panel has a **?** that explains what it does, and each parameter has a **?** next to the label that explains that control. The complete effects catalog is in [efeitos.md](../efeitos.md).
 
 ### The 50 effects
 
@@ -239,6 +239,6 @@ The NSIS installer itself is not generated in CI: it needs Windows (or `wine`) t
 
 ## License and attribution
 
-- [LICENSE](../LICENSE): MIT © 2026 ClecioSousa00.
-- [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md): the MIT text from Reset Explode, the attribution sentence, the derived files table, runtime dependencies and their licenses, and the note about the AURA protocol (reimplemented from behavior, without OpenRGB code).
+- [LICENSE](../../LICENSE): MIT © 2026 ClecioSousa00.
+- [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md): the MIT text from Reset Explode, the attribution sentence, the derived files table, runtime dependencies and their licenses, and the note about the AURA protocol (reimplemented from behavior, without OpenRGB code).
 - Every file derived from Reset carries the notice in its header.

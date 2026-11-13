@@ -56,7 +56,7 @@ operacionais.
 | Discos | pronta: abas Unidades, Saúde (S.M.A.R.T. / CIM) e Análise (maiores arquivos, pastas, jogos e duplicados) |
 | Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
 | Registos | pronta: ficheiros de log, filtro por nível e exportação em `.txt` |
-| Jogos | pronta: base offline com 17 mil jogos, FPS medido ou estimado, com fonte e confiança ([metodologia](documentation/jogos.md)) |
+| Jogos | pronta: base offline com 17.230 jogos, FPS medido ou estimado, com fonte e confiança ([metodologia](documentation/jogos.md)) |
 | Gargalo | pronto: equilíbrio GPU × CPU, limitador ao vivo e sessão de 1/3/5 min |
 | Overlay | pronto: métricas sobre o jogo, atalho global e escolha do que mostrar; FPS real no Windows, "indisponível" no Linux |
 | Visão geral | pronta: hardware resumido, limitador ao vivo, discos, saúde, rede e atalhos para o que precisa de atenção |
@@ -75,7 +75,7 @@ que ainda não tem conteúdo.
 | SO | Linux (x64) ou Windows (x64) |
 | Node | 20+ para desenvolvimento |
 
-O controlador AURA USB é o presente em placas ASUS a partir da geração
+O controlador AURA USB está presente em placas ASUS a partir da geração
 X470/Z390. É ele que controla os headers 5V endereçáveis e os LEDs onboard.
 
 ---
@@ -163,7 +163,7 @@ temperaturas e ventoinhas da placa-mãe não puderam ser lidas.
 | Ligar/desligar | Botão **Luzes ligadas** na barra superior (o preview continua rodando) |
 | Aplicar em todas as zonas | Botão **⇉ Aplicar a todas as zonas**, no topo da barra de zonas |
 | Renomear uma zona | Botão **✎** no cartão da zona |
-| Perfis | O perfil é salvo sozinho a cada alteração; **Salvar como…** cria uma cópia com outro nome, **✎** renomeia |
+| Perfis | O perfil é salvo sozinho a cada alteração; **Salvar** abre o nome atual (mantê-lo grava por cima; trocá-lo cria uma cópia), **✎** renomeia |
 
 Cada zona tem o seu próprio efeito. O botão de olho/estilo no painel
 **Gradiente** duplica uma paleta para você poder experimentar sem perder a
@@ -314,14 +314,15 @@ src/
     engine/        motor de efeitos + os 50 padrões
     store/         perfis e configurações em JSON
     platform/      detecção de conflito com Armoury Crate / OpenRGB
-    features/      coletores: sistema, sensores, saúde, rede, jogos, gargalo, overlay
+    features/      coletores: sistema, sensores, saúde, discos, rede, registos,
+                   jogos, gargalo e overlay
     ipc/           todos os canais (`register.ts`)
     logging/       registo em ficheiro (nível + rotação) e relatório de crash
   preload/         ponte contextBridge (única ponte renderer ↔ main)
   renderer/
     src/           React: barra superior, zonas, preview, editor de gradiente e páginas
     overlay.html   bundle separado da janela do overlay
-helper/            helper .NET 8 do Windows (FPS por ETW)
+helper/            helper .NET 8 do Windows (FPS por ETW + sensores)
 tests/             vitest
 tools/             scripts de linha de comando
 documentation/     a referência do projeto

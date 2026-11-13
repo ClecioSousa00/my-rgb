@@ -9,11 +9,11 @@ comportam, e como desenvolver.
 
 | Página | O que tem nela |
 |---|---|
-| [como-funciona.md](como-funciona.md) | A arquitetura, o protocolo HID, o motor de efeitos e a prova de paridade entre Linux e Windows |
-| [funcionalidades.md](funcionalidades.md) | O programa tela por tela: barra superior, zonas, pré-visualização, efeitos, gradiente e parâmetros |
-| [jogos.md](jogos.md) | A estimativa de FPS: fontes e licenças, metodologia, níveis de confiança, atualização da base e limitações |
+| [como-funciona.md](como-funciona.md) | A arquitetura, o protocolo HID, o motor de efeitos, o roteador de iluminação e a prova de paridade entre Linux e Windows |
+| [funcionalidades.md](funcionalidades.md) | O programa tela por tela: a iluminação (zonas, pré-visualização, efeitos, gradiente, parâmetros) e o dashboard de diagnóstico (Visão geral, Sistema, Sensores, Discos, Rede, Registos, Jogos, Gargalo, Overlay) |
+| [jogos.md](jogos.md) | A estimativa de FPS: fontes e licenças, metodologia, níveis de confiança, atualização da base (17.230 jogos) e limitações |
 | [efeitos.md](efeitos.md) | O catálogo dos 50 efeitos, com todos os parâmetros e o que cada um faz |
-| [zonas-e-perfis.md](zonas-e-perfis.md) | Zonas, quantidade de LEDs, nomes, o botão "aplicar a todas" e o workings de perfis |
+| [zonas-e-perfis.md](zonas-e-perfis.md) | Zonas, quantidade de LEDs, nomes, o botão "aplicar a todas" e o funcionamento dos perfis |
 | [windows.md](windows.md) | O passo a passo no Windows, o Armoury Crate e o diagnóstico de cintilação |
 | [desenvolvimento.md](desenvolvimento.md) | A stack, os scripts, os testes, as ferramentas e como adicionar um efeito novo |
 | [release.md](release.md) | Como uma tag `vX.Y.Z` vira uma release: o workflow, a configuração do GitHub, checksums, proveniência e assinatura |
