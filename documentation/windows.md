@@ -137,6 +137,22 @@ MyRGB.exe --dump-frames frames-offline --dump-count 60 --dump-offline
 
 ---
 
+## FPS e sensores da placa-mãe
+
+O FPS real do jogo (overlay e sessão do Gargalo) e os sensores de placa-mãe
+(temperaturas, ventoinhas e consumos na página Sensores) vêm do helper .NET que
+acompanha o instalador. Ele precisa de administrador e é iniciado sob demanda:
+na primeira vez que você liga o overlay, inicia uma sessão do Gargalo ou abre
+Sensores, o Windows mostra **um** pedido de UAC.
+
+Recusar o pedido não quebra nada: o overlay continua abrindo com o FPS em `—`,
+e as páginas dizem o que não pôde ser lido e oferecem **Tentar novamente**.
+Nenhum valor é inventado. O helper só é incluído no instalador se
+`npm run build:helper` tiver rodado antes de `npm run build:win` (veja
+[desenvolvimento.md](desenvolvimento.md#o-helper-do-windows-fps-e-sensores)).
+
+---
+
 ## Instalação em modo portável
 
 O instalador NSIS é opcional. Para uma instalação sem registro, extraia o

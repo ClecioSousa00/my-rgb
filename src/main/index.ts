@@ -18,6 +18,7 @@ import { buildZones } from './zones'
 import { createTray, type TrayHandle } from './tray'
 import { resolveResource } from './resources'
 import { detectConflicts, type ConflictReport } from './platform/conflict'
+import { applyAutostartEntry, autostartCommand } from './platform/autostart'
 import { runFrameDump, syntheticDumpInput } from './dumpFrames'
 import { buildEffectsDoc } from './docs/effectsDoc'
 import { initAutoUpdater } from './updater'
@@ -134,6 +135,19 @@ class MyRgbApp {
     // The setting is the user's choice; the environment variable is an escape
     // hatch for support, so it wins when present.
     if (!envLogLevel) applyLogLevel(this.settings.settings.logLevel ?? 'info')
+
+    // Repair an autostart entry that is switched on but missing. The Linux
+    // implementation used to be a no-op, so users who enabled the option
+    // before this fix have the flag saved and no file behind it. Only runs
+    // packaged: the test harness also starts the app, and it must not rewrite
+    // the real entry to point at the development Electron binary.
+    if (
+      process.platform === 'linux' &&
+      app.isPackaged &&
+      this.settings.settings.autostartAtLogin
+    ) {
+      this.applyAutostart(true)
+    }
 
     const initial = defaultProfile()
     this.profileStore = new ProfileStore(app.getPath('userData'), initial, {
@@ -583,10 +597,35 @@ class MyRgbApp {
   /**
    * Register (or remove) the app as a login item.
    *
-   * Electron maps this to the Windows registry on Windows and to a
-   * .desktop autostart entry on Linux, so the same code covers both.
+   * Windows and macOS go through Electron. On Linux that API is a no-op, so
+   * the freedesktop `autostart` entry is written by hand
+   * (`platform/autostart.ts`) — otherwise the switch would look enabled while
+   * nothing started at login.
    */
   applyAutostart(enabled: boolean): void {
+    if (process.platform === 'linux') {
+      try {
+        const result = applyAutostartEntry({
+          enabled,
+          appData: app.getPath('appData'),
+          program: autostartCommand({
+            packaged: app.isPackaged,
+            execPath: process.execPath,
+            appPath: app.getAppPath(),
+            appImage: process.env.APPIMAGE
+          })
+        })
+        if (result.changed) {
+          console.info(
+            `Autostart ${enabled ? 'written' : 'removed'}: ${result.path}`
+          )
+        }
+      } catch (err) {
+        console.warn(`Could not change the autostart entry: ${errorMessage(err)}`)
+      }
+      return
+    }
+
     try {
       app.setLoginItemSettings({
         openAtLogin: enabled,

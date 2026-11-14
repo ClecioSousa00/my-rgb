@@ -10,35 +10,41 @@ Linux e no Windows.
 
 ```
    ┌───────────────────────────────────────────────────────────┐
-   │ renderer (React)                                        │
-   │  TopBar · ZoneRail · StripPreview · PatternPicker ·      │
-   │  GradientEditor · ParamSliders                           │
+   │ renderer (React)                                          │
+   │  Sidebar · TopBar · ZoneRail · StripPreview ·             │
+   │  PatternPicker · GradientEditor · ParamSliders            │
+   │  páginas de diagnóstico e overlay                         │
    │                                                           │
-   │  Não conhece o hardware. Não tem timers. Não escreve       │
+   │  Não conhece o hardware. Não tem timers. Não escreve      │
    │  nada em disco.                                           │
    └───────────────┬───────────────────────────────────────────┘
                    │  window.myrgb.*  (contextBridge)
    ┌───────────────▼───────────────────────────────────────────┐
-   │ preload                                                  │
-   │  Typed API: chamada → invoke, evento → onX(callback)     │
+   │ preload                                                   │
+   │  Typed API: chamada → invoke, evento → onX(callback)      │
    └───────────────┬───────────────────────────────────────────┘
                    │  IPC (invoke / send)
    ┌───────────────▼───────────────────────────────────────────┐
-   │ main                                                     │
-   │  EffectEngine  ──►  AuraUsbDevice  ──►  HID (node-hid)   │
-   │  ProfileStore  ──►  JSON em disco                        │
-   │  SettingsStore ──►  JSON em disco                        │
-   │  Tray · detecção de conflito                            │
+   │ main                                                       │
+   │  EffectEngine ──► LightRouter ──► backend AURA ──► HID     │
+   │  ProfileStore  ──►  JSON em disco                          │
+   │  SettingsStore ──►  JSON em disco                          │
+   │  features/     ──►  sensores, discos, rede, jogos,          │
+   │                     gargalo, overlay e registos             │
+   │  Tray · detecção de conflito · log em ficheiro             │
    └───────────────────────────────────────────────────────────┘
 ```
 
-Três regras que o código respeita:
+Quatro regras que o código respeita:
 
 1. **O renderer nunca fala com o HID.** Ele só pede coisas pela ponte do
    preload. Quem abre o dispositivo é o processo principal.
 2. **O motor de efeitos é o dono dos quadros.** O renderer não desenha quadro
    nenhum: ele recebe o buffer que já vai para o hardware e o pinta no canvas.
-3. **O processo principal é o dono do disco.** O renderer nunca escreve arquivo;
+3. **O motor não conhece o dispositivo.** Ele entrega as cores por zona ao
+   roteador (`light/router.ts`), que decide qual backend escreve — hoje, o
+   controlador AURA.
+4. **O processo principal é o dono do disco.** O renderer nunca escreve arquivo;
    ele chama uma API e o processo principal grava.
 
 ---
@@ -53,7 +59,7 @@ Três regras que o código respeita:
    perfil atualizado.
 5. O renderer recebe o perfil novo e redesenha.
 6. O motor de efeitos, que está no processo principal, passa a usar o perfil
-   novo no próximo quadro.
+   novo no próximo quadro e entrega as cores ao roteador de iluminação.
 
 Nenhum passo disso tem uma cópia da verdade: o perfil no disco, o perfil na
 memória do processo principal e o perfil no renderer são o mesmo objeto,
@@ -73,8 +79,10 @@ A cada quadro (30 fps por padrão), o motor:
 3. Para cada LED da zona, chama o padrão e recebe um número entre 0 e 1.
 4. Converte esse número em cor usando o gradiente da paleta.
 5. Aplica a intensidade e o brilho global.
-6. Entrega o buffer pronto: o hardware recebe o mesmo buffer que a interface
-   recebe.
+6. Entrega as cores de cada zona ao roteador, que escreve no backend do alvo.
+   Uma zona desligada **não é pulada**: ela é escrita em preto, LED por LED,
+   senão os LEDs ficariam com a última cor que receberam.
+7. O hardware e a interface recebem o mesmo buffer.
 
 ### O contrato com os padrões
 
@@ -89,6 +97,8 @@ Um padrão (`src/main/engine/patterns/*.ts`) recebe um `PatternContext`:
 | `speed` | o multiplicador global de velocidade |
 | `params` | os parâmetros do efeito, já preenchidos com os padrões |
 | `sampleGradient(u)` | a cor do gradiente na posição `u` |
+| `hash(n)` | número pseudoaleatório determinístico, de 0 a 1 |
+| `noise(x)` | ruído 1D suave, de -1 a 1 |
 
 E devolve uma de duas coisas:
 
@@ -122,6 +132,46 @@ pré-visualização mostra roxo, o LED fica roxo.
 A única diferença entre a pré-visualização e o hardware é a **escala**: a fita
 grande da interface representa a zona editada, e as fitas finas representam as
 outras zonas.
+
+---
+
+## O roteador de iluminação
+
+O motor não chama o controlador. Ele chama `LightRouter.write(zoneId, colors)`
+(`src/main/light/router.ts`), e o roteador procura o **alvo** daquela zona no
+perfil:
+
+```jsonc
+"targets": [
+  {
+    "id": "aura:argb0",
+    "backend": "aura",
+    "deviceId": "aura",
+    "zoneIndex": 0,
+    "label": "Header ARGB 1",
+    "ledCount": 72,
+    "enabled": true
+  }
+]
+```
+
+O campo `targets` é **opcional**: um perfil antigo abre igual, porque o
+`reconcileProfile` cria os alvos AURA a partir do layout do hardware. O
+`zoneId` curto (`argb0`, `mainboard`) continua a ser a chave usada pela
+interface e pelo motor.
+
+Hoje existe um backend, `aura`, que mapeia `zoneIndex` direto para o canal do
+controlador. A separação existe para o futuro: OpenRGB, Razer e Corsair entram
+como novos backends, sem tocar no motor.
+
+Três regras do roteador:
+
+- **Só o backend AURA é crítico.** Uma falha nele para a saída, com a mensagem
+  de sempre; uma falha em outro backend é reportada e o quadro continua.
+- **`minIntervalMs` limita a frequência por alvo**, para um backend mais lento
+  não ser inundado com 30 escritas por segundo.
+- **`acquire()`/`release()`** rodam quando os alvos daquele backend aparecem ou
+  desaparecem — é onde um backend externo abriria e fecharia a conexão.
 
 ---
 
@@ -299,7 +349,10 @@ O passo a passo para resolver está em [windows.md](windows.md).
 | | Caminho | Conteúdo |
 |---|---|---|
 | Perfis | `profiles/<nome>.json` | zonas, efeitos, paletas, configuração global |
-| Configurações | `settings.json` | autostart, minimizar para a bandeja, último perfil, iniciar com as luzes apagadas |
+| Configurações | `settings.json` | autostart, minimizar para a bandeja, último perfil, iniciar com as luzes apagadas, nível de log, overlay e atualização |
+| Registos | `logs/my-rgb.log` | log em ficheiro, com rotação de 2 MB e três arquivos antigos |
+| Crash | `logs/crash/` | relatórios locais do Crashpad; nunca são enviados |
+| Histórico de discos | `storage/scans.json` | totais e as 1000 maiores pastas por raiz analisada |
 
 `profiles/` fica dentro da pasta de dados da aplicação:
 
@@ -342,7 +395,8 @@ salvo** da barra superior.
     "speed": 1,
     "fps": 30,
     "outputEnabled": true
-  }
+  },
+  "targets": [ /* opcional: onde cada zona é escrita; ausente = AURA */ ]
 }
 ```
 
@@ -356,13 +410,18 @@ máquina para a outra sem converter nada.
 ```
 src/
   shared/            tipos + matemática de cor (usados pelos dois lados)
-    types.ts         ZoneConfig, ParamSpec, Profile, canais de IPC
+    types.ts         ZoneConfig, ParamSpec, Profile, AppSettings
     color.ts         HSV, RGB, amostragem de gradiente
     api.ts           a superfície tipada da ponte
+    features/        contratos das páginas de diagnóstico
+    format.ts        bytes, clocks e datas
   main/
     aura/
       auraProtocol.ts  frames puros, sem hardware
       auraDevice.ts    transporte HID
+    light/
+      router.ts        decide qual backend escreve cada alvo
+      backends/aura.ts backend AURA (canal direto)
     engine/
       engine.ts        o laço de quadros
       palette.ts       paletas embutidas + amostragem
@@ -370,20 +429,30 @@ src/
     store/
       profileStore.ts  perfis em disco, reconciliação com o hardware
       settings.ts      configurações da aplicação
+    features/        sistema, sensores, saúde, discos, rede, registos,
+                     jogos, gargalo e overlay
     platform/
       conflict.ts      detecção de Armoury Crate / OpenRGB
+    ipc/
+      register.ts      todos os canais IPC
+    logging/
+      index.ts         registo em ficheiro; crash reporter local
     docs/
       effectsDoc.ts    gerador do catálogo de efeitos
-    index.ts           o processo principal, IPC, janela, tray, modos de CLI
+    index.ts           janela, tray, modos de CLI e ciclo de vida
     dumpFrames.ts      o gravador de quadros
     zones.ts           monta as zonas a partir do layout do hardware
     tray.ts            ícone e menu da bandeja
-  preload/index.ts   a ponte contextBridge
+  preload/index.ts     a ponte contextBridge
   renderer/src/
-    store.ts          estado (zustand) e a ponte com a API
-    components/       TopBar, ZoneRail, StripPreview, PatternPicker,
-                      GradientEditor, ParamSliders, HelpTip, Toast
-tests/               vitest
-tools/               scripts de linha de comando
-documentation/       esta pasta
+    store.ts           estado (zustand) e a ponte com a API
+    navigation.ts      a lista de páginas e grupos do menu
+    pages/             Visão geral, Iluminação, Sistema, Sensores, Discos,
+                       Rede, Registos, Jogos, Gargalo, Overlay, Integrações
+    components/        TopBar, Sidebar, ZoneRail, StripPreview, PatternPicker,
+                       GradientEditor, ParamSliders, HelpTip, Toast, ui/*
+    overlay/           bundle separado da janela do overlay
+tests/                 vitest
+tools/                 scripts de linha de comando
+documentation/         esta pasta
 ```

@@ -388,8 +388,9 @@ o que aconteceu e **exportar** o texto quando for pedir ajuda.
 - **Filtro por nível** — Todos, Erro, Aviso, Info ou Depuração. O filtro vale só
   para a exibição: o ficheiro não é alterado.
 - **Exportar .txt** — abre o diálogo do sistema para escolher onde salvar. O
-  texto exportado é uma linha por evento, no formato
-  `data hora NÍVEL mensagem`; o utilizador decide para quem enviar.
+  texto exportado é uma entrada por evento, no formato
+  `data hora NÍVEL mensagem`; um traço de pilha continua nas linhas seguintes,
+  como no ficheiro, e o utilizador decide para quem enviar.
 - **Abrir pasta** — o ícone no cabeçalho abre `logs/` no gerenciador de
   arquivos, onde também estão os minidumps de `logs/crash/`.
 - As linhas de continuação de um traço de pilha ficam anexadas ao evento que
@@ -564,8 +565,8 @@ botão faz e o que dá para combinar.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ MyRGB  ● AULA3-AR32-0309   Perfil [Padrão ▾] [Salvar como…] [✎] ✓ salvo │
-│         Brilho ▬▬▬ 100%   Veloc. ▬▬▬ 1.00x   [30 fps ▾]  [Luzes ligadas] │
+│ MyRGB  ● AULA3-AR32-0309  Perfil [Padrão ▾] [Salvar] [✎] [Exportar]  │
+│         Brilho ▬▬▬ 100%   Veloc. ▬▬▬ 1.00x   [Luzes ligadas]          │
 ├────────────────┬──────────────────────────────┬──────────────────────┤
 │ ZONAS      ?   │  PRÉ-VISUALIZAÇÃO          ? │  EFEITOS          ?  │
 │                │                              │  ┌────┬────┬────┐    │
@@ -607,14 +608,17 @@ então o aviso aparece mesmo que o outro programa tenha começado depois.
 O seletor abre e fecha a lista de perfis salvos. Trocar de perfil carrega a
 configuração inteira: zonas, efeitos, gradientes e as opções globais.
 
-**Salvar como…** guarda a configuração atual em um **perfil novo**, com o nome
-que você digitar. O novo perfil passa a ser o perfil editado e aparece no
-seletor; o original continua intacto.
+**Salvar** abre um campo já preenchido com o nome atual. Mantendo o nome, o
+perfil atual é gravado por cima do próprio arquivo; digitando outro nome,
+nasce um **perfil novo** e o original continua intacto. Se o nome já existir,
+uma confirmação aparece antes de qualquer sobrescrita.
 
-> O perfil é gravado **sozinho**, a cada alteração. O botão existe para criar
-> uma cópia com outro nome, não para "commitar" — por isso o indicador ao lado.
+> O perfil é gravado **sozinho**, a cada alteração. O botão não é um "commit":
+> ele serve para gravar por cima ou para criar uma cópia com outro nome — por
+> isso o indicador ao lado.
 
-**✎** renomeia o perfil atual. O arquivo antigo é apagado e o novo é escrito.
+**✎** renomeia o perfil atual. O arquivo antigo é apagado e o novo é escrito
+com o mesmo conteúdo.
 
 O indicador **✓ salvo / ● não salvo** mostra a situação real:
 
@@ -637,14 +641,12 @@ Dois sliders que valem para **todas** as zonas:
 A velocidade global se soma à velocidade de cada efeito: um efeito em 1.00x com
 a global em 2.00x corre em 2.00x.
 
-### FPS
+### FPS do motor
 
-Quantos quadros por segundo o motor gera: 15, 20, 30 (padrão) ou 60.
-
-- **15 fps** economiza CPU e deixa tudo mais suave (e some bem melhor).
-- **30 fps** é o padrão: indistinguível de 60 fps numa fita de LEDs.
-- **60 fps** é para efeitos muito rápidos. Cada quadro custa 13 escritas HID,
-  então vale a pena conferir se o computador acompanha.
+Não há seletor de FPS na interface: o motor usa o `fps` do perfil
+(`profile.global.fps`), que é **30** por padrão. É o valor que vale para todas
+as zonas, e cada quadro custa até 13 escritas HID com o layout completo
+(1 LED onboard + 3 headers de 72).
 
 ### Luzes ligadas / desligadas
 
@@ -662,11 +664,21 @@ escrever no hardware. Não desliga as luzes — para isso, use **Luzes desligada
 | Opção | O que faz |
 |---|---|
 | **Iniciar o motor ao abrir** | começa a animação assim que o programa abre |
-| **Iniciar com o sistema** | autostart no login do sistema (em modo oculto, `--hidden`) |
+| **Iniciar com o sistema** | cria a entrada de autostart no login e abre em modo oculto (`--hidden`) |
 | **Minimizar para a bandeja** | fechar a janela não encerra o programa |
 | **Abrir com as luzes apagadas** | começa com o output desligado |
 | **Nível de registo** | quanto vai para o ficheiro de registo: só erros, avisos, informação (padrão) ou depuração |
 | **Abrir pasta de registos** | abre, no gestor de ficheiros, a pasta com `my-rgb.log` e os relatórios de crash |
+
+> **Linux:** o Electron não implementa autostart no Linux — `setLoginItemSettings`
+> é uma função vazia. Por isso o MyRGB escreve a entrada freedesktop
+> `~/.config/autostart/my-rgb.desktop` (ou
+> `$XDG_CONFIG_HOME/autostart/my-rgb.desktop`). É esse ficheiro que a sessão lê
+> no login; desligar a opção apaga-o. Em AppImage o `Exec` aponta para o próprio
+> `.AppImage`, nunca para o ponto de montagem temporário; no `.deb` aponta para
+> `/opt/MyRGB/my-rgb`. Se a opção já estava ligada de uma versão anterior, a
+> entrada é recriada no arranque seguinte — antes dessa correção o interruptor
+> ficava marcado sem nada ser escrito.
 
 ### Registos e relatórios de crash
 

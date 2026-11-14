@@ -169,23 +169,25 @@ atraso agrupa alterações seguidas: mexer num slider não gera uma escrita por
 pixel de mouse.
 
 Isso responde a pergunta mais comum sobre o programa: *"onde está o botão de
-salvar?"*. Ele existe, mas faz outra coisa — ver abaixo.
+salvar?"*. Ele existe e pede o nome do perfil — ver abaixo.
 
-### Salvar como…
+### Salvar: por cima ou com outro nome
 
-Guarda a configuração atual em um **perfil novo**, com o nome que você digitar.
+O botão **Salvar** abre um campo já preenchido com o nome atual:
 
-- O perfil novo passa a ser o perfil editado.
-- O original **continua intacto**.
-- Os dois aparecem no seletor.
+- **mantenha o nome** → o perfil atual é gravado por cima do próprio arquivo;
+- **digite outro nome** → nasce um **perfil novo**; o original continua
+  intacto e os dois aparecem no seletor.
 
-É o botão "criar uma cópia com outro nome" — útil para guardar um estado que
-funciona antes de mexer nas coisas.
+Se o nome digitado já existir, aparece uma confirmação antes de qualquer
+sobrescrita. É o caminho para guardar um estado que funciona antes de mexer
+nas coisas.
 
 ### ✎ Renomear
 
-Muda o nome do perfil atual. O arquivo antigo é apagado e o novo é escrito. O
-perfil continua sendo o mesmo, com o mesmo conteúdo.
+Renomeia o perfil atual: o arquivo antigo é apagado e o novo é escrito com o
+mesmo conteúdo. Se o novo nome já existir, a confirmação de sobrescrita
+aparece antes de qualquer escrita.
 
 ### O indicador de salvamento
 

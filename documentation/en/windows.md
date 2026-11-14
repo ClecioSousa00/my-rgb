@@ -102,6 +102,23 @@ Expected result: `IDENTICAL: 60 frames match byte for byte`.
 
 ---
 
+## FPS and motherboard sensors
+
+Real game FPS (the overlay and the Bottleneck session) and the motherboard
+sensors (temperatures, fans and power draw on the Sensors page) come from the
+.NET helper shipped with the installer. It needs administrator permission and
+starts on demand: the first time you turn on the overlay, start a Bottleneck
+session or open Sensors, Windows shows **one** UAC prompt.
+
+Refusing it breaks nothing: the overlay still opens with FPS shown as `—`, and
+the pages say what could not be read and offer **Try again**. No value is
+invented. The helper is only included in the installer if
+`npm run build:helper` ran before `npm run build:win` (see
+[desenvolvimento.md](../desenvolvimento.md#o-helper-do-windows-fps-e-sensores),
+in Portuguese).
+
+---
+
 ## Portable installation
 
 The NSIS installer is optional. To install without registration, extract the generated `.exe` with 7-Zip and run `MyRGB.exe` from inside the extracted folder. Autostart and tray work the same.
