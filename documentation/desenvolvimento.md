@@ -624,7 +624,7 @@ byte a byte o mesmo que aparece na prévia.
 
 ## Os testes
 
-412 testes em 27 arquivos, todos rodando em alguns segundos.
+429 testes em 28 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -654,6 +654,7 @@ byte a byte o mesmo que aparece na prévia.
 | `tests/storage-duplicates.test.ts` | A ordem tamanho → hash parcial → hash completo, o agrupamento e o cancelamento sem apagar nada |
 | `tests/sensors-windows.test.ts` | A conversão das leituras do helper nos sensores da página e o descarte de valores fora dos limites |
 | `tests/helper-shared.test.ts` | A bridge compartilhada do helper: uma instância para FPS e sensores, a lease e o cache de falhas |
+| `tests/autostart.test.ts` | O quoting do `Exec`, a escolha do executável (AppImage, pacote, dev) e a escrita/remoção idempotente da entrada de autostart |
 | `tests/parity.test.ts` | O dump offline de frames bate byte a byte com a fixture dourada nos dois sistemas |
 
 ```bash
@@ -750,6 +751,39 @@ O binário nativo compilado localmente (`node_modules/node-hid/build`) é
 prefere esse diretório ao prebuild, e ele conteria o binário do Linux dentro do
 instalador do Windows. O que vai no pacote são só os prebuilds, cada um com o
 binário da plataforma certa.
+
+---
+
+## Autostart no Linux
+
+`app.setLoginItemSettings()` existe na API do Electron, mas no Linux o corpo da
+função é **vazio**: o app marcava a opção e nada era escrito. O caminho do
+Linux é uma entrada freedesktop em `$XDG_CONFIG_HOME/autostart`, que é
+exatamente `app.getPath('appData')/autostart` (`~/.config/autostart`).
+
+`src/main/platform/autostart.ts` concentra o formato, sem Electron:
+
+- `autostartCommand()` resolve o que vai no `Exec`, nesta ordem:
+  `process.env.APPIMAGE` (o `.AppImage` real, não o ponto de montagem
+  temporário) → `process.execPath` (pacote instalado, `/opt/MyRGB/my-rgb`) →
+  `process.execPath` + `app.getAppPath()` (desenvolvimento). `--hidden` é
+  sempre acrescentado, e é o que faz a janela não aparecer no login.
+- `escapeExecArg()` segue a especificação do `Exec`, não o shell: aspas
+  duplas agrupam um argumento, `"`, `` ` ``, `$` e `\` precisam de barra
+  invertida dentro delas, e um `%` literal vira `%%` para não ser lido como
+  código de campo.
+- `applyAutostartEntry()` cria ou apaga `my-rgb.desktop` e só informa
+  `changed: true` quando o conteúdo mudou.
+
+`MyRgbApp.applyAutostart()` usa esse módulo no Linux e mantém
+`setLoginItemSettings` no Windows e no macOS. No arranque, quando a opção está
+ligada e o app está empacotado, a entrada é recriada — isso conserta quem
+marcou a opção numa versão anterior, em que nada era escrito. A reparação não
+roda em modo de desenvolvimento (`app.isPackaged` é falso) para o teste
+automático não apontar a entrada real para o binário do Electron.
+
+`tests/autostart.test.ts` cobre o quoting, a escolha do executável, o conteúdo
+do ficheiro e a escrita/remoção idempotente numa pasta temporária.
 
 ---
 

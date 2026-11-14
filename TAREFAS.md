@@ -122,6 +122,7 @@
 - [x] **Crash reporting** - **Concluído:** o Crashpad é inicializado no arranque e grava os relatórios em `logs/crash/`, só na máquina — nunca são enviados. `MYRGB_CRASH_REPORTER=0` ou `--no-crash-reporter` desliga.
 - [ ] **Assinatura de código no Windows** - O instalador NSIS sai sem assinatura, então o SmartScreen mostra "Windows protegeu o seu PC". Caminho escolhido (12/11/2026): **SignPath Foundation** (gratuito para OSS); alternativa Azure Trusted Signing. Passos em `documentation/release.md`.
 - [x] **Corrigir o `.deb` no Debian/Ubuntu** - **Concluído na 0.3.1 (13/11/2026):** a 0.3.0 instalava o `chrome-sandbox` em `0755` e o Electron abortava no arranque ("The SUID sandbox helper binary was found, but is not configured correctly"). O `afterInstall` próprio substituía o template do electron-builder e não repetia o `chmod 4755`; o script voltou a criar o link `/usr/bin/my-rgb` e a instalar o perfil AppArmor. Para a 0.3.0 já instalada: `sudo chmod 4755 /opt/MyRGB/chrome-sandbox`. Detalhes em `documentation/desenvolvimento.md` (seção **O pacote .deb**).
+- [x] **Corrigir o autostart no Linux** - **Concluído (14/11/2026):** `app.setLoginItemSettings()` é uma função vazia no Linux, então "Iniciar com o sistema" era salvo sem nada ser criado. O main passou a escrever `~/.config/autostart/my-rgb.desktop` (`src/main/platform/autostart.ts`), com `--hidden` e o caminho real do AppImage ou do `.deb`, e recria a entrada no arranque para quem já tinha a opção ligada. Coberto por `tests/autostart.test.ts`. Detalhes em `documentation/desenvolvimento.md` (seção **Autostart no Linux**).
 - [x] **Ignorar artefactos de teste** - **Concluído:** `.vitest/` está no `.gitignore`.
 
 ---
@@ -276,4 +277,4 @@
 - **Compatibilidade**: Manter suporte apenas para ASUS AURA USB (`0x0B05:0x19AF`)
 - **Branch**: Trabalhar sempre em `dev`, merge para `main` apenas sob solicitação explícita
 
-_Última atualização: 13 de Novembro de 2026_
+_Última atualização: 14 de Novembro de 2026_

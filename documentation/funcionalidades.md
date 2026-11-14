@@ -664,11 +664,21 @@ escrever no hardware. Não desliga as luzes — para isso, use **Luzes desligada
 | Opção | O que faz |
 |---|---|
 | **Iniciar o motor ao abrir** | começa a animação assim que o programa abre |
-| **Iniciar com o sistema** | autostart no login do sistema (em modo oculto, `--hidden`) |
+| **Iniciar com o sistema** | cria a entrada de autostart no login e abre em modo oculto (`--hidden`) |
 | **Minimizar para a bandeja** | fechar a janela não encerra o programa |
 | **Abrir com as luzes apagadas** | começa com o output desligado |
 | **Nível de registo** | quanto vai para o ficheiro de registo: só erros, avisos, informação (padrão) ou depuração |
 | **Abrir pasta de registos** | abre, no gestor de ficheiros, a pasta com `my-rgb.log` e os relatórios de crash |
+
+> **Linux:** o Electron não implementa autostart no Linux — `setLoginItemSettings`
+> é uma função vazia. Por isso o MyRGB escreve a entrada freedesktop
+> `~/.config/autostart/my-rgb.desktop` (ou
+> `$XDG_CONFIG_HOME/autostart/my-rgb.desktop`). É esse ficheiro que a sessão lê
+> no login; desligar a opção apaga-o. Em AppImage o `Exec` aponta para o próprio
+> `.AppImage`, nunca para o ponto de montagem temporário; no `.deb` aponta para
+> `/opt/MyRGB/my-rgb`. Se a opção já estava ligada de uma versão anterior, a
+> entrada é recriada no arranque seguinte — antes dessa correção o interruptor
+> ficava marcado sem nada ser escrito.
 
 ### Registos e relatórios de crash
 

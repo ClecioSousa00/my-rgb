@@ -96,7 +96,7 @@ npm run build:linux  # AppImage + .deb in release/
 1. Install MyRGB (`MyRGB-<version>-setup.exe`).
 2. **Disable Armoury Crate / Aura Sync lighting** — see [windows.md](windows.md) for the step-by-step and to diagnose flickering.
 
-The NSIS installer registers the Windows autostart entry when "Start with system" is enabled in MyRGB settings.
+MyRGB registers the Windows autostart entry when "Start with system" is enabled in MyRGB settings (the installer does not create it). On Linux the same switch writes `~/.config/autostart/my-rgb.desktop`, since Electron's `setLoginItemSettings` does nothing there; the entry points at the AppImage file or at `/opt/MyRGB/my-rgb` and always passes `--hidden`.
 
 ### FPS in the overlay
 
@@ -183,7 +183,7 @@ Each `.bin` file contains the format header, the LED count per zone, and the RGB
 npm install          # installs and checks the node-hid native binary
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc for both projects (node + web)
-npm test             # vitest (412 tests, 27 files)
+npm test             # vitest (429 tests, 28 files)
 npm run build        # production build in out/
 npm run build:helper # Windows helper: FPS and sensors (needs .NET 8 SDK)
 npm run selftest     # starts the packaged UI and checks pages, IPC and frames

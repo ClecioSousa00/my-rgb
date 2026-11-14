@@ -107,6 +107,10 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 > Se você já usa o OpenRGB, a regra `/etc/udev/rules.d/60-openrgb-asus.rules`
 > faz o mesmo trabalho — mas a do MyRGB é a que o projeto mantém.
 
+Com o programa aberto, **⚙ → Iniciar com o sistema** cria
+`~/.config/autostart/my-rgb.desktop` e passa a abrir o MyRGB na bandeja a cada
+login; desligar a opção apaga a entrada.
+
 ### 2. Executar
 
 ```bash
@@ -127,8 +131,9 @@ npm run build:linux  # AppImage + .deb em release/
    [documentation/windows.md](documentation/windows.md) para o passo a passo e
    para diagnosticar cintilação.
 
-O instalador NSIS registra a entrada de autostart do Windows quando a opção
-"Iniciar com o sistema" está ligada nas configurações do MyRGB.
+O MyRGB registra a entrada de autostart do Windows quando a opção
+"Iniciar com o sistema" está ligada nas configurações do MyRGB (o instalador
+não a cria).
 
 ### FPS no overlay
 
@@ -251,7 +256,7 @@ regenere a fixture com `npm run parity:golden`.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest (412 testes, 27 arquivos)
+npm test             # vitest (429 testes, 28 arquivos)
 npm run build        # build de produção em out/
 npm run build:helper # helper do Windows: FPS e sensores (precisa do .NET 8 SDK)
 npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames
