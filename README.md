@@ -52,7 +52,7 @@ operacionais.
 |---|---|
 | Iluminação | pronta (tela original) |
 | Sistema | pronto: SO, placa-mãe/BIOS, CPU, memória, GPU e discos físicos |
-| Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx, histórico e o cartão de refrigeração (RPM da bomba e das ventoinhas) |
+| Sensores | pronto: leitura ao vivo (1 s), filtros, mín/máx, histórico, o cartão de refrigeração (RPM da bomba e das ventoinhas) e o **alerta térmico** (cor escolhida quando CPU ou GPU passa do limite) |
 | Discos | pronta: abas Unidades, Saúde (S.M.A.R.T. / CIM) e Análise (maiores arquivos, pastas, jogos e duplicados) |
 | Rede | pronta: latência, jitter, perda, DNS, velocidade e bufferbloat |
 | Registos | pronta: ficheiros de log, filtro por nível e exportação em `.txt` |
@@ -256,7 +256,7 @@ regenere a fixture com `npm run parity:golden`.
 npm install          # instala e confere o binário nativo do node-hid
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc nos dois projetos (node + web)
-npm test             # vitest (429 testes, 28 arquivos)
+npm test             # vitest (452 testes, 29 arquivos)
 npm run build        # build de produção em out/
 npm run build:helper # helper do Windows: FPS e sensores (precisa do .NET 8 SDK)
 npm run selftest     # sobe a UI empacotada e confere páginas, IPC e frames

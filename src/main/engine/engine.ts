@@ -38,6 +38,14 @@ export class EffectEngine {
   private lastTick = 0
   /** Whether the LEDs currently hold a colour we wrote. */
   private lightsState: 'unknown' | 'on' | 'off' = 'unknown'
+  /**
+   * Solid colour forced by the thermal alert.
+   *
+   * Kept in the engine (not in the profile) because it is a warning, not an
+   * edit: the next frame after clearing it renders the real effect again,
+   * and none of the user's zones or palettes are touched.
+   */
+  private thermalColor: RGB | null = null
 
   constructor(profile: Profile, zones: ZoneState[], options: EngineOptions) {
     this.profile = profile
@@ -60,6 +68,28 @@ export class EffectEngine {
     // Turning the output off must actually darken the LEDs, otherwise the
     // hardware keeps showing the last frame.
     this.syncOutput()
+  }
+
+  /**
+   * Force every enabled zone to one colour, or `null` to go back to the
+   * profile. Called from the sensor batches; zones the user switched off stay
+   * black, and the global brightness is still applied.
+   */
+  setThermalOverride(color: RGB | null): void {
+    if (!color) {
+      this.thermalColor = null
+      return
+    }
+    const current = this.thermalColor
+    if (
+      current &&
+      current.r === color.r &&
+      current.g === color.g &&
+      current.b === color.b
+    ) {
+      return
+    }
+    this.thermalColor = { ...color }
   }
 
   /**
@@ -166,6 +196,13 @@ export class EffectEngine {
     // the LEDs actually turn off instead of keeping their last colour.
     if (!config.enabled) {
       return new Array<RGB>(ledCount).fill({ r: 0, g: 0, b: 0 })
+    }
+
+    // The thermal warning replaces the effect in every enabled zone. It sits
+    // after the `enabled` check on purpose: a zone the user turned off must
+    // not light up because the processor is hot.
+    if (this.thermalColor) {
+      return new Array<RGB>(ledCount).fill(this.thermalColor)
     }
 
     // Resolve the effect, following the "mirror another zone" link if set.

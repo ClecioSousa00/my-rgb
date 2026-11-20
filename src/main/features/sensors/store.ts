@@ -17,8 +17,10 @@
 
 import type { SensorsSnapshot, SensorReading } from '@shared/features/sensors'
 import { SENSOR_HISTORY, SENSOR_INTERVAL_MS } from '@shared/features/sensors'
+import type { ThermalAlertConfig } from '@shared/features/thermal'
 import { collectSensors } from '.'
 import { buildCooling } from './cooling'
+import { evaluateThermal, nextWatch, type ThermalWatch } from './thermal'
 
 export interface SensorStats {
   min: number
@@ -82,6 +84,12 @@ export interface SensorsStoreOptions {
   intervalMs?: number
   historySize?: number
   onError?: (message: string) => void
+  /**
+   * Thermal alert configuration, read on every batch so a change made in the
+   * page applies on the next second without restarting the poll. The app
+   * returns the stored settings; the tests return a fixture.
+   */
+  thermal?: () => ThermalAlertConfig
 }
 
 export class SensorsStore {
@@ -90,6 +98,8 @@ export class SensorsStore {
   private busy = false
   private readonly stats = new Map<string, SensorStats>()
   private last: SensorsSnapshot | null = null
+  /** Which source was hot on the previous batch, for the hysteresis. */
+  private watch: ThermalWatch = { cpu: false, gpu: false }
 
   constructor(private readonly options: SensorsStoreOptions) {}
 
@@ -148,12 +158,19 @@ export class SensorsStore {
       const collect = this.options.collect ?? collectSensors
       const snapshot = await collect(Date.now())
       const readings = mergeReadings(this.stats, snapshot.readings, this.historySize)
+      const thermal = this.options.thermal
+        ? evaluateThermal(readings, this.options.thermal(), this.watch)
+        : undefined
+      // Reset even when the feature was just switched off, so re-enabling it
+      // starts from the configured threshold instead of a stale hysteresis.
+      this.watch = nextWatch(thermal)
       const merged: SensorsSnapshot = {
         ...snapshot,
         readings,
         // Built after the merge so the summary carries the session range, and
         // so the page never computes a second version of the same judgement.
-        cooling: buildCooling(readings)
+        cooling: buildCooling(readings),
+        ...(thermal ? { thermal } : {})
       }
       this.last = merged
       this.options.onBatch(merged)

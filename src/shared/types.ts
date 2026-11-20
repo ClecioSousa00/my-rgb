@@ -5,6 +5,7 @@
 
 import type { LightTarget } from './features/light'
 import type { OverlayConfig } from './features/overlay'
+import type { ThermalAlertConfig } from './features/thermal'
 import type { LogLevel } from './logging'
 
 export interface RGB {
@@ -216,6 +217,8 @@ export interface AppSettings {
   overlay?: OverlayConfig
   /** Check GitHub Releases for updates on startup and notify the user. */
   autoUpdateEnabled?: boolean
+  /** Paint the LEDs in one colour while the CPU or GPU is too hot. */
+  thermal?: ThermalAlertConfig
 }
 
 // ---------------------------------------------------------------------------
