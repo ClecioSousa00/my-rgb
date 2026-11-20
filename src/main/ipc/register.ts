@@ -25,6 +25,8 @@ import type { SettingsStore } from '../store/settings'
 import { getSystem } from '../features/system/info'
 import { listDrives } from '../features/system/drives'
 import type { SensorsStore } from '../features/sensors/store'
+import type { ThermalAlertConfig } from '@shared/features/thermal'
+import { DEFAULT_THERMAL_ALERT } from '@shared/features/thermal'
 import { listDiskHealth } from '../features/health'
 import {
   cancelNetworkDiagnosis,
@@ -88,6 +90,7 @@ export interface IpcHost {
   emitEngineState(): void
   refreshTray(): void
   applyAutostart(enabled: boolean): void
+  applyThermalGuard(config: ThermalAlertConfig): void
   clearEngineError(): void
 }
 
@@ -299,6 +302,11 @@ export function registerIpc(host: IpcHost): void {
     // Applied live: switching to "Depuração" and having to restart to see the
     // lines would defeat the point of the setting.
     if (patch.logLevel !== undefined) applyLogLevel(next.logLevel ?? 'info')
+    // The thermal alert holds the sensor poll open; the handler arms or
+    // releases that reference and clears the override when it is turned off.
+    if (patch.thermal !== undefined) {
+      host.applyThermalGuard(next.thermal ?? DEFAULT_THERMAL_ALERT)
+    }
     return next
   })
 

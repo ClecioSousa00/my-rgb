@@ -7,6 +7,7 @@ import { join } from 'path'
 import type { AppSettings } from '@shared/types'
 import { DEFAULT_OVERLAY_CONFIG, normalizeOverlayConfig } from '@shared/features/overlay'
 import { DEFAULT_LOG_LEVEL, normalizeLogLevel } from '@shared/logging'
+import { DEFAULT_THERMAL_ALERT, normalizeThermalAlert } from '@shared/features/thermal'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autoStart: true,
@@ -17,7 +18,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   startupProfile: null,
   logLevel: DEFAULT_LOG_LEVEL,
   ui: { lastPage: 'lighting', collapsedGroups: [] },
-  overlay: DEFAULT_OVERLAY_CONFIG
+  overlay: DEFAULT_OVERLAY_CONFIG,
+  thermal: DEFAULT_THERMAL_ALERT
 }
 
 export class SettingsStore {
@@ -51,7 +53,13 @@ export class SettingsStore {
       overlay: patch.overlay ? normalizeOverlayConfig(patch.overlay) : this.data.overlay,
       // Same for the log level: an unknown value from the renderer must not
       // reach the writer.
-      logLevel: patch.logLevel ? normalizeLogLevel(patch.logLevel) : this.data.logLevel
+      logLevel: patch.logLevel ? normalizeLogLevel(patch.logLevel) : this.data.logLevel,
+      // And for the thermal alert: threshold and colour are sanitised before
+      // they can reach the engine. Merged with the current config, so a
+      // partial patch cannot silently reset the limit or the colour.
+      thermal: patch.thermal
+        ? normalizeThermalAlert({ ...this.data.thermal, ...patch.thermal })
+        : this.data.thermal
     }
     this.write()
     return this.data
@@ -67,7 +75,10 @@ export class SettingsStore {
         ui: { ...DEFAULT_SETTINGS.ui, ...(parsed.ui ?? {}) },
         overlay: normalizeOverlayConfig(parsed.overlay),
         // A hand-edited or older settings file must not silence the log.
-        logLevel: normalizeLogLevel(parsed.logLevel)
+        logLevel: normalizeLogLevel(parsed.logLevel),
+        // An invalid threshold or colour falls back instead of reaching the
+        // engine, where `hexToRgb` would silently paint magenta.
+        thermal: normalizeThermalAlert(parsed.thermal)
       }
     } catch {
       this.data = { ...DEFAULT_SETTINGS }

@@ -23,11 +23,18 @@ import type {
   SensorsSnapshot
 } from '@shared/features/sensors'
 import { COOLING_STOPPED_RPM, SENSOR_INTERVAL_MS } from '@shared/features/sensors'
+import type { ThermalAlertConfig, ThermalAlertState } from '@shared/features/thermal'
+import {
+  DEFAULT_THERMAL_ALERT,
+  THERMAL_THRESHOLD_MAX,
+  THERMAL_THRESHOLD_MIN
+} from '@shared/features/thermal'
 import { formatSensor } from '@shared/format'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { Section } from '../components/ui/Section'
 import { Sparkline } from '../components/ui/Sparkline'
+import { useDebouncedNumber } from '../components/useDebouncedNumber'
 
 const KIND_ORDER: SensorKind[] = [
   'temperature',
@@ -139,6 +146,117 @@ function CoolingCard({ cooling }: { cooling: CoolingSnapshot }): React.JSX.Eleme
   )
 }
 
+/**
+ * Thermal alert control.
+ *
+ * It lives on the Sensores page because that is where the temperatures are;
+ * the decision itself is made in the main process, once per batch, and the
+ * engine only receives the colour to paint. The card never reads the sensors
+ * on its own — the page already holds the stream.
+ */
+function ThermalCard({
+  config,
+  state,
+  error,
+  onChange
+}: {
+  config: ThermalAlertConfig
+  state?: ThermalAlertState
+  error?: string | null
+  onChange: (patch: Partial<ThermalAlertConfig>) => void
+}): React.JSX.Element {
+  const [threshold, setThreshold] = useDebouncedNumber(config.thresholdC, (value) =>
+    onChange({ thresholdC: value })
+  )
+
+  const active = config.enabled && state?.active === true
+  const verdict = !config.enabled ? 'Desligado' : active ? 'Ativo' : 'Vigiando'
+  const hotLabel =
+    state && state.cpuHot && state.gpuHot ? 'CPU e GPU' : state?.source === 'gpu' ? 'GPU' : 'CPU'
+
+  const status = !config.enabled
+    ? 'Desligado. Os LEDs seguem o efeito do perfil.'
+    : !state
+      ? 'Armado; aguardando a primeira leitura de temperatura.'
+      : active
+        ? `${hotLabel} no limite — os LEDs estão na cor escolhida.`
+        : 'Dentro do limite. Os LEDs seguem o efeito do perfil.'
+
+  return (
+    <Section
+      title="Alerta térmico"
+      className="mt-6"
+      action={
+        <span className="verdict" data-alert={active}>
+          {verdict}
+        </span>
+      }
+    >
+      <label className="flex cursor-pointer items-center justify-between gap-4">
+        <span className="text-[12px] leading-relaxed text-ink-200">
+          Mudar a cor dos LEDs quando a temperatura do processador ou da placa de vídeo
+          passar do limite
+        </span>
+        <input
+          type="checkbox"
+          className="shrink-0 accent-brand-500"
+          checked={config.enabled}
+          onChange={(event) => onChange({ enabled: event.target.checked })}
+        />
+      </label>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto]">
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[10.5px] uppercase tracking-wider text-ink-400">
+              Limite
+            </span>
+            <span className="font-mono text-[11px] text-ink-200">{threshold} °C</span>
+          </div>
+          <input
+            type="range"
+            min={THERMAL_THRESHOLD_MIN}
+            max={THERMAL_THRESHOLD_MAX}
+            step={1}
+            value={threshold}
+            aria-label="Limite de temperatura do alerta"
+            onChange={(event) => setThreshold(Number(event.target.value))}
+          />
+        </div>
+
+        <div>
+          <div className="mb-1 text-[10.5px] uppercase tracking-wider text-ink-400">
+            Cor do alerta
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              className="h-8 w-11"
+              value={config.color}
+              title="Cor mostrada enquanto a temperatura estiver alta"
+              onChange={(event) => onChange({ color: event.target.value })}
+            />
+            <span className="font-mono text-[11px] text-ink-400">{config.color}</span>
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-3 text-[11.5px] leading-relaxed text-ink-300">{status}</p>
+      {config.enabled && state && (
+        <p className="mt-1 text-[11px] text-ink-500">
+          CPU {formatSensor(state.cpuC, '°C')} · GPU {formatSensor(state.gpuC, '°C')} · limite{' '}
+          {state.thresholdC} °C
+        </p>
+      )}
+      <p className="mt-2 text-[10.5px] leading-relaxed text-ink-500">
+        Conta a leitura mais alta de cada grupo. Um sensor ausente não dispara o alerta. No
+        Windows, ler estas temperaturas pode pedir permissão de administrador.
+      </p>
+      {error && <p className="mt-2 text-[11px] text-bad-500">{error}</p>}
+    </Section>
+  )
+}
+
 type KindFilter = SensorKind | 'all'
 
 /** Whether the reading deserves the inverted treatment. */
@@ -161,6 +279,30 @@ export function SensorsPage(): React.JSX.Element {
   const pausedRef = useRef(false)
   const [kind, setKind] = useState<KindFilter>('all')
   const [query, setQuery] = useState('')
+  const [thermal, setThermal] = useState<ThermalAlertConfig>(DEFAULT_THERMAL_ALERT)
+  const [thermalError, setThermalError] = useState<string | null>(null)
+  /** Read by `persistThermal`, so a delayed response or a second edit cannot
+   * build the next patch from a stale object. */
+  const thermalRef = useRef<ThermalAlertConfig>(DEFAULT_THERMAL_ALERT)
+  thermalRef.current = thermal
+
+  useEffect(() => {
+    let alive = true
+    void window.myrgb
+      .getSettings()
+      .then((settings) => {
+        if (!alive) return
+        const next = settings.thermal ?? DEFAULT_THERMAL_ALERT
+        thermalRef.current = next
+        setThermal(next)
+      })
+      .catch(() => {
+        /* the defaults stay; the page still shows the sensors */
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -223,6 +365,25 @@ export function SensorsPage(): React.JSX.Element {
 
   const visible = groups.reduce((total, [, list]) => total + list.length, 0)
 
+  const persistThermal = (patch: Partial<ThermalAlertConfig>): void => {
+    const next = { ...thermalRef.current, ...patch }
+    thermalRef.current = next
+    setThermal(next)
+    setThermalError(null)
+    void window.myrgb
+      .setSettings({ thermal: next })
+      .then((saved) => {
+        // The store normalises the threshold and the colour; show what was
+        // really saved, not the draft that was sent.
+        const normalized = saved.thermal ?? next
+        thermalRef.current = normalized
+        setThermal(normalized)
+      })
+      .catch((err: unknown) => {
+        setThermalError(err instanceof Error ? err.message : String(err))
+      })
+  }
+
   const togglePause = (): void => {
     if (paused) {
       pausedRef.current = false
@@ -274,6 +435,13 @@ export function SensorsPage(): React.JSX.Element {
           <p className="mt-2 text-[12.5px] leading-relaxed text-ink-200">{error}</p>
         </Card>
       )}
+
+      <ThermalCard
+        config={thermal}
+        state={thermal.enabled ? snapshot?.thermal : undefined}
+        error={thermalError}
+        onChange={persistThermal}
+      />
 
       {!snapshot && !error && (
         <div className="mt-8 text-[12px] text-ink-400">Coletando a primeira leitura…</div>

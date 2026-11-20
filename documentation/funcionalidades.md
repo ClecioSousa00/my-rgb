@@ -46,7 +46,7 @@ começa pela navegação e depois detalha cada tela.
 | Iluminação | Efeitos, zonas, gradiente e parâmetros (tela original) |
 | Visão geral | Hardware, limitador ao vivo, discos, saúde, rede e atalhos — **pronta** |
 | Sistema | SO, placa-mãe/BIOS, CPU, RAM, GPU e discos — **pronta** |
-| Sensores | Temperatura, clock, carga, voltagem, ventoinhas e consumo — **pronta** |
+| Sensores | Temperatura, clock, carga, voltagem, ventoinhas, consumo e alerta térmico — **pronta** |
 | Discos | Unidades, Saúde e Análise — **prontas** |
 | Rede | Latência, DNS, velocidade e bufferbloat — **pronta** |
 | Registos | Os ficheiros de log, com filtro por nível e exportação em texto — **pronta** |
@@ -212,6 +212,34 @@ escondida.
 - **Observações** no rodapé explicam o que faltou e por quê — por exemplo, que
   o driver `asus` não expôs ventoinhas, que o helper do Windows não foi
   encontrado ou que o utilizador recusou a elevação (UAC).
+
+### Alerta térmico
+
+O cartão **Alerta térmico**, no fim da página, troca a cor dos LEDs quando o
+processador ou a placa de vídeo fica quente demais. É um aviso visual, não um
+diagnóstico: os números reais continuam na tabela acima.
+
+- **Interruptor**, **limite** de 50 a 100 °C (padrão 85 °C) e a **cor** que os
+  LEDs assumem. A configuração fica em `settings.json`, não no perfil: o limite
+  é uma propriedade da máquina, não do efeito que está a ser editado.
+- **Gatilho:** a leitura mais alta de cada grupo, e só leituras de
+  **temperatura** dos grupos `cpu` e `gpu`. Um NVMe quente não dispara o
+  alerta; um sensor ausente nunca dispara (não vira zero).
+- **Histerese de 3 °C por fonte:** depois de disparar, o alerta só limpa quando
+  aquele sensor desce 3 °C abaixo do limite. Sem isso a cor piscaria a cada
+  segundo em torno do valor. CPU e GPU são acompanhadas em separado.
+- **Enquanto ativo**, todas as zonas **ligadas** ficam na cor escolhida; uma
+  zona que o utilizador desligou continua apagada, e o brilho global continua
+  a ser aplicado. O override é feito no motor, por isso a pré-visualização
+  mostra exatamente o que vai para o hardware — e ao limpar, o efeito do perfil
+  volta no quadro seguinte, sem alterar o perfil.
+- **Com o alerta armado**, a coleta de 1 s mantém uma referência extra e
+  continua mesmo com a janela escondida na bandeja — é justamente quando o
+  aviso importa. Ao desligar, a referência é liberada e o override é limpo na
+  hora.
+- **No Windows**, ler as temperaturas pode pedir permissão de administrador
+  (o mesmo UAC do helper); recusar deixa o alerta sem as leituras que faltam,
+  nunca com um número inventado.
 
 ---
 

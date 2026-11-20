@@ -30,7 +30,7 @@ MyRGB talks directly to the AURA USB controller HID protocol (`0b05:19af`). It i
 |---|---|
 | Lighting | ready (original screen) |
 | System | ready: OS, motherboard/BIOS, CPU, memory, GPU and physical disks |
-| Sensors | ready: live reading (1 s), filters, min/max, history and the cooling card (pump and fan RPM) |
+| Sensors | ready: live reading (1 s), filters, min/max, history, the cooling card (pump and fan RPM) and the **thermal alert** (chosen colour when the CPU or GPU crosses the limit) |
 | Disks | ready: Units, Health (S.M.A.R.T. / CIM) and Analysis tabs (largest files and folders, games and duplicates) |
 | Network | ready: latency, jitter, loss, DNS, speed and bufferbloat |
 | Logs | ready: log files, level filter and export as `.txt` |
@@ -183,7 +183,7 @@ Each `.bin` file contains the format header, the LED count per zone, and the RGB
 npm install          # installs and checks the node-hid native binary
 npm run dev          # electron-vite dev
 npm run typecheck    # tsc for both projects (node + web)
-npm test             # vitest (429 tests, 28 files)
+npm test             # vitest (452 tests, 29 files)
 npm run build        # production build in out/
 npm run build:helper # Windows helper: FPS and sensors (needs .NET 8 SDK)
 npm run selftest     # starts the packaged UI and checks pages, IPC and frames
