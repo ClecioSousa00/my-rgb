@@ -29,6 +29,9 @@ import { FpsService } from './features/overlay/fps'
 import { OverlayService } from './features/overlay/manager'
 import { findHelperPath, getSharedHelper, helperCandidates } from './features/overlay/helper'
 import type { OverlayState } from '@shared/features/overlay'
+import type { ThermalAlertConfig } from '@shared/features/thermal'
+import { DEFAULT_THERMAL_ALERT } from '@shared/features/thermal'
+import { hexToRgb } from '@shared/color'
 import type { DeviceInfo, Frame, Palette, Profile, RGB, ZoneState } from '@shared/types'
 import { IPC } from '@shared/types'
 import { samplePalette } from './engine/palette'
@@ -126,6 +129,15 @@ class MyRgbApp {
   /** Disk/app messages waiting for a window to show them. */
   private pendingAppErrors: string[] = []
   private quitting = false
+  /**
+   * Whether the thermal alert is holding the sensor poll open.
+   *
+   * The poll normally runs only while a page (or the overlay) needs it. With
+   * the alert armed it has to keep reading even when the window is hidden in
+   * the tray, because the warning exists precisely for when nobody is
+   * looking. The extra reference is released when the option is turned off.
+   */
+  private thermalHold = false
 
   async start(): Promise<void> {
     this.settings = new SettingsStore(app.getPath('userData'), (message) =>
@@ -220,10 +232,15 @@ class MyRgbApp {
     this.sensors = new SensorsStore({
       onBatch: (snapshot) => this.pushSensors(snapshot),
       // The overlay must keep collecting while the main window is hidden over
-      // a game, so it counts as a reason to poll.
+      // a game, so it counts as a reason to poll. The thermal alert does too:
+      // its whole point is to warn while the window is out of sight.
       canPoll: () =>
+        this.thermalHold ||
         this.overlay?.needsSensors() === true ||
         (this.window !== null && !this.window.isDestroyed() && this.window.isVisible()),
+      // Read per batch, so changing the threshold or the colour in the page
+      // applies on the next second without restarting the poll.
+      thermal: () => this.settings.settings.thermal ?? DEFAULT_THERMAL_ALERT,
       onError: (message) => this.emitAppError(`Sensores: ${message}`)
     })
 
@@ -261,6 +278,10 @@ class MyRgbApp {
     this.createTray()
     this.installIpc()
     await this.overlay.start()
+
+    // Armed after every consumer exists: `start()` polls immediately, and the
+    // first batch is delivered to the bottleneck, the engine and the window.
+    this.applyThermalGuard(this.settings.settings.thermal ?? DEFAULT_THERMAL_ALERT)
 
     if (this.settings.settings.autoStart) {
       this.startEngine()
@@ -542,6 +563,13 @@ class MyRgbApp {
     // running on this batch; it keeps its own reference on the poll. The FPS
     // sample comes from the same 500 ms poll the overlay uses.
     this.bottleneck.ingest(snapshot, this.fps?.latest()?.fps)
+
+    // The alert decision is made once, in the store; the engine only receives
+    // the colour to paint (or null to return to the profile effect).
+    this.engine.setThermalOverride(
+      snapshot.thermal?.active ? hexToRgb(snapshot.thermal.color) : null
+    )
+
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(IPC.sensorsBatch, snapshot)
     }
@@ -635,6 +663,29 @@ class MyRgbApp {
     } catch (err) {
       console.warn(`Could not change the autostart entry: ${errorMessage(err)}`)
     }
+  }
+
+  /**
+   * Arm or disarm the thermal alert.
+   *
+   * The sensor poll is reference counted like any other consumer: while the
+   * alert is armed it holds a reference that survives a hidden window, which
+   * is when the warning matters. Disarming releases the reference and clears
+   * the override at once, instead of waiting for the next batch.
+   */
+  applyThermalGuard(config: ThermalAlertConfig): void {
+    const wasArmed = this.thermalHold
+    this.thermalHold = config.enabled
+
+    if (config.enabled && !wasArmed) {
+      logger.log('info', `thermal alert: armed at ${config.thresholdC} C`)
+      this.sensors.start()
+    } else if (!config.enabled && wasArmed) {
+      logger.log('info', 'thermal alert: off')
+      this.sensors.stop()
+    }
+
+    if (!config.enabled) this.engine.setThermalOverride(null)
   }
 
   emitProfile(profile: Profile): void {

@@ -11,6 +11,8 @@
  * can reuse the same buffer without a second collector.
  */
 
+import type { ThermalAlertState } from './thermal'
+
 export type SensorKind =
   | 'temperature'
   | 'load'
@@ -101,6 +103,11 @@ export interface SensorsSnapshot {
   readings: SensorReading[]
   /** Fan and pump summary, computed from `readings`. */
   cooling?: CoolingSnapshot
+  /**
+   * Thermal alert decision for this batch, when the feature is enabled.
+   * Absent means the alert is off; the engine then keeps the profile effect.
+   */
+  thermal?: ThermalAlertState
   /** What could not be read, with the reason. */
   notes: string[]
 }

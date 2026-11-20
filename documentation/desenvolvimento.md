@@ -172,9 +172,16 @@ A página Sensores é a única que se atualiza sozinha, e o caminho é curto:
   refrigeração (bomba, ventoinhas, alarmes e notas). É uma função pura sobre
   as leituras já ordenadas, chamada depois do merge, para o cartão carregar o
   mín/máx da sessão sem recalcular nada;
+- `src/main/features/sensors/thermal.ts` — `evaluateThermal`: a decisão do
+  alerta térmico, pura sobre as leituras do lote. Usa a temperatura mais alta
+  dos grupos `cpu` e `gpu`, com histerese de 3 °C **por fonte**; devolve
+  `undefined` quando o alerta está desligado. `nextWatch` guarda o estado de
+  cada fonte para o lote seguinte;
 - `src/main/features/sensors/store.ts` — `SensorsStore`: poll de 1 s,
   contador de assinantes, mínimo/máximo/histórico (60 amostras) e pausa
-  quando a janela está escondida.
+  quando a janela está escondida. O alerta entra como mais uma razão para
+  manter o poll (`thermal()` é lido a cada lote, então mudar o limite ou a cor
+  aplica no segundo seguinte) e o resultado viaja em `SensorsSnapshot.thermal`.
 
 ### O papel de um canal de ventoinha
 
@@ -624,7 +631,7 @@ byte a byte o mesmo que aparece na prévia.
 
 ## Os testes
 
-429 testes em 28 arquivos, todos rodando em alguns segundos.
+452 testes em 29 arquivos, todos rodando em alguns segundos.
 
 | Arquivo | O que garante |
 |---|---|
@@ -638,6 +645,7 @@ byte a byte o mesmo que aparece na prévia.
 | `tests/documentation.test.ts` | A documentação está em dia e não tem link quebrado |
 | `tests/system.test.ts` | As unidades filtram pseudo-filesystems e acham o disco físico da partição |
 | `tests/sensors.test.ts` | O mapeamento dos drivers hwmon, os rótulos de bomba, o parser do nvidia-smi, as estatísticas da sessão e o resumo de refrigeração |
+| `tests/thermal.test.ts` | O alerta térmico: a leitura mais alta por grupo, a histerese por fonte, a normalização do limite/cor, a gravação em `settings.json`, o lote do `SensorsStore` e o override do motor (zonas desligadas e brilho global incluídos) |
 | `tests/health.test.ts` | O parser do `smartctl` (NVMe e ATA), a divisão da leitura privilegiada, os limites do veredito e a junção do CIM no Windows |
 | `tests/network.test.ts` | O parser do `ping` (Linux e Windows pt-BR), jitter e perda, e os limites do veredito de rede |
 | `tests/games.test.ts` | Validação da base, casamento de GPU, interpolação log-log, trava, 1% low nunca derivado, hardware desconhecido e a cobertura dos 32 destaques |
